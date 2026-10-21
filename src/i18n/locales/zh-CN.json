@@ -1,0 +1,103 @@
+{
+  "app": {
+    "name": "Daymark 日迹",
+    "tagline": "本地优先的计划与自动周报"
+  },
+  "nav": {
+    "day": "日",
+    "week": "周",
+    "month": "月",
+    "reports": "报告",
+    "settings": "设置"
+  },
+  "onboarding": {
+    "title": "选择数据存放位置",
+    "body": "Daymark 的所有数据都在一个属于你的 SQLite 文件里。选一个文件夹即可——放在坚果云、OneDrive、iCloud Drive 或 Syncthing 的同步目录里效果最好，因为同步这个文件就等于同步了你的设备。",
+    "choose": "选择文件夹",
+    "hint": "daymark.db 会创建在你选择的文件夹中。"
+  },
+  "actions": {
+    "add": "新建任务",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "complete": "标记完成",
+    "reopen": "重新打开",
+    "export": "导出 DOCX",
+    "edit": "编辑",
+    "today": "今天",
+    "prev": "上一页",
+    "next": "下一页",
+    "close": "关闭",
+    "reload": "重新载入"
+  },
+  "task": {
+    "new": "新建任务",
+    "edit": "编辑任务",
+    "title": "标题",
+    "titlePlaceholder": "要做什么？",
+    "category": "大类",
+    "uncategorized": "未分类",
+    "start": "开始",
+    "end": "结束",
+    "due": "截止",
+    "priority": "优先级",
+    "priority0": "普通",
+    "priority1": "低",
+    "priority2": "高",
+    "priority3": "紧急",
+    "notes": "备注",
+    "allDay": "全天",
+    "backlog": "待排期",
+    "completed": "已完成",
+    "scheduled": "已排期",
+    "noTasks": "暂无安排",
+    "validationTitle": "标题不能为空"
+  },
+  "reports": {
+    "title": "报告",
+    "kind": "报告类型",
+    "daily": "日报",
+    "weekly": "周报",
+    "monthly": "月报",
+    "preview": "预览",
+    "completed": "已完成 {{count}} 项",
+    "planned": "已排期 {{count}} 项",
+    "empty": "本周期没有记录",
+    "exported": "已保存到 {{path}}",
+    "exportFailed": "导出失败：{{message}}",
+    "generatedAt": "生成于 {{date}}"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "dataLocation": "数据位置",
+    "changeFolder": "更换文件夹",
+    "scanInterval": "扫描外部变更",
+    "scanIntervalValue": "{{seconds}} 秒",
+    "numbering": "报告编号方式",
+    "numberingChinese": "中文数字（一、二、三）",
+    "numberingArabic": "阿拉伯数字（1. 2. 3.）",
+    "numberingAlpha": "字母（A. B. C.）",
+    "categories": "任务大类",
+    "addCategory": "添加大类",
+    "categoryNameEn": "英文名称",
+    "categoryNameZh": "中文名称",
+    "deviceId": "设备 ID",
+    "conflict": "另一台设备写入了这个文件。重新载入以查看变更。",
+    "dataPathHint": "把文件放在同步目录里，就能在多台设备上使用 Daymark。"
+  },
+  "days": {
+    "mon": "一",
+    "tue": "二",
+    "wed": "三",
+    "thu": "四",
+    "fri": "五",
+    "sat": "六",
+    "sun": "日"
+  },
+  "common": {
+    "unnamed": "未命名",
+    "more": "还有 {{count}} 项"
+  }
+}

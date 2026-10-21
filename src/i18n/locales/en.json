@@ -1,0 +1,103 @@
+{
+  "app": {
+    "name": "Daymark",
+    "tagline": "Local-first planning, derived reports"
+  },
+  "nav": {
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "onboarding": {
+    "title": "Choose where your data lives",
+    "body": "Daymark keeps everything in a single SQLite file that you own. Pick a folder — one inside Nutstore, OneDrive, iCloud Drive or Syncthing works well, because syncing the file is what syncs your devices.",
+    "choose": "Choose folder",
+    "hint": "The file daymark.db will be created inside the folder you pick."
+  },
+  "actions": {
+    "add": "Add task",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "complete": "Mark complete",
+    "reopen": "Reopen",
+    "export": "Export DOCX",
+    "edit": "Edit",
+    "today": "Today",
+    "prev": "Previous",
+    "next": "Next",
+    "close": "Close",
+    "reload": "Reload"
+  },
+  "task": {
+    "new": "New task",
+    "edit": "Edit task",
+    "title": "Title",
+    "titlePlaceholder": "What needs to be done?",
+    "category": "Category",
+    "uncategorized": "Uncategorized",
+    "start": "Start",
+    "end": "End",
+    "due": "Due",
+    "priority": "Priority",
+    "priority0": "Normal",
+    "priority1": "Low",
+    "priority2": "High",
+    "priority3": "Urgent",
+    "notes": "Notes",
+    "allDay": "All day",
+    "backlog": "Backlog",
+    "completed": "Completed",
+    "scheduled": "Scheduled",
+    "noTasks": "Nothing scheduled",
+    "validationTitle": "A title is required"
+  },
+  "reports": {
+    "title": "Reports",
+    "kind": "Report type",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "preview": "Preview",
+    "completed": "{{count}} completed",
+    "planned": "{{count}} planned",
+    "empty": "No records in this period",
+    "exported": "Saved to {{path}}",
+    "exportFailed": "Export failed: {{message}}",
+    "generatedAt": "Generated {{date}}"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "dataLocation": "Data location",
+    "changeFolder": "Change folder",
+    "scanInterval": "Scan for external changes",
+    "scanIntervalValue": "{{seconds}} s",
+    "numbering": "Report numbering",
+    "numberingChinese": "Chinese (一、二、三)",
+    "numberingArabic": "Arabic (1. 2. 3.)",
+    "numberingAlpha": "Alphabetical (A. B. C.)",
+    "categories": "Categories",
+    "addCategory": "Add category",
+    "categoryNameEn": "English name",
+    "categoryNameZh": "Chinese name",
+    "deviceId": "Device ID",
+    "conflict": "Another device wrote to this file. Reload to see the changes.",
+    "dataPathHint": "Keep this file inside a synced folder to use Daymark on several devices."
+  },
+  "days": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
+  "common": {
+    "unnamed": "Untitled",
+    "more": "+{{count}} more"
+  }
+}
