@@ -8,6 +8,9 @@
 - [ ] Version bumped in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`.
 - [ ] `npm test` green.
 - [ ] `npm run typecheck` green.
+- [ ] A fresh clone builds: `npm ci && npm run build && (cd src-tauri && cargo check)`.
+- [ ] `git status --ignored --short` shows no source directory; every ignored
+      path is generated output or user data.
 - [ ] `cargo check` green in `src-tauri/`.
 - [ ] `npm run build` produces `dist/` without warnings that hide errors.
 - [ ] No `console.log` left in shipped code (warnings acceptable).

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateReport } from "../src/domain/reports";
+import { generateReport, reportPeriod } from "../src/domain/reports";
 import type { Category, Completion, Task } from "../src/domain/types";
 
 const categories: Category[] = [
@@ -36,6 +36,32 @@ function completion(taskId: string, completedAt: string): Completion {
 
 const periodStart = new Date("2026-10-19T00:00:00");
 const periodEnd = new Date("2026-10-25T23:59:59");
+
+describe("reportPeriod", () => {
+  it("spans the whole local day for a daily report", () => {
+    const { start, end } = reportPeriod("daily", new Date(2026, 9, 21, 15, 30));
+    expect([start.getHours(), start.getMinutes(), start.getSeconds()]).toEqual([0, 0, 0]);
+    expect([end.getHours(), end.getMinutes(), end.getSeconds()]).toEqual([23, 59, 59]);
+    expect(end.getDate()).toBe(21);
+    expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000 - 1);
+  });
+
+  it("starts weeks on Monday", () => {
+    // 2026-10-21 is a Wednesday.
+    const { start, end } = reportPeriod("weekly", new Date(2026, 9, 21));
+    expect(start.getDay()).toBe(1);
+    expect(start.getDate()).toBe(19);
+    expect(end.getDate()).toBe(25);
+  });
+
+  it("spans the calendar month", () => {
+    const { start, end } = reportPeriod("monthly", new Date(2026, 1, 10));
+    expect(start.getMonth()).toBe(1);
+    expect(start.getDate()).toBe(1);
+    expect(end.getMonth()).toBe(1);
+    expect(end.getDate()).toBe(28);
+  });
+});
 
 describe("generateReport", () => {
   it("derives completed and planned work, grouped by category order", () => {
@@ -105,6 +131,24 @@ describe("generateReport", () => {
     expect(report.sections).toHaveLength(1);
     expect(report.sections[0].categoryName).toBe("未分类");
     expect(report.title).toBe("日报");
+  });
+
+  it("treats a date-only due value as a local calendar day", () => {
+    const due = task({ title: "File expenses", dueAt: "2026-10-21" });
+    const report = generateReport({
+      kind: "daily",
+      language: "en",
+      periodLabel: "2026-10-21",
+      periodStart: new Date(2026, 9, 21),
+      periodEnd: new Date(2026, 9, 21),
+      numbering: "arabic",
+      categories,
+      tasks: [due],
+      completions: [],
+    });
+
+    expect(report.scheduledCount).toBe(1);
+    expect(report.sections[0].items[0]).toMatchObject({ text: "File expenses", completed: false });
   });
 
   it("does not count a completed task twice", () => {

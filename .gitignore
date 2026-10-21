@@ -17,7 +17,9 @@ dist-ssr
 *.sqlite
 *.sqlite3
 daymark.db
-reports/
+# Root-level output folder only. A bare "reports/" would also ignore
+# src/features/reports/ and silently drop the report feature from the repo.
+/reports/
 
 # Editor directories and files
 .vscode/*

@@ -24,6 +24,46 @@ export interface ReportInput {
   generatedAt?: Date;
 }
 
+export interface ReportPeriod {
+  /** First moment of the period in local time. */
+  start: Date;
+  /** Last moment of the period in local time, inclusive. */
+  end: Date;
+}
+
+/**
+ * Canonical period boundaries for a report. Weeks start on Monday. Every kind
+ * spans whole local days, which is what the completion query and the report
+ * filter both expect.
+ */
+export function reportPeriod(kind: ReportKind, anchor: Date): ReportPeriod {
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const day = anchor.getDate();
+
+  if (kind === "daily") {
+    return {
+      start: new Date(year, month, day),
+      end: new Date(year, month, day, 23, 59, 59, 999),
+    };
+  }
+
+  if (kind === "weekly") {
+    // getDay(): Sunday = 0. Shift so Monday = 0.
+    const offsetFromMonday = (anchor.getDay() + 6) % 7;
+    const start = new Date(year, month, day - offsetFromMonday);
+    return {
+      start,
+      end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999),
+    };
+  }
+
+  return {
+    start: new Date(year, month, 1),
+    end: new Date(year, month + 1, 0, 23, 59, 59, 999),
+  };
+}
+
 const UTC_UNCATEGORIZED = "uncategorized";
 
 /**
@@ -62,7 +102,7 @@ export function generateReport(input: ReportInput): ReportDocument {
       pushItem(sections, categoryKey(task), {
         taskId: task.id,
         text: task.title,
-        date: completionDates[0]?.completedAt.slice(0, 10) ?? null,
+        date: localDateKey(completionDates[0]?.completedAt),
         completed: true,
       });
       continue;
@@ -138,9 +178,28 @@ function pushItem(map: Map<string, ReportItem[]>, key: string, item: ReportItem)
 
 function isWithin(value: string | null, from: number, to: number): boolean {
   if (!value) return false;
-  const time = new Date(value).getTime();
+  const time = parseLocal(value);
   if (Number.isNaN(time)) return false;
   return time >= from && time <= to;
+}
+
+/**
+ * Task schedule values are local wall-clock strings. A date-only value (all-day
+ * start, due date) must be read as local midnight; JavaScript otherwise parses
+ * it as UTC, which shifts it to the previous day west of UTC.
+ */
+function parseLocal(value: string): number {
+  return new Date(value.length === 10 ? `${value}T00:00:00` : value).getTime();
+}
+
+/** Local calendar date of a UTC completion timestamp, as YYYY-MM-DD. */
+function localDateKey(value: string | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function startOfDay(date: Date): Date {

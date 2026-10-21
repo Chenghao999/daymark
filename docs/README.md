@@ -21,6 +21,31 @@ corresponding area is built.
 | 10 | [Build and distribution](10-build-distribution.md) | 构建与分发 | ✅ |
 | 11 | [Test plan](11-test-plan.md) | 测试计划 | ✅ |
 | 12 | [Release checklist](12-release-checklist.md) | 发布检查清单 | ✅ |
+| 13 | [Repository map](13-repository-map.md) | 文件结构与职责 | ✅ |
+| 14 | [Interface reference](14-interface-reference.md) | 接口与权限契约 | ✅ |
+| 15 | [User guide](15-user-guide.md) | 使用说明 | ✅ |
+| 16 | [Data and sync operations](16-data-sync-operations.md) | 数据同步操作手册 | ✅ |
+| 17 | [Troubleshooting](17-troubleshooting.md) | 故障排查 | ✅ |
+| 18 | [Development guide](18-development-guide.md) | 开发指南 | ✅ |
 
 Legend: ✅ implemented or directly reflected in code · 🟡 design agreed, code
 incomplete.
+
+## Reading paths · 阅读路径
+
+| Role | Order |
+|---|---|
+| End user · 使用者 | 15 → 16 → 17 |
+| New contributor · 新开发者 | 04 → 13 → 14 → 18 → 11 |
+| Support / ops · 支持与运维 | 16 → 17 → 05 |
+| Maintainer · 维护者 | 01 → 05 → 06 → 14 → 12 |
+| Release manager · 发布负责人 | 10 → 11 → 12 → 18 |
+
+## Maintenance rule · 维护规则
+
+Code and documentation change together. A file added or moved updates doc 13; an
+interface, command or permission change updates doc 14; a schema change updates
+doc 05 and 14. Doc 18 §10 lists the full mapping.
+
+代码与文档必须同一次提交更新：改文件结构更新 13，改接口/命令/权限更新 14，
+改表结构更新 05 和 14。完整对应表见 18 §10。
