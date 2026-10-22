@@ -454,9 +454,63 @@ Contract:
 
 The scanner detects change, not authorship.
 
+### WebDAV sync (`src/sync/webdav/`, `src/settings/webdav.ts`)
+
+```ts
+interface WebDavConfig {
+  url: string;                        // server base, no trailing slash required
+  remotePath: string;                 // normalised to "/…/"; default "/daymark/"
+  username: string;
+  password: string;                   // device-local only, never in _settings.md
+}
+
+normalizeRemotePath(path: string): string
+remoteRootUrl(config: WebDavConfig): string
+remoteFileUrl(config: WebDavConfig, path: string, directory?: boolean): string
+relativeHref(href: string, rootUrl: string): string | null
+parsePropfind(xml: string): { href, isDirectory, size, etag, lastModified }[]
+
+class WebDavClient {
+  constructor(config: WebDavConfig);
+  test(): Promise<void>;
+  list(path?: string): Promise<RemoteEntry[]>;
+  listTree(): Promise<RemoteEntry[]>;
+  getText(path: string): Promise<string>;
+  mkcol(path?: string): Promise<void>;
+  putText(path: string, text: string): Promise<void>;
+}
+
+sha256(text: string): Promise<string>
+localManifest(root: string, io?: ManifestIo): Promise<{ hashes: Map<string,string>; texts: Map<string,string> }>
+planSync(local: Map<string,string>, remote: Map<string,string>, baseline: Baseline): SyncPlan
+syncWebDav(config: WebDavConfig, root: string, options?: SyncOptions): Promise<SyncResult>
+
+loadWebDavSettings(): WebDavConfig
+saveWebDavSettings(config: WebDavConfig): void
+isWebDavConfigured(config: WebDavConfig): boolean
+```
+
+Contract:
+
+1. `localManifest` includes only `_settings.md`, `_categories.md`,
+   `_backlog.md` and `YYYY-MM/YYYY-MM-DD.md`. Conflict copies and hand-written
+   extras are not uploaded.
+2. `planSync` is pure and never deletes: unchanged hashes are skipped; a change
+   on one side wins; changes on both sides become conflicts, as does a first
+   sync where both sides already have the same path with different content.
+3. `syncWebDav` reads both sides completely before writing anything. A remote
+   read failure aborts the run with no writes.
+4. On conflict, the local file keeps its path and the remote text is written as
+   `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md`; the baseline entry is not
+   advanced, so the next run reports the same conflict until it is merged.
+5. `putText` writes `<path>.daymark-tmp` then `MOVE`s it over the target, and
+   falls back to a direct `PUT` when the server answers 405/501.
+6. `syncWebDav` does not touch React state; the caller reloads the store and
+   calls `scanner.touch()` (or `reloadFromDisk()` when files were downloaded).
+
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 
-All ten commands are registered in one `generate_handler!` list. Rust structs
+All eleven commands are registered in one `generate_handler!` list. Rust structs
 are serialised with `#[serde(rename_all = "camelCase")]`, so the TypeScript side
 sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. Each has a typed wrapper in
 `src/storage/fs.ts` (§5).
@@ -473,6 +527,7 @@ sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. Each has a type
 | `remove_file` | `{ path: string }` | `null` | A missing file is also success; used when a day file becomes empty. |
 | `rename_path` | `{ from: string, to: string }` | `null` | Used to retire the legacy database. |
 | `file_mtime_ms` | `{ path: string }` | `number \| null` | Kept for compatibility; never errors. New code uses `tree_signature`. |
+| `webdav_request` | `{ method: string, url: string, username?: string, password?: string, body?: string, depth?: string, headers?: Record<string,string> }` | `{ status: number, body: string, etag: string \| null, lastModified: string \| null }` | Raw WebDAV transport in `src-tauri/src/webdav.rs`; 45 s timeout, Basic auth only when a username is given. Non-2xx statuses are returned as data, not errors. Called by `sync/webdav/client.ts`. |
 
 Error convention: `Result<T, String>` — a rejection carries the OS message. A
 missing file is not an error for `read_text_file`, `remove_file` or
@@ -509,6 +564,7 @@ Rules:
 | `invoke("tree_signature")` | `sync/scanner.ts` | Folder change polling. |
 | `invoke("read_text_file" / "write_text_file")` | `storage/fs.ts` | Text reads and atomic writes. |
 | `invoke("list_dir" / "path_exists" / "create_dir_all" / "remove_file" / "rename_path")` | `storage/fs.ts` | Store loading and cleanup. |
+| `invoke("webdav_request")` | `sync/webdav/client.ts` | WebDAV `PROPFIND`/`GET`/`PUT`/`MOVE`/`MKCOL` transport. |
 | `Database.load/select/close` | `storage/migrate.ts` | One-time legacy migration only. |
 
 ## 16. Browser storage keys
@@ -517,6 +573,8 @@ Rules:
 |---|---|---|---|
 | `daymark.settings.v1` | `settings/store.ts` | JSON `AppSettings` including `dataDir` | No — device-local |
 | `daymark.deviceId` | `storage/device.ts` | UUID string | No — device-local |
+| `daymark.webdav.v1` | `settings/webdav.ts` | JSON `WebDavConfig`, including the password | No — device-local, never in `_settings.md` |
+| `daymark.webdav.baseline.v1` | `sync/webdav/baseline.ts` | JSON `Baseline` keyed by URL + remote path | No — per-device merge state |
 
 Clearing site data resets the device ID and the chosen folder. The data folder
 itself is unaffected.

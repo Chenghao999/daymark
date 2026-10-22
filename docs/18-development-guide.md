@@ -146,6 +146,11 @@ doc 14; the table below is the map of who may call what.
 | `storage/settingsFile.ts` | `loadSyncedSettings`, `saveSyncedSettings` (plus the codec) | `App.tsx` | read or write `_settings.md` by hand |
 | `storage/migrate.ts` | `migrateLegacyDatabase` | `client.ts` only | copy a legacy folder, run once |
 | `sync/scanner.ts` | `startFolderScanner(options) → { stop, touch }` | `App.tsx` | inject a recording `onExternalChange` |
+| `sync/webdav/engine.ts` | `syncWebDav(config, root, options) → SyncResult` | `App.tsx` | fake `WebDavClient`/`ManifestIo`, or unit-test `planSync` alone |
+| `sync/webdav/plan.ts` | `planSync(local, remote, baseline) → SyncPlan` | `engine.ts`, tests | pure maps in, plan out |
+| `sync/webdav/client.ts` | `WebDavClient` and the URL/PROPFIND helpers | `engine.ts`, `App.tsx` (test button), tests | unit-test helpers; network goes through `webdav_request` |
+| `sync/webdav/manifest.ts` | `localManifest(root, io?)`, `sha256` | `engine.ts`, tests | inject `ManifestIo` |
+| `settings/webdav.ts` | `loadWebDavSettings`, `saveWebDavSettings`, `isWebDavConfigured` | `App.tsx` | stub `localStorage` |
 | `settings/store.ts` | `AppSettings`, `SyncedSettings`, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart` | `App.tsx`, `i18n`, `SettingsView`, `storage/settingsFile.ts` | stub `localStorage` |
 
 Rules that keep this useful:

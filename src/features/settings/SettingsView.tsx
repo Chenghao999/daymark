@@ -2,16 +2,24 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppLanguage, Category, NumberingStyle } from "../../domain/types";
 import type { AppSettings } from "../../settings/store";
+import type { WebDavConfig } from "../../sync/webdav/types";
 
 interface SettingsViewProps {
   settings: AppSettings;
   categories: Category[];
   deviceId: string;
+  webdav: WebDavConfig;
+  webdavBusy: boolean;
+  webdavStatus: string | null;
+  webdavConflicts: string[];
   onLanguage: (language: AppLanguage) => Promise<void>;
   onChangeFolder: () => Promise<void>;
   onPatch: (patch: Partial<AppSettings>) => void;
   onAddCategory: (nameEn: string, nameZh: string, color: string) => Promise<void>;
   onArchiveCategory: (id: string) => Promise<void>;
+  onWebdavPatch: (patch: Partial<WebDavConfig>) => void;
+  onWebdavTest: () => Promise<void>;
+  onWebdavSync: () => Promise<void>;
 }
 
 const COLORS = ["#5b8def", "#e0a03a", "#7f8c9a", "#4bb37a", "#c96b9b", "#8a6bd1", "#4aa3a3", "#c0574f"];
@@ -20,11 +28,18 @@ export default function SettingsView({
   settings,
   categories,
   deviceId,
+  webdav,
+  webdavBusy,
+  webdavStatus,
+  webdavConflicts,
   onLanguage,
   onChangeFolder,
   onPatch,
   onAddCategory,
   onArchiveCategory,
+  onWebdavPatch,
+  onWebdavTest,
+  onWebdavSync,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [nameEn, setNameEn] = useState("");
@@ -140,6 +155,84 @@ export default function SettingsView({
         <p className="muted small">
           {t("settings.deviceId")}: <code>{deviceId}</code>
         </p>
+      </section>
+
+      <section className="settings-card">
+        <h2>{t("settings.webdav")}</h2>
+        <p className="muted small">{t("settings.webdavHint")}</p>
+
+        <label className="field">
+          <span>{t("settings.webdavUrl")}</span>
+          <input
+            value={webdav.url}
+            onChange={(event) => onWebdavPatch({ url: event.currentTarget.value })}
+            placeholder={t("settings.webdavUrlPlaceholder")}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+
+        <label className="field">
+          <span>{t("settings.webdavRemotePath")}</span>
+          <input
+            value={webdav.remotePath}
+            onChange={(event) => onWebdavPatch({ remotePath: event.currentTarget.value })}
+            placeholder="/daymark/"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <p className="muted small">{t("settings.webdavRemotePathHint")}</p>
+
+        <div className="field-row">
+          <label className="field">
+            <span>{t("settings.webdavUsername")}</span>
+            <input
+              value={webdav.username}
+              onChange={(event) => onWebdavPatch({ username: event.currentTarget.value })}
+              autoComplete="username"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span>{t("settings.webdavPassword")}</span>
+            <input
+              type="password"
+              value={webdav.password}
+              onChange={(event) => onWebdavPatch({ password: event.currentTarget.value })}
+              autoComplete="current-password"
+            />
+          </label>
+        </div>
+        <p className="muted small">{t("settings.webdavPasswordHint")}</p>
+
+        <div className="button-row">
+          <button disabled={webdavBusy} onClick={() => void onWebdavTest()}>
+            {t("settings.webdavTest")}
+          </button>
+          <button
+            className="ghost"
+            disabled={webdavBusy || !webdav.url.trim()}
+            onClick={() => void onWebdavSync()}
+          >
+            {t("settings.webdavSync")}
+          </button>
+        </div>
+
+        {webdavStatus ? <p className="muted small">{webdavStatus}</p> : null}
+
+        {webdavConflicts.length > 0 ? (
+          <div>
+            <p className="muted small">{t("settings.webdavConflicts")}</p>
+            <ul className="conflict-list">
+              {webdavConflicts.map((name) => (
+                <li key={name}>
+                  <code>{name}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       <section className="settings-card">

@@ -101,12 +101,19 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | File | Responsibility |
 |---|---|
 | `scanner.ts` | `startFolderScanner` polls `tree_signature(root)`; calls `onExternalChange` when the folder changed without Daymark writing it; `touch()` re-baselines after a local write. Detection only — no merge. |
+| `webdav/types.ts` | `WebDavConfig`, `RemoteEntry`, `Baseline`, `SyncPlan`, `SyncProgress`, `SyncResult`. Types only. |
+| `webdav/client.ts` | Pure URL/href/PROPFIND helpers plus `WebDavClient` (`test`, `list`, `listTree`, `getText`, `mkcol`, `putText`). The only module that knows WebDAV verbs; transport is the Rust `webdav_request` command. |
+| `webdav/manifest.ts` | `sha256`, `localManifest(root, io?)` over `_settings.md`, `_categories.md`, `_backlog.md` and valid day files. `ManifestIo` lets tests inject a fake file system. |
+| `webdav/plan.ts` | Pure `planSync(local, remote, baseline)` → uploads, downloads, conflicts, unchanged. No deletions and no silent overwrite. |
+| `webdav/baseline.ts` | Device-local SHA-256 baseline (`daymark.webdav.baseline.v1`), keyed by URL + remote path. |
+| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; conflict copies, progress callback, per-file errors. |
 
 ### 3.5 Device settings (`src/settings/`)
 
 | File | Responsibility |
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
+| `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
@@ -118,7 +125,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `features/calendar/MonthView.tsx` | Month grid with per-day task counts; honours `weekStartsOn`; clicking a day opens the day view. |
 | `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export. |
 | `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, asks for a path, writes via `write_file_bytes`. |
-| `features/settings/SettingsView.tsx` | Language, week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, category add/archive, device ID display. |
+| `features/settings/SettingsView.tsx` | Language, week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync, status, conflict list), category add/archive, device ID display. |
 
 ### 3.7 Internationalisation (`src/i18n/`)
 
@@ -137,6 +144,9 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `periods.test.ts` | Week start, assessment month and assessment year boundaries. |
 | `markdown.test.ts` | Category parsing/serialization, day-file round-trip, extras, hand-checked boxes. |
 | `settingsFile.test.ts` | `_settings.md` JSON comment vs bullet list, fallback and clamping. |
+| `webdavPlan.test.ts` | Upload/download/unchanged/conflict decisions, first sync, stale baseline, no deletions. |
+| `webdavClient.test.ts` | Remote path normalisation, URL encoding, href resolution, PROPFIND parsing with and without namespaces. |
+| `webdavManifest.test.ts` | File whitelist, content hashing, files that disappear mid-scan. |
 
 Tests import only `src/domain/*` and `src/storage/markdown.ts` /
 `src/storage/settingsFile.ts`; no Tauri mocks are needed for those modules. The
@@ -151,7 +161,8 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `Cargo.lock` | Committed so desktop builds are reproducible. |
 | `build.rs` | Standard `tauri_build::build()`. |
 | `src/main.rs` | Calls `daymark_lib::run()`. |
-| `src/lib.rs` | Plugin registration and the file IPC commands (`file_mtime_ms`, `read_text_file`, `write_text_file`, `write_file_bytes`, `create_dir_all`, `list_dir`, `path_exists`, `remove_file`, `rename_path`, `tree_signature`). Keep this file small. |
+| `src/lib.rs` | Plugin registration, the file IPC commands (`file_mtime_ms`, `read_text_file`, `write_text_file`, `write_file_bytes`, `create_dir_all`, `list_dir`, `path_exists`, `remove_file`, `rename_path`, `tree_signature`) and `webdav_request`. Keep this file small. |
+| `src/webdav.rs` | Minimal WebDAV transport with `reqwest`: one `webdav_request(method, url, …)` command, 45 s timeout, optional Basic auth, HTTP errors returned to the caller. No sync logic. |
 | `tauri.conf.json` | Product name, identifier, window size, dev URL, bundle targets and icons. |
 | `capabilities/default.json` | The permission allow-list for the main window. `sql:*` remains only for the one-time migration. |
 | `icons/` | Bundle icons referenced by `tauri.conf.json`. |
@@ -181,7 +192,7 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `16-data-sync-operations.md` | Multi-device setup, conflict handling, backup/restore. |
 | `17-troubleshooting.md` | Symptom → cause → action. |
 | `18-development-guide.md` | Environment, workflow, change playbooks, conventions. |
-| `19-roadmap.md` | WebDAV, AI assistant and CalDAV plan (not implemented). |
+| `19-roadmap.md` | Milestones, WebDAV first-version status (§3.8), AI assistant and CalDAV plan. |
 
 ## 4. Generated files — do not edit
 

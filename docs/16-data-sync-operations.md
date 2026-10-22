@@ -227,8 +227,10 @@ The planned merge (doc 06 §4) will:
 - resolve conflicts per field with explicit UI choices;
 - remove the requirement that only one device edits a given day.
 
-WebDAV sync and the AI assistant are separate roadmap items; see
-`19-roadmap.md`. Until merge ships, this manual's rules are the supported
+Manual WebDAV sync (`Settings → WebDAV sync`) is a separate path for devices
+without a desktop sync client: it uploads/downloads the same files and produces
+conflict copies instead of merging. The AI assistant remains a roadmap item; see
+`19-roadmap.md` §3.8. Until merge ships, this manual's rules are the supported
 operating procedure.
 
 ## 13. Operations checklist

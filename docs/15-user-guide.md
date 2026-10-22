@@ -175,6 +175,7 @@ simply returns to the app. The suggested file name is
 | Report numbering | Chinese / Arabic / Alphabetical | Synced; used by previews and exports. |
 | Scan for external changes | 30 s / 60 s / 300 s | Synced; how often the folder is polled. |
 | Data location | absolute folder | Device-local; **Change folder** opens another folder. |
+| WebDAV sync | server URL, remote folder, username, password | Device-local; nothing in this card is written to the data folder. |
 | Categories | add (English + Chinese names, colour) / archive | Shared, stored in `_categories.md`. |
 | Device ID | read-only UUID | Device-local; identifies this installation. |
 
@@ -187,6 +188,44 @@ is no restore button in 0.1.0; you can set `"archived": false` by hand in
 **中文要点：** 语言、周起始日、考核周期、编号、扫描间隔写入 `_settings.md`，
 会随文件夹同步；数据文件夹路径和设备 ID 是本机设置。删除分类等于归档，可以
 手工改 `_categories.md` 恢复。
+
+### WebDAV sync
+
+The WebDAV card uploads the same Markdown files to a WebDAV folder, for when a
+desktop sync client is not available. It is manual: nothing runs in the
+background, and a sync only happens when you press **Sync now**.
+
+1. Enter the server URL (for example `https://dav.jianguoyun.com/dav`), the
+   remote folder (default `/daymark/`, created on first sync) and your
+   credentials.
+2. Press **Test connection**. It checks the URL and that the remote folder is
+   reachable; a missing remote folder is created by the first sync instead.
+3. Press **Sync now**. The status line shows the phase and file count; the
+   result line shows how many files were uploaded, downloaded and left in
+   conflict.
+
+How a sync decides:
+
+- Only the local file changed → upload. Only the remote file changed →
+  download. Identical content → skip.
+- Both sides changed the same file → **conflict**. Daymark keeps the local file
+  under its name, downloads the remote version as
+  `<name> (conflict <device> <date>).md`, and lists the copy in Settings. Merge
+  the two by hand, then delete the conflict copy and sync again.
+- A file that exists on both sides with different content on the very first
+  sync is also a conflict; Daymark never guesses which side is newer.
+- **Nothing is ever deleted** by a sync. Deleting a file on one side does not
+  delete it on the other.
+
+The password is stored in this device's local app data only. It is never
+written to `_settings.md` or the data folder, so it does not travel to other
+devices or into backups. Use an app-specific password when the server offers
+one.
+
+**中文要点：** WebDAV 是手动同步：填地址、远端目录和账号，先测试连接，再点
+“立即同步”。两边都改过的文件不会互相覆盖，远端版本会另存为
+`(conflict …)` 副本供手工合并；同步不会删除任何文件。密码只存在本机，
+不会写进 `_settings.md`。
 
 ## 9. External changes and the reload banner
 
@@ -242,12 +281,14 @@ choose the copied folder on first launch.
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
 | CalDAV is not implemented | `source` and `externalUid` are reserved fields only. |
-| WebDAV sync and the AI assistant are roadmap items | Not available in this build; see `19-roadmap.md`. |
+| WebDAV sync is manual and first-version | No background sync, no three-way merge, no deletions; conflicts produce copies you merge by hand. It has not been tested against every WebDAV server. |
+| AI assistant is a roadmap item | Not available in this build; see `19-roadmap.md`. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
-**中文要点：** 0.1.0 没有自动合并、没有 CalDAV/WebDAV、没有 AI 助手、没有提醒
-和搜索；重新打开任务会清除其完成时间；归档分类需要在文件里手工恢复。
+**中文要点：** 0.1.0 的 WebDAV 只支持手动同步、不做自动合并、不删除文件；
+没有 CalDAV、AI 助手、提醒和搜索；重新打开任务会清除其完成时间；归档分类需要
+在文件里手工恢复。
 
 ## 12. Quick reference
 
@@ -263,4 +304,5 @@ choose the copied folder on first launch.
 | Move my data | Close the app, copy the folder, then Settings → Change folder. |
 | Recover an old SQLite file | Look for `daymark.db.migrated-*` in the folder (see doc 16). |
 | Use two computers | Put the folder in a synced directory and read doc 16 first. |
+| Sync without a desktop client | Settings → WebDAV sync → Test connection → Sync now. |
 | Fix a problem | See `17-troubleshooting.md`. |

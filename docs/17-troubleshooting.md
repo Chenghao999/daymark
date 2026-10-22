@@ -168,7 +168,8 @@ Read `15-user-guide.md` §11 before filing an issue:
 - no automatic merge between devices; the same day is last-writer-wins;
 - reopening a task clears its completion timestamp;
 - archived categories cannot be restored in the UI;
-- no CalDAV, WebDAV, AI assistant, reminders, search or tags yet;
+- WebDAV sync is manual, never deletes and does not merge conflicts;
+- no CalDAV, AI assistant, reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.
 

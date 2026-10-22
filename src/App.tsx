@@ -19,7 +19,15 @@ import {
 } from "./storage/repository";
 import { loadSyncedSettings, saveSyncedSettings } from "./storage/settingsFile";
 import { loadSettings, sanitize, saveSettings, type AppSettings } from "./settings/store";
+import {
+  isWebDavConfigured,
+  loadWebDavSettings,
+  saveWebDavSettings,
+} from "./settings/webdav";
 import { startFolderScanner, type FolderScanner } from "./sync/scanner";
+import { WebDavClient } from "./sync/webdav/client";
+import { syncWebDav } from "./sync/webdav/engine";
+import type { WebDavConfig } from "./sync/webdav/types";
 import TaskEditor, { type TaskDraft } from "./components/TaskEditor";
 import WeekView from "./features/calendar/WeekView";
 import DayView from "./features/calendar/DayView";
@@ -42,6 +50,10 @@ export default function App() {
   const [draftDate, setDraftDate] = useState<Date | null>(null);
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [webdav, setWebdav] = useState<WebDavConfig>(() => loadWebDavSettings());
+  const [webdavBusy, setWebdavBusy] = useState(false);
+  const [webdavStatus, setWebdavStatus] = useState<string | null>(null);
+  const [webdavConflicts, setWebdavConflicts] = useState<string[]>([]);
   const bootedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
 
@@ -219,6 +231,73 @@ export default function App() {
     });
   }, []);
 
+  const patchWebdav = useCallback((patch: Partial<WebDavConfig>) => {
+    setWebdav((current) => {
+      const next = { ...current, ...patch };
+      saveWebDavSettings(next);
+      return next;
+    });
+  }, []);
+
+  async function testWebdav() {
+    if (!isWebDavConfigured(webdav)) {
+      setWebdavStatus(t("settings.webdavNotConfigured"));
+      return;
+    }
+    setWebdavBusy(true);
+    setWebdavStatus(t("settings.webdavTesting"));
+    try {
+      await new WebDavClient(webdav).test();
+      setWebdavStatus(t("settings.webdavTestOk"));
+    } catch (cause) {
+      setWebdavStatus(
+        `${t("settings.webdavTestFailed")}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    } finally {
+      setWebdavBusy(false);
+    }
+  }
+
+  async function runWebdavSync() {
+    if (!isWebDavConfigured(webdav)) {
+      setWebdavStatus(t("settings.webdavNotConfigured"));
+      return;
+    }
+    setWebdavBusy(true);
+    setWebdavConflicts([]);
+    setWebdavStatus(t("settings.webdavSyncing"));
+    try {
+      const result = await syncWebDav(webdav, settings.dataDir, {
+        onProgress: (progress) =>
+          setWebdavStatus(
+            t("settings.webdavProgress", {
+              phase: t(`settings.webdavPhase_${progress.phase}`),
+              done: progress.done,
+              total: progress.total,
+            }),
+          ),
+      });
+      setWebdavConflicts(result.conflictCopies);
+      setWebdavStatus(
+        result.errors.length > 0
+          ? `${t("settings.webdavError")}: ${result.errors.slice(0, 3).join("; ")}`
+          : t("settings.webdavResult", {
+              uploaded: result.uploaded,
+              downloaded: result.downloaded,
+              conflicts: result.conflicts.length,
+            }),
+      );
+      if (result.downloaded > 0) await reloadFromDisk();
+      else await touchScanner();
+    } catch (cause) {
+      setWebdavStatus(
+        `${t("settings.webdavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    } finally {
+      setWebdavBusy(false);
+    }
+  }
+
   if (!settings.dataDir || (!ready && !error)) {
     return (
       <div className="onboarding">
@@ -385,6 +464,13 @@ export default function App() {
               settings={settings}
               categories={categories}
               deviceId={readDeviceId()}
+              webdav={webdav}
+              webdavBusy={webdavBusy}
+              webdavStatus={webdavStatus}
+              webdavConflicts={webdavConflicts}
+              onWebdavPatch={patchWebdav}
+              onWebdavTest={testWebdav}
+              onWebdavSync={runWebdavSync}
               onLanguage={changeLanguage}
               onChangeFolder={chooseFolder}
               onPatch={patchSettings}

@@ -67,11 +67,12 @@ Priority: **P0** must ship in 0.1 · **P1** should ship · **P2** optional.
 | F-23 | Windows portable build | P0 | build config ready, unverified |
 | F-24 | Unsigned macOS distribution | P0 | build config ready |
 | F-25 | Modular deployment, external resources | P1 | partial |
-| F-26 | WebDAV sync | P2 | roadmap only, see doc 19 |
+| F-26 | WebDAV sync | P2 | first version: manual sync, conflict copies; see doc 19 §3.8 |
 | F-27 | AI assistant | P2 | roadmap only, see doc 19 |
 
-F-26 and F-27 are user-requested roadmap items. Neither is implemented; doc 19
-holds the full plan.
+F-27 is a user-requested roadmap item and is not implemented. F-26 has a first
+version (manual, no background sync, no in-app merge); doc 19 holds the status
+and the remaining plan.
 
 ## 5. Non-functional requirements
 

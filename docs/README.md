@@ -27,7 +27,7 @@ corresponding area is built.
 | 16 | [Data and sync operations](16-data-sync-operations.md) | 数据同步操作手册 | ✅ |
 | 17 | [Troubleshooting](17-troubleshooting.md) | 故障排查 | ✅ |
 | 18 | [Development guide](18-development-guide.md) | 开发指南 | ✅ |
-| 19 | [Roadmap](19-roadmap.md) | 路线图：WebDAV、AI 与模块化计划 | 🟡 plan only |
+| 19 | [Roadmap](19-roadmap.md) | 路线图：WebDAV（第一版已实现）、AI 与模块化计划 | 🟡 partly implemented |
 
 Legend: ✅ implemented or directly reflected in code · 🟡 design agreed, code
 incomplete.

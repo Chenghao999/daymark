@@ -100,8 +100,11 @@ After resolution the day file is written once, with a fresh `rowVersion`.
 
 ## 5. Roadmap
 
-WebDAV sync and the AI assistant are roadmap items only and are not implemented;
-see `19-roadmap.md` for the plan. CalDAV remains design-only (doc 07).
+Manual WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
+a per-device baseline and produces conflict copies, but it does **not** merge —
+the sections above remain the design for merging. Background sync and the AI
+assistant are still roadmap items; see `19-roadmap.md` §3.8 and §4. CalDAV
+remains design-only (doc 07).
 
 ## 6. Non-goals
 

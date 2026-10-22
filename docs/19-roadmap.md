@@ -1,8 +1,9 @@
 # 19 · Roadmap: WebDAV sync, AI assistant and the modular plan
 # 19 · 路线图：WebDAV 同步、AI 助手与模块化开发计划
 
-> Status: **plan only / 仅规划**。本文描述尚未实现的能力，代码中不包含对应
-> 模块。已实现的部分见 01-18 号文档。
+> Status: **partly implemented / 部分实现**。M0–M3 已落地（WebDAV 第一版见
+> §3.8）；AI、自动合并与 CalDAV 仍是计划。已实现的模块以 01-18 号文档为准，
+> 本文只记录路线与取舍。
 >
 > 日期：2026-10-22。基线版本 `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
@@ -29,7 +30,7 @@
 | M0 | Markdown 存储 | — | 已完成：`src/storage/*`、`_settings.md`、迁移 |
 | M1 | 自定义考核周期与年报 | M0 | 已完成：`src/domain/periods.ts`、年报页签 |
 | M2 | 周起始日设置 | M0 | 已完成：`weekStartsOn`，日/周/月视图与周报共用 |
-| M3 | WebDAV 同步 | M0、M2 | `src/sync/webdav/*`、设置页“同步”卡片 |
+| M3 | WebDAV 同步 | M0、M2 | 第一版已完成：`src/sync/webdav/*`、设置页 “WebDAV sync” 卡片（见 §3.8） |
 | M4 | AI 助手（报告润色 / 周回顾） | M0、M1 | `src/ai/*`、报告页“AI 润色” |
 | M5 | AI 自然语言录入 | M4 | 任务编辑器中的“用一句话创建” |
 | M6 | 自动合并与 CalDAV | M3 | 06/07 号文档的设计落地 |
@@ -69,7 +70,7 @@ WebDAV 服务，而不依赖某一家桌面同步盘。桌面同步盘（iCloud�
 |---|---|---|---|
 | `webdavUrl` | 本地 localStorage | 否 | 每个设备可以指向不同服务 |
 | `webdavUsername` | 本地 localStorage | 否 | |
-| `webdavPassword` | 系统钥匙串（M3 第一版可用 localStorage，需在 UI 明示风险） | **绝不** | 不能写进 `_settings.md`，否则密码会随文件夹同步出去 |
+| `webdavPassword` | 第一版：本地 localStorage（UI 已明示；后续版本迁移到系统钥匙串） | **绝不** | 不能写进 `_settings.md`，否则密码会随文件夹同步出去 |
 | `webdavEnabled` | 本地 localStorage | 否 | 每台设备独立开关 |
 | `webdavRemotePath` | 本地 localStorage | 否 | 远端根路径，默认 `/daymark/` |
 
@@ -77,26 +78,30 @@ WebDAV 服务，而不依赖某一家桌面同步盘。桌面同步盘（iCloud�
 
 ### 3.4 同步算法（第一版：手动“立即同步”）
 
-1. **本地清单**：递归扫描数据目录（深度 2，仅 `.md`），得到
-   `{path, size, mtimeMs, sha256}`。
-2. **远端清单**：`PROPFIND` 深度 1，逐层读取
-   `getlastmodified`、`getcontentlength`、`getetag`。
-3. **生成计划**：对每个路径比较本地与远端：
-   - 仅本地有 → `upload`
-   - 仅远端有 → `download`
-   - 两侧都有且 `sha256`/etag 不同 → `conflict`
+1. **本地清单**：只读取 Daymark 的数据文件——根目录的 `_settings.md`、
+   `_categories.md`、`_backlog.md`，以及 `YYYY-MM/YYYY-MM-DD.md`。得到
+   `{path, sha256}` 和待上传的文本。
+2. **远端清单**：`PROPFIND` 深度 1，再对每层目录做一次深度 1；随后逐个
+   `GET` 文件并计算 `sha256`。任何远端文件读不到就中止，一个字节都不写。
+3. **三方比较**：本地哈希、远端哈希和上次同步基线（每台设备本地保存）：
+   - 仅一侧有 → `upload` / `download`
+   - 两侧相同 → 跳过
+   - 两侧不同、但只有一侧相对基线变化 → 变化的一侧胜出
+   - 两侧都相对基线变化（或首次同步就不同）→ `conflict`
 4. **执行**：
-   - `upload`：`PUT` 到临时名 `<name>.daymark-tmp`，再 `MOVE` 覆盖。
-   - `download`：先写本地临时文件，再原子 rename。
-   - `conflict`：**不覆盖任何一侧**。本地保留原名，远端版本下载为
-     `<name> (conflict <device> <yyyyMMdd-HHmmss>).md`，并在 UI 列出冲突文件，
-     由用户合并。合并完成后删除冲突副本。
-5. **提交**：只有全部步骤成功才更新本地 `lastSyncAt`；任何失败都保留现场并
-   显示可复制的错误信息。
-6. **扫描器**：同步完成后调用 `scanner.touch()`，避免把同步写回误判为外部修改。
+   - `upload`：`PUT` 到 `<name>.daymark-tmp`，再 `MOVE` 覆盖；服务器不支持
+     `MOVE`（405/501）时退化为直接 `PUT`。
+   - `download`：本地原子写入（`.tmp` + rename）。
+   - `conflict`：**不覆盖任何一侧**。本地保留原名，远端版本写为
+     `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md`，并在设置页列出。
+     基线不前进，所以合并后再同步前会一直报告同一冲突。
+5. **不删除**：同步从不删除任何一侧的文件；一侧删除不会传播到另一侧。
+6. **提交与刷新**：成功的路径更新基线；失败的路径保留旧基线，下次重试。
+   有下载时调用 `reloadFromDisk()`，否则调用 `scanner.touch()`，避免把同步
+   写回误判为外部修改。
 
-第一版不做双向增量日志、不做后台定时；用户点一次按钮同步一次。第二版再加
-`ETag` 条件请求、`If-Match` 防覆盖和定时同步。
+第一版不做后台定时、不做 `If-Match` 条件请求、不做自动合并；用户点一次
+“Sync now” 同步一次。第二版再加定时同步、ETag 条件请求与合并 UI。
 
 ### 3.5 模块划分
 
@@ -131,6 +136,32 @@ UI 只调用 `engine.syncNow(config, root, onProgress)`。`plan.ts` 是纯函数
 - 两边改同一个文件：生成一个冲突副本，原名文件不被覆盖，UI 能看到两份。
 - 断网、401、远端 507：错误可读，本地文件不损坏（临时文件 + rename）。
 - 中文文件名、空格、`#`、`%`：URL 编码正确。
+
+### 3.8 第一版实现状态 · Implementation status (first version)
+
+已落地（2026-10-23）：
+
+| 项目 | 结果 |
+|---|---|
+| 传输层 | `src-tauri/src/webdav.rs` 单个命令 `webdav_request`，`reqwest` + rustls，45 s 超时；HTTP 错误作为数据返回 |
+| 前端模块 | `src/sync/webdav/{types,client,manifest,plan,baseline,engine}.ts`；设置保存在 `src/settings/webdav.ts` |
+| UI | 设置页 “WebDAV sync” 卡片：地址、远端目录、账号、密码、Test connection、Sync now、进度、结果、冲突副本列表 |
+| 判定 | 三方比较（本地 / 远端 / 基线），纯函数 `planSync`；**不删除、不静默覆盖** |
+| 安全 | 密码只存本机 localStorage，绝不写入 `_settings.md`；Basic auth 只在填写用户名时发送 |
+| 测试 | `webdavPlan`、`webdavClient`、`webdavManifest` 共 20 个单元测试；`npm run typecheck`、`npm run test`、`npm run build`、`cargo check` 全部通过 |
+
+第一版边界（有意保留，不是缺陷）：
+
+- 只同步 Daymark 认识的文件，不镜像用户放进文件夹的其他文件。
+- 手动触发，没有后台定时、没有开机自动同步。
+- 冲突只生成副本并列表，不在应用内提供合并编辑器。
+- 尚未连接真实 WebDAV 服务做过端到端验收（§3.7 的清单仍需在
+  坚果云 / Nextcloud 上手动跑一遍）；单元测试覆盖纯逻辑，不覆盖网络与
+  各家服务器的 PROPFIND 差异。
+- 密码在 localStorage，尚未迁移到系统钥匙串。
+
+下一步（M3 第二版）：钥匙串存储、`If-Match`/ETag 防覆盖、定时同步、
+本地 `rclone serve webdav` 集成测试。
 
 ---
 

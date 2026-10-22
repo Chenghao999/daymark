@@ -47,19 +47,24 @@ OneDrive、iCloud Drive、Syncthing 或支持 WebDAV 的目录，同步这件事
 presets and numbering, daily/weekly/monthly/yearly reports with configurable
 assessment month/year and DOCX export, English-first UI with a full Chinese
 translation (zh-CN / en), custom data
-folder, synced settings file, external-change scanner, and a one-time migration
-from the old `daymark.db`.
+folder, synced settings file, external-change scanner, manual WebDAV sync
+(first version), and a one-time migration from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
 导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
-外部变更检测，以及从旧
-`daymark.db` 的一次性迁移。
+外部变更检测、手动 WebDAV 同步（第一版），以及从旧 `daymark.db` 的一次性迁移。
 
-Not implemented yet / 尚未实现：WebDAV sync inside the app and AI assistance.
-Both are planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and
-automatic merge remain design-only in docs 06 and 07. Until automatic merge
-ships, only one device should have Daymark open on a folder at a time.
+WebDAV sync is manual and deliberately conservative: it never deletes a file
+and never overwrites a file changed on both sides — the remote copy is saved as
+a `(conflict …)` file for you to merge. It has not yet been tested against every
+WebDAV server. WebDAV 同步为手动、保守实现：不删除文件，两边同时改动时生成
+冲突副本而不覆盖。
+
+Not implemented yet / 尚未实现：AI assistance, background WebDAV sync and
+in-app merge. They are planned in [`docs/19-roadmap.md`](docs/19-roadmap.md);
+CalDAV and automatic merge remain design-only in docs 06 and 07. Until automatic
+merge ships, only one device should have Daymark open on a folder at a time.
 
 ## Data folder · 数据目录
 
@@ -129,12 +134,12 @@ Markdown，再把数据库改名为 `daymark.db.migrated-<时间戳>`，不会�
 src/
   domain/       pure logic: task state, report periods, report derivation, numbering
   storage/      Markdown parser/serializer, paths, repository, migration, settings file
-  sync/         external-change scanner (WebDAV and merge are roadmap items)
+  sync/         external-change scanner and manual WebDAV sync (scanner.ts, webdav/)
   settings/     device-local settings plus the synced subset written to _settings.md
   features/     calendar views, reports, settings
   components/   task editor
   i18n/         zh-CN and en resources
-src-tauri/      Tauri shell, filesystem commands, dialog/opener/sql plugins
+src-tauri/      Tauri shell, filesystem and WebDAV commands, dialog/opener/sql plugins
 docs/           product, engineering, usage, operations and roadmap documents
 tests/          Vitest unit tests
 ```

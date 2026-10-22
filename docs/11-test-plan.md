@@ -13,7 +13,14 @@
 | `domain/tasks` | backlog ↔ scheduled ↔ done, reopen with and without dates, delete |
 | `storage/markdown` | day-file round-trip, categories round-trip, extras preserved, hand-checked box gets noon, time range parsing |
 | `storage/settingsFile` | JSON comment wins over bullets, bullet fallback, malformed JSON tolerated, clamping |
+| `sync/webdav/plan` | upload/download only, unchanged, one-sided change wins, both-sided conflict, first sync, stale baseline, no deletions, deterministic order |
+| `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities |
+| `sync/webdav/manifest` | file whitelist, content hash changes with content, files disappearing mid-scan |
 | Template validation (P1) | missing required placeholder, unknown placeholder, empty sections |
+
+WebDAV network behaviour is **not** covered by unit tests: `webdav_request` and
+real servers must be exercised by hand (or by a future `rclone serve webdav`
+integration suite). The plan/URL/XML logic is pure and covered above.
 
 Run:
 
@@ -25,7 +32,8 @@ npm run verify          # typecheck + tests + production build
 ```
 
 Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
-`markdown.test.ts`, `settingsFile.test.ts`.
+`markdown.test.ts`, `settingsFile.test.ts`, `webdavPlan.test.ts`,
+`webdavClient.test.ts`, `webdavManifest.test.ts`.
 
 Automation: `.github/workflows/ci.yml` runs the suite with coverage on Ubuntu
 and `cargo check` on macOS for every pull request and push to `main`. The
