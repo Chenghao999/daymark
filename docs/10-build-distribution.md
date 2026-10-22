@@ -8,8 +8,11 @@
 - SemVer: `MAJOR.MINOR.PATCH` in `package.json`, `src-tauri/Cargo.toml` and
   `tauri.conf.json` — keep all three equal.
 - Pre-1.0: breaking data changes may ship in MINOR, but require a migration.
-- The database records `schema_version`; a newer schema refuses to open in an
-  older build.
+- The store has no schema version: `_categories.md` marks an initialised folder,
+  and task metadata is read with fallbacks for missing keys. A change that
+  removes or reinterprets a key is a breaking data change and needs a migration.
+- An older build opening a newer folder must degrade, not corrupt it: unknown
+  metadata keys are ignored and hand-written lines are preserved.
 
 ## 2. macOS
 
@@ -54,13 +57,18 @@ npm run tauri build -- --target x86_64-pc-windows-msvc
 | Data only in the chosen folder | delete app-data dir, relaunch, confirm onboarding |
 | Templates and locales replaceable | swap a locale file, confirm the UI changes (P1) |
 
-## 5. Database migration on upgrade
+## 5. Data compatibility on upgrade
 
-1. On open, read `PRAGMA user_version`.
-2. If older than the build, copy `daymark.db` to `daymark.db.bak-<timestamp>`.
-3. Apply migrations in order, each in a transaction.
-4. Update `user_version`.
-5. On failure, restore the backup and report a clear error.
+1. On open, check for `_categories.md`. If it is absent and `daymark.db` exists,
+   run the one-time legacy migration (doc 05 §9).
+2. There is no schema version or `PRAGMA user_version`. New fields are optional
+   metadata; old files open with defaults.
+3. Before a future destructive format change, copy the whole data folder to
+   `backup-<version>-<timestamp>/` first, then rewrite, then verify by reopening.
+4. On a parse error, report it and leave the file untouched — never overwrite a
+   file that could not be read.
+5. If the legacy rename fails, the Markdown data is still valid; the
+   `daymark.db.migrated-*` file is left for manual cleanup.
 
 ## 6. Release artifacts
 

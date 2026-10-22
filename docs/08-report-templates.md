@@ -1,17 +1,21 @@
 # 08 · Report Template Specification
 
-> 中文摘要：1.0 使用 Word 内置样式直接生成 DOCX；P1 引入外置模板，Daymark 只负责
+> 中文摘要：0.1 使用 Word 内置样式直接生成 DOCX；P1 引入外置模板，Daymark 只负责
 > 替换占位符，不重建样式。本文定义占位符字典与校验规则。
 
-## 1. 1.0 behaviour
+## 1. 0.1 behaviour
 
 The exporter builds a `docx` document with:
 
-- `Title` style for the report title (`日报` / `Weekly Report`, …).
+- `Title` style for the report title (`日报` / `Weekly Report` / `月报` /
+  `年报`, …).
 - `Heading 2` for the period label.
 - An italic summary line with completed/planned counts.
 - `Heading 1` per non-empty category, prefixed with the configured numbering.
 - `List Bullet` items, with the date right-aligned later if needed.
+
+The period label is produced by `reportPeriod`, so a monthly report may span
+e.g. `2026-09-26 ~ 2026-10-25` when the assessment month starts on the 26th.
 
 The document is written atomically (`write_file_bytes`) so a sync client never
 sees a half-written file.
@@ -51,7 +55,8 @@ only replaces placeholders.
 - The numbering prefix is generated, not written in the template.
 - `{{category_heading}}` already includes it (e.g. `一、项目开发`), so templates
   must not add their own numbering.
-- Style is configured once in Settings and stored per device.
+- Style is configured once in Settings and stored in `_settings.md`, so it
+  travels with the data folder and both machines produce the same headings.
 
 ## 4. Validation
 
@@ -64,5 +69,9 @@ Before export:
 ## 5. Storage
 
 - Templates live in `<data folder>/templates/` so they travel with the data.
+- The folder scanner only counts `.md` files to depth 2, so a `.docx` template
+  change is not treated as an external data change.
 - A missing template falls back to the built-in exporter.
 - The app never overwrites a user template.
+
+Template loading is P1 and not implemented in 0.1.

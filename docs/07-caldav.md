@@ -16,7 +16,8 @@
    provider requires it).
 2. `PROPFIND` on the principal URL to find `calendar-home-set`.
 3. `PROPFIND` the home set for calendars, `displayname`, `supported-calendar-component-set`.
-4. Store credentials in the OS keychain, never in the SQLite file or settings.
+4. Store credentials in the OS keychain — never in a Markdown file, the synced
+   `_settings.md`, or device settings.
 
 ## 3. Sync state machine
 

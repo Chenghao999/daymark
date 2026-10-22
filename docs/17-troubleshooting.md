@@ -1,8 +1,8 @@
 # 17 · Troubleshooting
 
 > 中文摘要：按“症状 → 原因 → 处理”组织。先做第 1 节的三项检查；数据问题优先
-> 退出应用、确认同步状态、恢复备份。文档最后附问题报告模板，提交 issue 时请
-> 附上版本、系统、复现步骤和相关错误文本。
+> 退出应用、确认同步状态、恢复文件夹备份。文档最后附问题报告模板，提交 issue
+> 时请附上版本、系统、复现步骤和相关错误文本。
 
 ## 1. First three checks
 
@@ -13,23 +13,26 @@ Before changing anything, establish:
 node --version
 npm --version
 rustc --version
-cargo --version
+cargo --version          # /opt/homebrew/opt/rustup/bin/cargo if not on PATH
 rustup show
 
-# 2. Where is the database, and does it exist?
-ls -l "/path/to/chosen/folder/daymark.db"
+# 2. Where is the data folder, and which files exist?
+ls -la "/path/to/chosen/folder"
+find "/path/to/chosen/folder" -name '*.md' | head -20
 
-# 3. Is the file valid SQLite with the expected tables?
-sqlite3 "/path/to/chosen/folder/daymark.db" ".tables"
+# 3. Does a representative day file parse by eye?
+sed -n '1,20p' "/path/to/chosen/folder/2026-10/2026-10-22.md"
 ```
 
-Expected tables: `categories`, `tasks`, `task_completions`, `sync_meta`,
-`report_runs`.
+Expected scaffolding: `_settings.md`, `_categories.md`, `_backlog.md`, and one
+`YYYY-MM/YYYY-MM-DD.md` per day with tasks. A legacy `daymark.db.migrated-*` is
+a backup, not a live file.
 
-Also note the device ID shown in Settings. It identifies the writer in
-`sync_meta` and is useful in every sync report.
+Also note the device ID shown in Settings. It identifies the writer in file
+comments and is useful in every sync report.
 
-**中文要点：** 先确认版本、数据库文件是否存在、表是否完整，并记下设置页的设备 ID。
+**中文要点：** 先确认版本、数据文件夹是否存在、是否有四个基础文件和日期文件，
+并记下设置页的设备 ID。
 
 ## 2. Startup and onboarding
 
@@ -37,51 +40,57 @@ Also note the device ID shown in Settings. It identifies the writer in
 |---|---|---|
 | Welcome screen appears every launch | `dataDir` is empty or settings are not persisting | Choose the folder again. If it repeats, browser storage is blocked; check the WebView's site-data settings. |
 | Folder picker does not open | Dialog permission missing or the plugin failed to initialise | Confirm `dialog:default` is in `src-tauri/capabilities/default.json`; rebuild. |
-| App shows an error under the welcome card | Database open failed (bad path, permission, corrupt file) | Read the error text; check the path exists and is writable; try another folder. |
+| App shows an error under the welcome card | The folder could not be created or listed | Read the error text; check the path exists and is writable; try another folder. |
 | Window is blank but the process runs | Frontend failed to load | Run `npm run tauri dev` and check the terminal and WebView console. |
 | App refuses to open on macOS | Unsigned build quarantined by Gatekeeper | Right-click → Open, or `xattr -cr Daymark.app`. |
 
 **中文要点：** 每次启动都回到欢迎页，说明本机设置没保存住；先重新选文件夹，再
 检查 WebView 的站点数据权限。
 
-## 3. Database errors
+## 3. Storage errors
 
 | Error / symptom | Cause | Action |
 |---|---|---|
-| `Database is not open` | Code called the repository before `openDatabase` succeeded | Re-select the folder; check the startup error banner. This is a bug if it happens after a successful onboarding. |
-| Writes fail but reads work | Missing `sql:allow-execute` capability | Add it to `capabilities/default.json` and rebuild. `sql:default` alone grants only load/select/close. |
-| `database is locked` | Another Daymark window/process, or a sync client holds the file | Quit all Daymark instances; pause the sync client; reopen. |
-| `unable to open database file` | Folder missing, drive unmounted, or no write permission | Reconnect the drive; check permissions; choose the folder again. |
-| Tables missing | The file is not a Daymark database, or schema creation failed | Check `.tables`; if it is an unrelated SQLite file, choose another folder. |
-| File grows but the UI shows nothing | Opened a different database than expected | Compare the path in Settings with the file you inspected. |
+| `Store is not open` | Code read the repository before `openStore` succeeded | Re-select the folder; check the startup error banner. This is a bug if it happens after a successful onboarding. |
+| `Store is not open` at launch | The chosen folder or mount is unavailable | Reconnect the drive; choose the folder again. |
+| Writes fail but reads work | The folder is read-only, or a file is held by another program | Check permissions; close editors holding the file; try a local folder. |
+| A file is not listed | Its name does not match `YYYY-MM-DD.md` inside a `YYYY-MM` folder, or it is a dotfile | Rename it to the canonical form; only `.md` files at depth ≤ 2 are scanned. |
+| A hand-edited task disappears | The line lost its `- [ ]` prefix or its metadata comment became invalid JSON | Re-add the `- [ ]` form; keep the `<!-- daymark task {...} -->` comment on the following line. |
+| A hand-added paragraph vanished | It was inside a section and looked like a task continuation | Put free text at the end of the file; Daymark preserves unrecognised lines as extras. |
+| Tasks show as **Uncategorized** | Their `categoryId` points at an archived or deleted category | Reassign them, or restore the category in `_categories.md`. |
+| Editing `_settings.md` has no effect | The JSON comment overrides the bullet list | Change the value in both places, or delete the JSON comment and reload. |
+| `daymark.db` still exists | Migration did not run or the rename failed | Confirm `_categories.md` is absent; a failed rename leaves the file for manual cleanup. |
 
-**中文要点：** 能读不能写，九成是缺少 `sql:allow-execute`；`database is locked`
-通常是另一个窗口或同步客户端占着文件。
+**中文要点：** `Store is not open` 多半是文件夹不可用；手改后任务消失通常是丢了
+`- [ ]` 前缀或 JSON 注释损坏；`_settings.md` 里 JSON 注释优先于项目符号列表。
 
 ## 4. Sync and multiple devices
 
 | Symptom | Cause | Action |
 |---|---|---|
-| Conflict banner appears repeatedly | Sync client keeps touching the file, another window is open, or mtime changes | Close other windows; let sync settle; reload once. |
+| Reload banner appears repeatedly | Sync client keeps touching files, another window is open, or an editor saved | Close other windows; let sync settle; reload once. |
 | Tasks created on device B never appear on A | Sync not finished, or the devices point at different folders | Compare folder paths and the sync client's status. |
-| Tasks disappeared after **Change folder** | The new folder held a different (or empty) database | Switch back to the old folder; the original file is unchanged. |
-| Two database files (`daymark (1).db`, “conflict copy”) | The sync client preserved both versions | Decide which is newer, keep it as `daymark.db`, archive the other outside the synced folder. |
-| Sidecar files `-wal`, `-shm`, `-journal` present | SQLite journal mode / an unclean shutdown | Keep them together with the `.db`; quit the app before hand-off. |
-| Reload shows partial data | The file was still downloading | Wait for sync completion and reload again; restore a backup if the file is inconsistent. |
-| Last edits from one device are gone | Two devices wrote while both were open (last-writer-wins) | Restore from backup or the sync client's version history; follow doc 16 §4 afterwards. |
+| Tasks disappeared after **Change folder** | The new folder was different (or empty) | Switch back to the old folder; the original files are unchanged. |
+| Two copies of a day file (`2026-10-22 (1).md`, “conflict copy”) | The sync client preserved both versions | Compare the two files, keep the newer content under the canonical name, archive the other outside the synced folder. |
+| The same day shows different tasks on two devices | Both edited that day offline; one file replaced the other | Choose the version to keep, copy in the missing task lines, then reload. |
+| A whole day disappeared | The day file was deleted on another device | Restore it from backup or the sync client's version history. |
+| `daymark.db.migrated-*` appears on every device | The legacy file was left in the synced folder after migration | Move it out of the synced folder; keep one copy as a backup. |
+| `*.tmp` files appear briefly | Atomic writes in progress | Harmless; they are renamed immediately. |
+| Last edits from one device are gone | Two devices edited the same day (last-writer-wins) | Restore from backup or the sync client's version history; follow doc 16 §4 afterwards. |
 
 The full safe procedure is `16-data-sync-operations.md`.
 
-**中文要点：** 多设备问题的根因几乎都是“两台同时打开”或“同步没完成”。先停手，
-确认文件和同步状态，再决定是否恢复备份。
+**中文要点：** 多设备问题的根因几乎都是“同一天两台同时编辑”或“同步没完成”。
+先停手，确认文件状态，再决定是否恢复备份。
 
 ## 5. Reports and export
 
 | Symptom | Cause | Action |
 |---|---|---|
-| Report is empty | No completions and no scheduled tasks in the period | Check the period (weeks are Monday–Sunday) and the task dates. |
-| A completed task is missing | The completion is outside the period, or the task was reopened (which deletes completions) | Complete it again inside the period, or widen the period. |
-| A task appears as planned although it is done | It was completed outside the period; completion attribution wins only inside the period | Expected for daily/weekly boundaries; check the completion date. |
+| Report is empty | No completions and no scheduled tasks in the period | Check the period and the task dates; a monthly report may start on the 26th. |
+| A completed task is missing | The completion is outside the period, or the task was reopened (which clears `completedAt`) | Complete it again inside the period, or widen the period. |
+| A task appears as planned although it is done | It was completed outside the period | Expected for daily/weekly boundaries; check the completion date in the file. |
+| The period looks wrong | Week start or assessment month/year differs from what you expect | Check Settings → Week starts on / Assessment month / Assessment year, or `_settings.md`. |
 | A task is under “Uncategorized” | Its category was archived, or it never had one | Reassign the task to an active category. |
 | Export button is disabled | The report has no sections | Add or schedule work in the period, or choose another period. |
 | Export fails | Target folder not writable, path invalid, or IPC error | Choose a writable folder; read the error message in the status line. |
@@ -89,8 +98,8 @@ The full safe procedure is `16-data-sync-operations.md`.
 | DOCX opens with unexpected styling | The export deliberately uses Word's built-in styles | Restyle in Word, or wait for the template engine (doc 08). |
 | Chinese text looks wrong in the file name | Characters were sanitised (`\ / : * ? " < > |` → `-`) | Expected. |
 
-**中文要点：** 日报/周报的边界是本地自然日；重新打开任务会删除完成记录，所以它
-不再出现在历史报告里。
+**中文要点：** 报告边界由“周起始日/考核月起始日”决定；重新打开任务会清除完成
+时间，所以它不再出现在历史报告里。
 
 ## 6. Language and labels
 
@@ -98,21 +107,24 @@ The full safe procedure is `16-data-sync-operations.md`.
 |---|---|---|
 | Some labels stay in English | A key is missing from `zh-CN.json`; i18next falls back to `en` | Add the key to both locale files. |
 | Language does not change | Settings were not persisted, or the i18n instance was not re-initialised | Change it in Settings; restart the app if needed. |
+| Language resets on a new device | The setting lives in `_settings.md` and that file did not sync | Confirm `_settings.md` exists in the folder on both devices. |
 | Dates use the wrong locale | `date-fns` locale not passed to `format` | Check the view's `locale` variable. |
 
 **中文要点：** 出现英文兜底说明中文键缺失；两个语言文件的键集合必须完全一致。
+语言本身保存在 `_settings.md`，会随文件夹同步。
 
 ## 7. Build and development
 
 | Error | Cause | Action |
 |---|---|---|
-| `cargo: command not found` | Rust not installed, or the Homebrew rustup path is not on `PATH` | `brew install rustup`, then add `/opt/homebrew/opt/rustup/bin` before other entries in `~/.zshrc`; open a new shell. |
+| `cargo: command not found` | Rust not installed, or the Homebrew rustup path is not on `PATH` | `brew install rustup`, then add `/opt/homebrew/opt/rustup/bin` before other entries in `~/.zshrc`; open a new shell. Run `/opt/homebrew/opt/rustup/bin/cargo check` directly if needed. |
 | `rustup` is keg-only / wrong cargo | A second rustup exists in `~/.cargo/bin` | Put the Homebrew path first; verify with `which -a cargo`. Do not delete toolchains unless you intend to re-download them. |
 | `error: linker not found` / missing SDK | Xcode command line tools absent | `xcode-select --install`. |
 | `tauri: command not found` | Dependencies not installed | `npm install`. |
 | Vite port 1420 in use | Another dev server is running | Stop it; `strictPort` is intentional. |
 | `npm run build` fails on TypeScript | Strict mode error, unused symbol, or a type mismatch | Fix the reported file; `npm run typecheck` shows the same errors. |
 | Tests fail after a domain change | The invariant changed or a fixture is stale | Update the test only if the new behaviour is intentional; document it in doc 14. |
+| Tests fail after a format change | A Markdown fixture no longer matches the serializer | Update `tests/markdown.test.ts` / `settingsFile.test.ts` together with `storage/markdown.ts`. |
 | `identifier`/bundle error | `tauri.conf.json` identifier conflicts | Use a unique reverse-DNS identifier. |
 | Capability schema stale after adding a permission | Generated schemas were not rebuilt | Rebuild; `src-tauri/gen/schemas` is generated and ignored by git. |
 | Build fails after cloning, a source folder is missing | A `.gitignore` pattern matches a source directory (for example an unanchored `reports/`) | Run `git check-ignore -v <path>`; anchor output-only patterns to the repository root (`/reports/`). |
@@ -140,22 +152,24 @@ The full safe procedure is `16-data-sync-operations.md`.
 
 ### Both
 
-- SQLite file paths are absolute and device-specific; never copy
+- The data folder path is absolute and device-specific; never copy
   `localStorage` between machines.
-- A database on a network drive is slower and riskier than a local synced
-  folder.
+- A folder on a network drive is slower and riskier than a local synced folder.
+- Markdown files are UTF-8; do not save them with a legacy encoding — Chinese
+  titles will become unreadable.
 
-**中文要点：** macOS 未签名需右键打开；Windows 需要 WebView2；数据库不要放在
-网络共享盘上。
+**中文要点：** macOS 未签名需右键打开；Windows 需要 WebView2；数据文件夹不要
+放在网络共享盘上；`_settings.md` 与日期文件必须保存为 UTF-8。
 
 ## 9. When it is a known limitation, not a bug
 
 Read `15-user-guide.md` §11 before filing an issue:
 
-- no automatic merge between devices;
-- reopening a task deletes its completion history;
+- no automatic merge between devices; the same day is last-writer-wins;
+- reopening a task clears its completion timestamp;
 - archived categories cannot be restored in the UI;
-- no CalDAV, reminders, search or tags yet;
+- no CalDAV, WebDAV, AI assistant, reminders, search or tags yet;
+- no duration blocks in the week grid;
 - reports use built-in Word styles.
 
 ## 10. Reporting a problem
@@ -168,7 +182,7 @@ Include:
 4. Exact reproduction steps, with dates and report period if relevant.
 5. The exact error text from the banner/status line, or the terminal output.
 6. Whether a sync client is involved, and its state at the time.
-7. What you already tried (reload, restart, another folder).
+7. The relevant `.md` file, with personal content replaced by dummy tasks.
 
-Do **not** attach a real `daymark.db` publicly; it contains your tasks. Create a
-minimal database with dummy data if a file is required.
+Do **not** attach your real data folder publicly; it contains your tasks.
+Create a minimal folder with dummy data if a file is required.

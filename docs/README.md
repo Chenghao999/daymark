@@ -27,6 +27,7 @@ corresponding area is built.
 | 16 | [Data and sync operations](16-data-sync-operations.md) | 数据同步操作手册 | ✅ |
 | 17 | [Troubleshooting](17-troubleshooting.md) | 故障排查 | ✅ |
 | 18 | [Development guide](18-development-guide.md) | 开发指南 | ✅ |
+| 19 | [Roadmap](19-roadmap.md) | 路线图：WebDAV、AI 与模块化计划 | 🟡 plan only |
 
 Legend: ✅ implemented or directly reflected in code · 🟡 design agreed, code
 incomplete.
@@ -44,8 +45,11 @@ incomplete.
 ## Maintenance rule · 维护规则
 
 Code and documentation change together. A file added or moved updates doc 13; an
-interface, command or permission change updates doc 14; a schema change updates
-doc 05 and 14. Doc 18 §10 lists the full mapping.
+interface, command or permission change updates doc 14 and every caller; a
+change to a module's public surface also updates the caller map in doc 18 §4.1;
+a storage-format change updates doc 05 and 14. Doc 18 §10 lists the full
+mapping.
 
-代码与文档必须同一次提交更新：改文件结构更新 13，改接口/命令/权限更新 14，
-改表结构更新 05 和 14。完整对应表见 18 §10。
+代码与文档必须同一次提交更新：改文件结构更新 13，改接口/命令/权限更新 14 及所有
+调用方，改模块对外接口同时更新 18 §4.1 的调用关系表，改存储格式更新 05 和 14。
+完整对应表见 18 §10。

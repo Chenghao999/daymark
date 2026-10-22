@@ -1,8 +1,8 @@
 # 18 · Development Guide
 
 > 中文摘要：开发环境、命令、代码约定和常见改动流程。目标是让任何人在拿到仓库
-> 后 15 分钟内跑起来，并知道新增字段、视图、IPC 命令、迁移和文案时该改哪些
-> 文件、补哪些文档和测试。
+> 后 15 分钟内跑起来，并知道新增字段、视图、IPC 命令、文件格式变化和文案时该改
+> 哪些文件、补哪些文档和测试。数据层是 `src/storage/`（Markdown 文件夹）。
 
 ## 1. Prerequisites
 
@@ -72,17 +72,28 @@ Later runs reuse `src-tauri/target/`.
 | `npm run tauri build` | Production bundle for the current platform. |
 | `npm run tauri build -- --debug --no-bundle` | Fast sanity build without installers. |
 
-Before every commit, run at least `npm run typecheck`, `npm test`, and
-`cargo check` (from `src-tauri/`) when Rust changed.
+Before every commit, run at least `npm run typecheck`, `npm test`, and a Rust
+check when `src-tauri/` changed. If `cargo` is not on `PATH`, use the absolute
+path:
 
-**中文要点：** 提交前至少跑 `typecheck`、`test`；动过 Rust 再加 `cargo check`。
+```bash
+/opt/homebrew/opt/rustup/bin/cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+**中文要点：** 提交前至少跑 `typecheck`、`test`；动过 Rust 再加 `cargo check`，
+cargo 不在 PATH 时用 `/opt/homebrew/opt/rustup/bin/cargo`。
 
 ## 4. Code conventions
 
 - TypeScript strict mode; `noUnusedLocals` and `noUnusedParameters` are on.
 - ESM only (`"type": "module"`); no CommonJS `require`.
 - React function components; state stays in `App.tsx` or the owning feature.
-- No SQL outside `src/db/`.
+- Markdown parsing and serialization live only in `src/storage/markdown.ts`.
+  No other module builds file text.
+- Filesystem access goes through `src/storage/fs.ts`; components never call
+  `invoke` directly.
+- SQL exists only in `src/storage/migrate.ts`, and only for the one-time legacy
+  conversion. Do not add runtime SQL.
 - No business rules in components; put them in `src/domain/` and call them.
 - All user-visible strings go through `useTranslation()`; add keys to **both**
   locale files.
@@ -93,25 +104,68 @@ Before every commit, run at least `npm run typecheck`, `npm test`, and
 - CSS lives in one file (`App.css`) with tokens on `:root`; reuse the existing
   classes rather than adding one-off styles.
 
-**中文要点：** SQL 只在 `db/`；业务规则只在 `domain/`；UI 文案必须两种语言同步；
-Rust 只做插件和系统文件操作。
+**中文要点：** 文件格式只在 `markdown.ts`；文件访问只走 `storage/fs.ts`；SQL 只
+存在于迁移模块；业务规则只在 `domain/`；UI 文案必须两种语言同步。
+
+### 4.1 Every module is called through its interface
+
+A module is a boundary, not a folder to reach into. Callers import the
+functions and types a module exports; they never import its private helpers,
+and they never assume how it stores state. The full signature list is in
+doc 14; the table below is the map of who may call what.
+
+| Module | Public interface | Allowed callers | Isolated test / debug |
+|---|---|---|---|
+| `domain/types.ts` | `Task`, `Category`, `Completion`, report types | every layer | type-only |
+| `domain/tasks.ts` | `NewTaskInput`, `hasSchedule`, `normalizeStatus`, `scheduleTask`, `unscheduleTask`, `completeTask`, `reopenTask`, `sortTasks` | `storage/repository.ts`, tests | pure functions, no setup |
+| `domain/periods.ts` | `reportPeriod`, `PeriodOptions`, `ReportPeriod` | reports, features | fixed `anchor` + options |
+| `domain/reports.ts` | `generateReport`, `reportTitle`, `uncategorizedLabel` | features, tests | in-memory fixtures |
+| `storage/repository.ts` | `listTasks`, `listCategories`, `createTask`, `updateTask`, `softDeleteTask`, `completeTask`, `reopenTask`, `listCompletions`, `createCategory`, `archiveCategory` | `App.tsx`, `ReportsView` | open a temp folder, call the function |
+| `storage/client.ts` | `openStore`, `closeStore`, `getStoreState`, `getStoreRoot`, `deviceId` | `App.tsx`, `storage/repository.ts` | point at a fixture folder |
+| `storage/markdown.ts` | `parseMarkdown`, `serializeMarkdown`, `parseCategoriesMarkdown`, `serializeCategoriesMarkdown` | client, repository, migration | one string in, one string out |
+| `storage/fs.ts` | file primitives plus `treeSignature` | the storage modules and the scanner | the only module that calls `invoke` |
+| `storage/settingsFile.ts` | `loadSyncedSettings`, `saveSyncedSettings` (plus the codec) | `App.tsx` | read or write `_settings.md` by hand |
+| `storage/migrate.ts` | `migrateLegacyDatabase` | `client.ts` only | copy a legacy folder, run once |
+| `sync/scanner.ts` | `startFolderScanner(options) → { stop, touch }` | `App.tsx` | inject a recording `onExternalChange` |
+| `settings/store.ts` | `AppSettings`, `SyncedSettings`, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart` | `App.tsx`, `i18n`, `SettingsView`, `storage/settingsFile.ts` | stub `localStorage` |
+
+Rules that keep this useful:
+
+1. Dependencies point one way: `features` → `storage` / `domain` / `sync` /
+   `settings`. `domain` imports no other layer; `storage` imports no feature.
+2. A UI component never imports `storage/fs.ts`, `storage/markdown.ts` or
+   `storage/client.ts`. It calls the repository, or receives data as props.
+3. The repository never imports React or touches the DOM; it only changes the
+   in-memory store and writes files.
+4. When a public signature changes, update doc 14 and every caller in the same
+   commit. That is the contract.
+5. To debug a layer, call its interface directly instead of driving the whole
+   app: `parseMarkdown` with a copied day file, `generateReport` with a fixture,
+   `startFolderScanner` with a callback that logs. If a layer cannot be called
+   this way, it has leaked a dependency and the boundary should be fixed.
+
+**中文要点：** 每个模块只通过导出的函数和类型被调用，调用方不碰内部文件、不假设
+内部存储方式。模块之间单向依赖；UI 只调 repository；改公开签名必须同一次提交
+更新文档 14 和所有调用方。调试时直接调用该模块的接口（给一个固定输入看输出），
+而不是启动整个应用——如果做不到，说明该模块的依赖泄漏了，应先修边界。
 
 ## 5. Change playbooks
 
 ### 5.1 Add a task field
 
-1. `src/db/schema.ts`: add the column (additive, with a default).
-2. `src/domain/types.ts`: add the field to `Task`.
-3. `src/db/repository.ts`: add it to `TASK_COLUMNS`, `TaskRow`, `toTask`,
-   `createTask`, and `updateTask`.
+1. `src/domain/types.ts`: add the field to `Task`.
+2. `src/storage/markdown.ts`: add it to `TaskMeta`, `toStoredTask` and
+   `serializeEntry` so it round-trips.
+3. `src/storage/repository.ts`: set a default in `createTask` and preserve it in
+   `updateTask`.
 4. `src/components/TaskEditor.tsx`: add the input to `TaskDraft` and the form.
 5. `src/App.tsx`: copy the draft field into the edited task.
-6. Add a test if the field affects derivation or state.
+6. Add a round-trip case in `tests/markdown.test.ts`.
 7. Update docs 05, 14, 15.
 
-If the column is non-null, provide a default so existing databases remain valid.
-If the change is destructive, add a versioned migration and a backup step first
-(doc 05 §3).
+Provide a fallback for old files (a missing metadata key must not break
+parsing). A destructive format change needs a migration and a documented
+verification step (doc 05 §8).
 
 ### 5.2 Add a view
 
@@ -127,20 +181,19 @@ If the change is destructive, add a versioned migration and a backup step first
 
 1. Write the `#[tauri::command]` in `src-tauri/src/lib.rs`.
 2. Register it in `tauri::generate_handler![...]`.
-3. If it uses a plugin capability, add the permission to
+3. Add a typed wrapper in `src/storage/fs.ts`.
+4. If it uses a plugin capability, add the permission to
    `src-tauri/capabilities/default.json`.
-4. Call it with `invoke("<name>", { ... })` from TypeScript; keep the argument
-   names identical to the Rust parameter names.
 5. Rebuild so `src-tauri/gen/schemas` regenerates.
 6. Update docs 14, 17.
 
 Prefer commands that do one OS-level thing. Anything expressible in TypeScript
 should stay in TypeScript.
 
-### 5.4 Add a report rule
+### 5.4 Add a report rule or period
 
-1. Change `src/domain/reports.ts` only; keep it pure.
-2. Add or update a case in `tests/reports.test.ts`.
+1. Change `src/domain/reports.ts` or `src/domain/periods.ts`; keep them pure.
+2. Add or update a case in `tests/reports.test.ts` / `tests/periods.test.ts`.
 3. If the rule needs new data, extend `ReportInput` and the repository query.
 4. Update docs 08 and 14.
 
@@ -154,22 +207,28 @@ should stay in TypeScript.
 A missing Chinese key silently falls back to English, which is why both files
 must change together. Doc 09 defines the key policy.
 
-### 5.6 Add a migration
+### 5.6 Change the file format
 
-1. Decide whether the change can be additive. Prefer additive.
-2. For destructive changes, bump `PRAGMA user_version`, copy the database to a
-   backup file, run the migration, then verify.
-3. Keep `SCHEMA` idempotent for fresh databases.
-4. Add a test or a documented manual verification.
-5. Update docs 05, 12, 14.
+1. Prefer an additive metadata key with a safe fallback.
+2. Change `src/storage/markdown.ts` only; never spread the grammar.
+3. Add a round-trip test to `tests/markdown.test.ts` (and
+   `tests/settingsFile.test.ts` for settings).
+4. Verify: open an existing folder, save a task, reopen, compare `git diff` of
+   the Markdown files.
+5. If existing files must be rewritten, write a migration in
+   `src/storage/migrate.ts`, run it once, and keep the old data recoverable.
+6. Update docs 05, 12, 14.
 
-Never mutate a user's database without a backup.
+Never rewrite a user's files without a recoverable copy.
 
 ## 6. Testing
 
-- Domain logic is tested with Vitest under `tests/`.
-- Tests import `src/domain/*` directly; no Tauri or DOM mocks are required.
-- The existing suite covers numbering and report derivation.
+- Domain and format logic is tested with Vitest under `tests/`.
+- `tests/domain` cases import `src/domain/*` directly; format cases import
+  `src/storage/markdown.ts` and `src/storage/settingsFile.ts`. Neither needs a
+  Tauri or DOM mock.
+- The suite covers numbering, report derivation, period boundaries, Markdown
+  round-trip and settings parsing.
 - When fixing a bug, add a test that fails before the fix and passes after.
 - UI behaviour is currently verified manually; doc 11 lists the manual cases.
 
@@ -178,24 +237,33 @@ Run:
 ```bash
 npm test
 npm run typecheck
-cd src-tauri && cargo check
+/opt/homebrew/opt/rustup/bin/cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-**中文要点：** 修 bug 先补一个会失败的测试；领域测试不需要启动 Tauri。
+**中文要点：** 修 bug 先补一个会失败的测试；领域和格式测试都不需要启动 Tauri；
+cargo 不在 PATH 时用绝对路径。
 
 ## 7. Debugging
 
+Every module can be exercised through its exported interface without starting
+the app (see §4.1). Prefer that when the bug is inside one layer.
+
 | Area | Technique |
 |---|---|
+| Single module | Import its interface in a temporary Vitest case and feed it a fixture: `parseMarkdown` a copied file, `generateReport` a handful of tasks, `reportPeriod` a fixed date. |
 | Frontend | `npm run tauri dev`; inspect the WebView console. React errors appear in the terminal and the console. |
 | Rust | `cargo check` for fast feedback; `tauri dev` shows Rust build errors. |
-| SQL | Open the database with `sqlite3 daymark.db` and inspect `.tables`, `.schema`, or rows. |
+| Data store | Open the day file in any editor; a task is one line plus one comment. `git diff` the folder to see exactly what a save changed. |
+| Legacy data | `sqlite3 daymark.db.migrated-* ".tables"` only when investigating a migration. |
 | Permissions | If a plugin call is denied, check `capabilities/default.json` and the generated schema. |
-| Sync scanner | Set the scan interval to 30 s; watch the file mtime with `stat -f "%m %N" daymark.db` (macOS). |
+| Sync scanner | Set the scan interval to 30 s; watch the folder with `ls -lT` (macOS) and confirm the banner fires once. |
 | Report derivation | Call `generateReport` in a test with a minimal fixture. |
 
 Daymark writes no log file. Errors are surfaced in the UI (banner or status
 line) or the terminal in development.
+
+**中文要点：** 调试数据问题最直接的办法是打开当天的 `.md` 文件，或对整个文件夹
+做一次 `git diff`；没有任何日志文件。
 
 ## 8. Git workflow
 
@@ -204,14 +272,15 @@ line) or the terminal in development.
 - Commit in small, reviewable units. Suggested prefixes: `feat:`, `fix:`,
   `docs:`, `test:`, `build:`, `refactor:`.
 - `package-lock.json` and `Cargo.lock` are committed.
-- Never commit `daymark.db`, generated reports, tokens, or absolute local paths.
-  `.gitignore` already covers databases, `dist/`, `node_modules/`, and Tauri
-  target output.
+- Never commit a real data folder, generated reports, tokens, or absolute local
+  paths. `.gitignore` covers databases, `dist/`, `node_modules/`, and Tauri
+  target output; add your personal data folder if you keep it inside the repo.
+- `daymark.db.migrated-*` is user data and must never be committed.
 - Do not rewrite published history on `main`.
 - Before pushing: typecheck, tests, and a clean `git status`.
 
 **中文要点：** 提交信息用 `feat/fix/docs/test/build/refactor:` 前缀；锁文件要提交；
-数据库和生成报告绝不提交。
+真实数据文件夹和迁移备份绝不提交。
 
 ## 9. Release
 
@@ -219,16 +288,17 @@ The full checklist is `12-release-checklist.md`. Minimum sequence:
 
 1. Bump the version in `package.json`, `src-tauri/Cargo.toml`, and
    `src-tauri/tauri.conf.json`.
-2. Run `npm run typecheck`, `npm test`, `npm run build`, `cargo check`.
+2. Run `npm run typecheck`, `npm test`, `npm run build`, and the Rust check.
 3. Build with `npm run tauri build`.
-4. Launch the produced app, open an existing database, create/complete a task,
-   export a DOCX, and switch language.
-5. Verify a database created by the previous version still opens.
-6. Write release notes, including the single-writer limitation.
+4. Launch the produced app, choose a folder, create/complete a task, check the
+   day file, export a DOCX, and switch language.
+5. Verify a folder written by the previous version still opens, and run a
+   migration from a legacy `daymark.db` once.
+6. Write release notes, including the one-editor-per-day limitation.
 7. Publish the bundle and `SHA256SUMS`.
 
-**中文要点：** 三个版本号一起改；用旧版本数据库做一次升级验证；发布说明必须写
-清“单写者”限制。
+**中文要点：** 三个版本号一起改；用旧版本的数据文件夹做一次升级验证，并跑一次
+旧库迁移；发布说明必须写清“同一天只由一台设备编辑”的限制。
 
 ## 10. Documentation is part of the change
 
@@ -238,7 +308,7 @@ Update these in the same commit:
 |---|---|
 | File added/moved/deleted | 13 |
 | Interface, command, permission, format | 14 |
-| Schema or migration | 05, 14 |
+| File format, metadata key, migration | 05, 14 |
 | Sync behaviour | 06, 16 |
 | User workflow | 15, 17 |
 | Build/toolchain | 10, 18 |

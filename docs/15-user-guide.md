@@ -1,8 +1,9 @@
 # 15 · User Guide
 
 > 中文摘要：面向使用者的操作手册。首次启动选择数据文件夹；周/日/月视图管理任务；
-> 勾选完成任务；在“报告”页生成日报/周报/月报并导出 DOCX；在“设置”页切换语言、
-> 编号样式、扫描间隔和分类。数据只存在你选择的 `daymark.db` 文件里。
+> 勾选完成任务；在“报告”页生成日/周/月/年报告并导出 DOCX；在“设置”页切换语言、
+> 编号样式、周起始日、考核周期、扫描间隔和分类。数据是你选择的一个文件夹里的
+> 纯 Markdown 文件，可以直接阅读和手工编辑。
 
 This guide describes the shipped 0.1.0 behaviour only. Features that are
 designed but not built are listed in §11.
@@ -24,20 +25,31 @@ not create or read any task data until a folder is chosen.
 
 ## 2. Choosing the data folder
 
-Daymark stores everything in one SQLite file named `daymark.db` inside the
-folder you pick. Choose:
+Daymark stores everything as plain Markdown files inside the folder you pick:
+
+```
+<your folder>/
+├── _settings.md
+├── _categories.md
+├── _backlog.md
+└── 2026-10/
+    └── 2026-10-22.md
+```
+
+Choose:
 
 - a folder inside a synced directory (Nutstore 坚果云, OneDrive, iCloud Drive,
   Dropbox, Syncthing, a WebDAV mount) if you want several devices;
-- a local folder if you only use one machine and prefer manual backups.
+- a local folder if you only use one machine and prefer manual backups;
+- a folder you can read with any text editor — that is the point of the format.
 
 The folder can be changed later in **Settings → Change folder**. Changing the
-folder opens the database in the new folder; it does **not** move or copy the
-old file. To keep your tasks, move `daymark.db` yourself while Daymark is
-closed, then select the new folder.
+folder opens the store in the new folder; it does **not** move or copy the old
+files. To keep your tasks, copy the whole folder while Daymark is closed, then
+select the new folder.
 
-**中文要点：** 所有数据只在所选文件夹里的 `daymark.db`。放同步盘即可多设备；
-“更改文件夹”只是打开另一个数据库，不会自动搬迁旧文件。
+**中文要点：** 所有数据都在所选文件夹里，一天一个 `.md` 文件。放同步盘即可多
+设备；“更改文件夹”只是打开另一个文件夹，不会自动搬迁旧文件。
 
 ## 3. Interface tour
 
@@ -50,18 +62,18 @@ closed, then select the new folder.
 │ Month      │                                               │
 │ Reports    │                                               │
 │ Settings   │                                               │
-│ daymark.db │                                               │
+│ Daymark/   │                                               │
 └────────────┴───────────────────────────────────────────────┘
 ```
 
 - The sidebar switches views.
 - The top bar moves the period back/forward, returns to today, and adds a task.
-- The sidebar footer shows the database file name and the folder's last path
-  segment; hover it to see the full path.
-- A red banner appears if another program changed the database file (see §9).
+- The sidebar footer shows the data folder's last path segment; hover it to see
+  the full path.
+- A banner appears if another program changed the folder (see §9).
 
-**中文要点：** 左侧切换视图；顶部前后翻页、回到今天、添加任务；底部显示数据库
-文件名和文件夹。
+**中文要点：** 左侧切换视图；顶部前后翻页、回到今天、添加任务；底部显示数据
+文件夹。
 
 ## 4. Creating a task
 
@@ -70,56 +82,62 @@ Click **+ Add task** (top bar) or the **+** inside a day cell.
 | Field | Required | Behaviour |
 |---|---|---|
 | Title | yes | Empty titles are rejected. |
-| Category | no | Defaults to the first active category; “Uncategorized” is available. |
+| Category | no | Defaults to the first active category; "Uncategorized" is available. |
 | Priority | no | Normal, Low, High, Urgent. |
 | All day | no | Hides the end time; the start becomes a date. |
-| Start | no | Date + time, or a date when “All day” is on. |
+| Start | no | Date + time, or a date when "All day" is on. |
 | Due | no | Date only. |
 | End | no | Hidden for all-day tasks. |
 | Notes | no | Free text. |
 
-A task with a start or due date becomes **scheduled**; a task with neither stays
-in the **backlog**. Saving closes the editor and refreshes every view.
+A task with a start or due date becomes **scheduled** and is filed under the
+start date (or the due date when there is no start). A task with neither stays
+in the **backlog** and is written to `_backlog.md`. Saving closes the editor,
+writes the day file and refreshes every view.
 
-**中文要点：** 只有标题必填。有开始或截止日期就是“已排期”，两者都没有就是
-“待办池（Backlog）”。保存后立即生效。
+**中文要点：** 只有标题必填。有开始或截止日期就是“已排期”，按开始日期（否则
+截止日期）归档；两者都没有就写进 `_backlog.md`。
 
 ## 5. Editing, completing and deleting
 
 - **Edit:** click a task title in any calendar view.
-- **Complete:** click the circle/check button. The task moves to the done style
-  and gains a completion record for the report.
+- **Complete:** click the circle/check button. The box becomes `[x]` and a
+  completion timestamp is written into the task's comment, so the report can
+  count it.
 - **Reopen:** click the check again. The task returns to scheduled/backlog and
-  its completion records are removed, so it leaves the report.
-- **Delete:** open the task and click **Delete**. This is a soft delete: the row
-  stays in the database with `deleted = 1`, so it can be recovered only by
-  editing the database manually.
-- **Backlog:** the Day view lists every undated, unfinished task in the backlog
-  section, regardless of which day is selected.
+  its completion timestamp is cleared, so it leaves the report.
+- **Delete:** open the task and click **Delete**. The task line and its comment
+  are removed from the file. This is a hard delete; the app cannot undo it, but
+  a backup copy of the folder can.
+- **Backlog:** the Day view lists every undated, unfinished task from
+  `_backlog.md`, regardless of which day is selected.
+- **Hand editing:** see §10. Anything you type in a recognised format is read
+  back on the next reload.
 
-**中文要点：** 点标题编辑；点圆圈完成；再次点击重新打开（会删除完成记录，任务
-从报告中消失）；删除是软删除，界面无法撤销。
+**中文要点：** 点标题编辑；点圆圈完成；再次点击重新打开（会清除完成时间，任务
+从报告中消失）；删除是硬删除，只能靠文件夹备份恢复。
 
 ## 6. Calendar views
 
 | View | Shows | Interactions |
 |---|---|---|
-| **Week** | Monday–Sunday columns. A task appears on its start date, or its due date if it has no start. | Click a day header to open the day; click a title to edit; click the circle to complete; **+** adds a task on that day. |
-| **Day** | Scheduled tasks for the selected day, plus the whole backlog. | Complete, edit, add. Times are shown for timed tasks. |
-| **Month** | A six-week grid; up to three task titles per day, then “+N more”. | Click any day to open it in the day view. |
+| **Week** | One column per day, starting on the configured first day of the week (Monday by default). A task appears on its start date, or its due date if it has no start. | Click a day header to open the day; click a title to edit; click the circle to complete; **+** adds a task on that day. |
+| **Day** | Scheduled tasks for the selected day, plus the whole backlog. | Complete, edit, add. A start time is shown for timed tasks. |
+| **Month** | A six-week grid honouring the configured week start; up to three task titles per day, then "+N more". | Click any day to open it in the day view. |
 
 Dates are local wall-clock dates. A task that starts at 23:00 belongs to that
 calendar day.
 
-**中文要点：** 周视图按“开始日期，否则截止日期”归位；日视图额外显示全部未排期
-任务；月视图每天最多显示三条，点击进入当日。
+**中文要点：** 周视图按“开始日期，否则截止日期”归位，周起始日可在设置里改；
+日视图额外显示全部未排期任务；月视图每天最多显示三条，点击进入当日。
 
 ## 7. Reports
 
 Open **Reports** in the sidebar.
 
-1. Choose **Daily**, **Weekly** or **Monthly**.
-2. Move the period with the top bar if needed. Weeks run Monday–Sunday.
+1. Choose **Daily**, **Weekly**, **Monthly** or **Yearly**.
+2. Move the period with the top bar if needed. For monthly and yearly reports a
+   hint shows the assessment window, e.g. "26th through the 25th".
 3. Optionally change the section numbering: Chinese (一、二、三), Arabic
    (1. 2. 3.) or alphabetical (A. B. C.).
 4. Review the preview.
@@ -127,86 +145,109 @@ Open **Reports** in the sidebar.
 
 What appears in a report:
 
-- **Completed** — tasks with a completion recorded inside the period.
+- **Completed** — tasks with a completion timestamp inside the period.
 - **Planned** — unfinished tasks whose start or due date falls inside the
   period.
 - Sections follow the category order configured in Settings; uncategorized
   tasks come last. Each task appears once, and items are ordered by date.
+
+Period boundaries come from Settings: the week start day, the assessment month
+start day (1 = calendar month, 26 = the 26th through the 25th) and the
+assessment year start month.
 
 Export is disabled when the report has no sections. Cancelling the save dialog
 simply returns to the app. The suggested file name is
 `<report title>-<period>.docx`, with characters `\ / : * ? " < > |` replaced by
 `-`.
 
-**中文要点：** 报告完全由任务和完成记录推导。已完成=周期内有完成记录；计划中=
-周期内排期且未完成。分类顺序取自设置，未分类排最后。无内容时导出按钮禁用。
+**中文要点：** 报告完全由任务和完成记录推导。已完成=周期内有完成时间；计划中=
+周期内排期且未完成。周起始日、考核月起始日、考核年起始月都在设置里配置。
 
 ## 8. Settings
 
 | Setting | Values | Scope |
 |---|---|---|
-| Language | 简体中文 / English | Device-local; applies immediately. |
-| Report numbering | Chinese / Arabic / Alphabetical | Device-local, used by previews and exports. |
-| Scan for external changes | 30 s / 60 s / 300 s | Device-local; how often the database file's mtime is checked. |
-| Data location | absolute folder | Device-local; **Change folder** opens another database. |
-| Categories | add (English + Chinese names, colour) / delete | Shared data, stored in the database. |
+| Language | 简体中文 / English | Synced (`_settings.md`); applies immediately. |
+| Week starts on | Monday / Sunday | Synced; affects the week view, month grid and weekly reports. |
+| Assessment month starts on | 1–28 | Synced; `26` means the 26th through the 25th. |
+| Assessment year starts in | January–December | Synced; uses the same start day. |
+| Report signature name | free text | Synced; intended as the report signature, not yet printed; reserved for the AI assistant. |
+| Report numbering | Chinese / Arabic / Alphabetical | Synced; used by previews and exports. |
+| Scan for external changes | 30 s / 60 s / 300 s | Synced; how often the folder is polled. |
+| Data location | absolute folder | Device-local; **Change folder** opens another folder. |
+| Categories | add (English + Chinese names, colour) / archive | Shared, stored in `_categories.md`. |
 | Device ID | read-only UUID | Device-local; identifies this installation. |
 
 **Archiving a category.** The Delete button in the category list archives it: it
 disappears from pickers and reports. Existing tasks keep the category id, so
 they appear under **Uncategorized** in reports until you reassign them. There
-is no restore button in 0.1.0.
+is no restore button in 0.1.0; you can set `"archived": false` by hand in
+`_categories.md`.
 
-**中文要点：** 语言、编号、扫描间隔、数据位置是“本机设置”；分类是共享数据。
-删除分类等于归档，分类下已有任务会在报告里显示为“未分类”，界面暂时无法恢复。
+**中文要点：** 语言、周起始日、考核周期、编号、扫描间隔写入 `_settings.md`，
+会随文件夹同步；数据文件夹路径和设备 ID 是本机设置。删除分类等于归档，可以
+手工改 `_categories.md` 恢复。
 
-## 9. External changes and the conflict banner
+## 9. External changes and the reload banner
 
-Daymark checks the database file's modification time at the configured interval.
-If a sync client (or another Daymark window) replaced the file, a banner says
-another device wrote to it.
+Daymark polls a signature of the data folder — the number of Markdown files and
+the newest modification time — at the configured interval. If a sync client,
+another Daymark window or a text editor changed any file, a banner says the
+folder changed outside Daymark.
 
-Click **Reload** to close and reopen the database and refresh the views. If you
-click it while the sync client is still writing, you may reopen a partial file;
-wait until the sync client reports completion, then reload.
+Click **Reload** to reopen the store and refresh the views. If you click it
+while the sync client is still writing, you may read a partial file; wait until
+the sync client reports completion, then reload.
 
-Daymark never merges two versions and never silently overwrites a newer file.
+Daymark never merges two versions and never silently overwrites newer files.
 See `16-data-sync-operations.md` for the safe multi-device procedure.
 
-**中文要点：** 同步盘写入数据库文件后会出现提示条。等同步客户端彻底完成后再点
-“重新加载”。Daymark 不会自动合并，也不会静默覆盖。
+**中文要点：** 同步盘或编辑器改动了文件夹后会出现提示条。等同步客户端彻底完成
+后再点“重新加载”。Daymark 不会自动合并，也不会静默覆盖。
 
-## 10. Backup and moving data
+## 10. Hand editing and backups
 
-- **Backup:** close Daymark, copy `daymark.db` to a dated backup location.
-  Copying while the app is open can capture an inconsistent file.
-- **Restore:** close Daymark, replace the current `daymark.db` with the backup,
-  reopen the app.
-- **Move to another computer:** copy the whole folder (or just the `.db`),
-  install Daymark there, choose the copied folder on first launch.
-- **Change folder:** move the file yourself while the app is closed, then use
-  Settings → Change folder.
+**Hand editing.** The files are ordinary Markdown. You may:
 
-A full procedure, including multi-device hygiene, is in
-`16-data-sync-operations.md`.
+- rename a task in the `- [ ]` line, or change `[ ]` to `[x]` to complete it
+  (a box you check by hand gets that day's local noon as its completion time);
+- add a `  > note` line under a task;
+- add a task line to a day file or to `_backlog.md`;
+- edit the bullet list in `_settings.md` (the JSON comment wins if both exist);
+- fix a category name or colour in `_categories.md`.
 
-**中文要点：** 备份前先退出应用，直接复制 `daymark.db`。换电脑同样复制这个文件，
-首次启动时选择它所在的文件夹。
+Do not edit the JSON inside `<!-- daymark ... -->` comments unless you are
+correcting a value; a broken comment is ignored, which can lose metadata. Lines
+Daymark does not recognise are preserved and written back at the end of the
+file, so a stray paragraph will not be destroyed — but it will not become a
+task either.
+
+**Backup:** quit Daymark, copy the whole data folder to a dated backup
+location. Because it is plain text, you can also put the folder in git.
+
+**Restore:** quit Daymark, replace the folder contents with the backup, reopen.
+
+**Move to another computer:** copy the whole folder, install Daymark there,
+choose the copied folder on first launch.
+
+**中文要点：** 文件就是普通 Markdown，可以直接改名、勾选、加备注甚至新增任务；
+无法识别的行会被保留。备份就是复制整个文件夹，也可以放进 git。
 
 ## 11. Known limitations in 0.1.0
 
 | Limitation | Consequence |
 |---|---|
-| No automatic merge | The last writer to the synced file wins at file level. |
-| One completion row per completion, deleted on reopen | Reopening erases that task's completion history. |
-| Archived categories cannot be restored in the UI | Re-create the category manually if needed. |
-| Calendar tasks are all-day or timestamped; no duration blocks | Tasks do not render as time ranges in the week grid. |
-| CalDAV is not implemented | `source` and `external_uid` are reserved fields only. |
+| No automatic merge | A day edited on two devices is resolved by the sync client; the last file wins. |
+| Reopening clears completion metadata | The task's earlier completion date is lost. |
+| Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
+| No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
+| CalDAV is not implemented | `source` and `externalUid` are reserved fields only. |
+| WebDAV sync and the AI assistant are roadmap items | Not available in this build; see `19-roadmap.md`. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
-**中文要点：** 0.1.0 没有自动合并、没有 CalDAV、没有提醒和搜索；重新打开任务
-会清除其完成历史；归档分类在界面上无法恢复。
+**中文要点：** 0.1.0 没有自动合并、没有 CalDAV/WebDAV、没有 AI 助手、没有提醒
+和搜索；重新打开任务会清除其完成时间；归档分类需要在文件里手工恢复。
 
 ## 12. Quick reference
 
@@ -214,10 +255,12 @@ A full procedure, including multi-device hygiene, is in
 |---|---|
 | Add a task on a date | Click **+** in that day cell, or **+ Add task** in the top bar. |
 | See only one day | Click the day header in the week view, or a day in the month view. |
-| Mark work done | Click the circle next to the task. |
+| Mark work done | Click the circle next to the task, or change `[ ]` to `[x]` in the file. |
 | Generate this week's report | Reports → Weekly → check the period → Export DOCX. |
 | Use another language | Settings → Language. |
-| Change category numbering | Settings → Report numbering, or the selector on the Reports page. |
-| Move my data | Close the app, move `daymark.db`, then Settings → Change folder. |
-| Use two computers | Put the database in a synced folder and read doc 16 first. |
+| Change the week start | Settings → Week starts on. |
+| Change report boundaries | Settings → Assessment month / Assessment year. |
+| Move my data | Close the app, copy the folder, then Settings → Change folder. |
+| Recover an old SQLite file | Look for `daymark.db.migrated-*` in the folder (see doc 16). |
+| Use two computers | Put the folder in a synced directory and read doc 16 first. |
 | Fix a problem | See `17-troubleshooting.md`. |

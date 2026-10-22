@@ -1,0 +1,319 @@
+# 19 · Roadmap: WebDAV sync, AI assistant and the modular plan
+# 19 · 路线图：WebDAV 同步、AI 助手与模块化开发计划
+
+> Status: **plan only / 仅规划**。本文描述尚未实现的能力，代码中不包含对应
+> 模块。已实现的部分见 01-18 号文档。
+>
+> 日期：2026-10-22。基线版本 `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
+
+---
+
+## 1. 总原则 · Principles
+
+1. **文本优先（text-first）**：任何新能力都必须能以 Markdown 文件的形式读写，
+   不能把数据锁进新的二进制容器或远端账号。AI 与同步只是“读写这些文本的
+   另一种方式”，不是新的数据源。
+2. **默认关闭、显式开启（opt-in）**：WebDAV 与 AI 都需要用户在设置里主动打开，
+   并明确知道哪些数据会被发送到哪里。
+3. **绝不静默覆盖（never silent overwrite）**：同步冲突保留两份文件；AI 的输出
+   必须经用户确认后才写入，不自动改任务。
+4. **模块化（modular by feature）**：每个能力一个目录、一个公开入口，UI 只依赖
+   接口，不直接拼协议细节。避免把同步、AI、报告逻辑堆进 `App.tsx`。
+
+---
+
+## 2. 里程碑总览 · Milestones
+
+| 里程碑 | 主题 | 依赖 | 交付物 |
+|---|---|---|---|
+| M0 | Markdown 存储 | — | 已完成：`src/storage/*`、`_settings.md`、迁移 |
+| M1 | 自定义考核周期与年报 | M0 | 已完成：`src/domain/periods.ts`、年报页签 |
+| M2 | 周起始日设置 | M0 | 已完成：`weekStartsOn`，日/周/月视图与周报共用 |
+| M3 | WebDAV 同步 | M0、M2 | `src/sync/webdav/*`、设置页“同步”卡片 |
+| M4 | AI 助手（报告润色 / 周回顾） | M0、M1 | `src/ai/*`、报告页“AI 润色” |
+| M5 | AI 自然语言录入 | M4 | 任务编辑器中的“用一句话创建” |
+| M6 | 自动合并与 CalDAV | M3 | 06/07 号文档的设计落地 |
+
+顺序说明：M3 与 M4 相互独立，可并行；但两者都依赖 M0 的文件契约，因此
+**先稳定 Markdown 格式，再接入外部能力**。M6 放在最后，因为自动合并需要
+明确的冲突语义，而冲突语义应当由 WebDAV 同步先跑通。
+
+---
+
+## 3. WebDAV 同步 · WebDAV sync
+
+### 3.1 目标
+
+让用户把同一个数据文件夹同步到坚果云、Nextcloud、Synology、ownCloud 等
+WebDAV 服务，而不依赖某一家桌面同步盘。桌面同步盘（iCloud、OneDrive、
+坚果云客户端）仍然是首选方案；WebDAV 是“没有桌面客户端”时的补充。
+
+### 3.2 远端布局
+
+远端目录与本地完全一致，便于人工检查与迁移：
+
+```
+<webdav-root>/
+  _settings.md
+  _categories.md
+  _backlog.md
+  2026-10/2026-10-22.md
+  2026-10/2026-10-23.md
+```
+
+不引入远端专用索引文件。文件本身就是索引；需要清单时在本地临时生成。
+
+### 3.3 凭据与设置
+
+| 字段 | 存放位置 | 是否同步 | 说明 |
+|---|---|---|---|
+| `webdavUrl` | 本地 localStorage | 否 | 每个设备可以指向不同服务 |
+| `webdavUsername` | 本地 localStorage | 否 | |
+| `webdavPassword` | 系统钥匙串（M3 第一版可用 localStorage，需在 UI 明示风险） | **绝不** | 不能写进 `_settings.md`，否则密码会随文件夹同步出去 |
+| `webdavEnabled` | 本地 localStorage | 否 | 每台设备独立开关 |
+| `webdavRemotePath` | 本地 localStorage | 否 | 远端根路径，默认 `/daymark/` |
+
+设置页只显示“已配置 / 未配置”，不回显密码。
+
+### 3.4 同步算法（第一版：手动“立即同步”）
+
+1. **本地清单**：递归扫描数据目录（深度 2，仅 `.md`），得到
+   `{path, size, mtimeMs, sha256}`。
+2. **远端清单**：`PROPFIND` 深度 1，逐层读取
+   `getlastmodified`、`getcontentlength`、`getetag`。
+3. **生成计划**：对每个路径比较本地与远端：
+   - 仅本地有 → `upload`
+   - 仅远端有 → `download`
+   - 两侧都有且 `sha256`/etag 不同 → `conflict`
+4. **执行**：
+   - `upload`：`PUT` 到临时名 `<name>.daymark-tmp`，再 `MOVE` 覆盖。
+   - `download`：先写本地临时文件，再原子 rename。
+   - `conflict`：**不覆盖任何一侧**。本地保留原名，远端版本下载为
+     `<name> (conflict <device> <yyyyMMdd-HHmmss>).md`，并在 UI 列出冲突文件，
+     由用户合并。合并完成后删除冲突副本。
+5. **提交**：只有全部步骤成功才更新本地 `lastSyncAt`；任何失败都保留现场并
+   显示可复制的错误信息。
+6. **扫描器**：同步完成后调用 `scanner.touch()`，避免把同步写回误判为外部修改。
+
+第一版不做双向增量日志、不做后台定时；用户点一次按钮同步一次。第二版再加
+`ETag` 条件请求、`If-Match` 防覆盖和定时同步。
+
+### 3.5 模块划分
+
+```
+src/sync/webdav/
+  client.ts      # PROPFIND/GET/PUT/MOVE/DELETE，认证与错误归一化
+  manifest.ts    # 本地文件清单（复用 storage/fs 的 tree 遍历）
+  plan.ts        # 纯函数：本地/远端清单 → 操作计划 + 冲突列表
+  engine.ts      # 执行计划、写回、进度回调
+  types.ts       # WebDavConfig, RemoteEntry, SyncPlan, SyncResult
+```
+
+UI 只调用 `engine.syncNow(config, root, onProgress)`。`plan.ts` 是纯函数，可
+用 Vitest 覆盖，不需要真实服务器。
+
+### 3.6 传输层选择
+
+- 方案 A：Rust 侧 `reqwest` 实现命令 `webdav_request`，前端只传方法/路径/头。
+  优点：不受 WebView CORS 限制；密码不进入 JS 内存。缺点：需要新增依赖与
+  权限声明。
+- 方案 B：`tauri-plugin-http` + 前端 `fetch`。开发快，但需要为每个域名配置
+  能力，且凭据会出现在前端内存。
+
+**建议 A**。在 `src-tauri` 增加 `webdav.rs`，只暴露最小命令面：
+`webdav_propfind`, `webdav_get`, `webdav_put`, `webdav_move`。凭据来自系统
+钥匙串（`keyring` crate）或一次性的命令参数；不写入日志。
+
+### 3.7 验收标准
+
+- 空远端 + 本地 3 个文件：上传后远端结构一致，内容逐字节相同。
+- 远端手改一个任务标题 + 本地改另一个文件：同步后两边都保留，冲突清单为空。
+- 两边改同一个文件：生成一个冲突副本，原名文件不被覆盖，UI 能看到两份。
+- 断网、401、远端 507：错误可读，本地文件不损坏（临时文件 + rename）。
+- 中文文件名、空格、`#`、`%`：URL 编码正确。
+
+---
+
+## 4. AI 助手 · AI assistant
+
+### 4.1 目标与非目标
+
+**目标**：把“记录 → 报告”的最后一步做得更省力。
+
+- 周报/月报的**文字润色**：把已生成的条目整理成连贯段落。
+- **周回顾**：根据完成记录提示“本周完成了什么、哪些顺延了”。
+- **自然语言录入**：一句话拆成任务、日期、分类（M5）。
+- **计划建议**：根据待办与历史耗时给出排期建议（更后期）。
+
+**非目标**：不做自动改任务、不做云端账号体系、不把整个数据目录无差别上传。
+
+### 4.2 隐私模型
+
+1. 默认关闭。开启时显示一段说明：请求会发送到用户配置的模型服务商。
+2. **自带密钥（BYO key）**：密钥存在系统钥匙串；不写入 `_settings.md`，不随
+   文件夹同步。
+3. **按需组装上下文**：只发送当前报告周期内的任务标题、分类、完成时间与
+   备注；默认不发送 `_settings.md`、设备 ID、历史全部文件。
+4. **发送前预览**：第一次使用时显示“本次将发送 N 条任务、约 M 字符”，用户
+   确认后才请求。
+5. **输出不自动落盘**：AI 结果先出现在预览面板，用户点“插入备注”或“另存为
+   `_ai/YYYY-MM-DD-<kind>.md`”才写文件。
+
+### 4.3 技术选型
+
+- 官方 SDK：`@anthropic-ai/sdk`（TypeScript），默认模型 `claude-opus-5-5`。
+- 使用自适应思考 `thinking: {type: "adaptive"}`；报告润色与结构化拆解都属于
+  需要推理的任务。
+- 长报告使用流式请求，避免超时；用 `stream.finalMessage()` 取完整结果。
+- 需要严格 JSON（如自然语言拆任务）时使用 structured outputs
+  （`output_config.format`），不要靠提示词“请只返回 JSON”。
+- 兼容层：`AiProvider` 接口允许以后接入本地模型（Ollama / LM Studio）或
+  企业网关；第一版只实现 Anthropic，其他 provider 明确标注“未实现”。
+
+### 4.4 模块划分
+
+```
+src/ai/
+  types.ts             # AiProvider, AiRequest, AiResult, AiFeature
+  providers/
+    anthropic.ts       # 官方 SDK；密钥从 keychain 读取
+    local.ts           # 预留：OpenAI-compatible / Ollama
+  context.ts           # 纯函数：ReportDocument + Task[] → 精简上下文
+  prompts/
+    polishReport.ts
+    weeklyReview.ts
+    parseTask.ts
+  actions/
+    polishReport.ts    # 组装 → 调用 → 返回可预览文本
+    parseTask.ts       # 返回 TaskDraft[]，由 UI 确认后创建
+  keyStore.ts          # 钥匙串读写封装（Rust 命令或插件）
+```
+
+UI 只依赖 `actions/*`，不直接 new SDK client。`context.ts`、`parseTask` 的
+解析与校验是纯函数，可用固定样本做单元测试，不需要真实 API。
+
+### 4.5 第一阶段功能：报告润色
+
+输入：`ReportDocument`（标题、周期、分类、条目、完成数）。
+输出：一段中文/英文正文，保留分类顺序，不新增事实。
+
+约束写入 system prompt：
+
+- 只使用输入中出现的任务，不虚构数字、人名、项目名。
+- 保留原始条目作为“事实来源”；润色只是组织语言。
+- 输出语言跟随 `settings.language`。
+- 长度上限（如 600 字）可配置。
+
+UI：报告页新增“AI 润色”按钮 → 侧栏预览 → “复制” / “插入报告备注” /
+“另存为 `_ai/` 文件”。原文始终保留。
+
+### 4.6 第二阶段：自然语言录入（M5）
+
+示例输入：“下周三下午三点和张总开会，准备报价单，提前一天提醒”。
+
+流程：
+
+1. `parseTask.ts` 组装当前日期、时区、分类列表。
+2. 调用模型，使用 structured outputs 返回
+   `{title, startAt, endAt, dueAt, categoryId, priority, notes}[]`。
+3. 前端用 `zod` 或手写校验器验证：日期可解析、分类 ID 存在、标题非空。
+4. 打开任务编辑器预填，用户确认后才调用 `createTask`。
+
+绝不直接写文件；解析失败时展示原始模型输出并允许手动修正。
+
+### 4.7 成本、离线与失败处理
+
+- 在设置里显示“本次请求约 X 输入 / Y 输出 token”的估算，不做硬性承诺。
+- 请求失败（401、429、超时）不影响本地数据；显示可重试的错误。
+- 离线时按钮禁用并提示“需要网络”。
+- 不在日志中记录密钥、完整请求体或任务备注；只记录功能名、耗时、token 数。
+
+### 4.8 验收标准
+
+- 未配置密钥时，AI 按钮可见但点击后引导去设置，不发请求。
+- 预览阶段取消，不产生任何文件改动。
+- 润色结果不包含输入中不存在的任务。
+- 自然语言录入解析出的日期落在用户本地时区，跨月/跨年正确。
+- 关闭 AI 后，所有网络请求停止，代码路径不触发 SDK。
+
+---
+
+## 5. Web 版 / PWA 的可行性 · Web build (optional)
+
+用户提到的 “webdev” 若指浏览器版本，则单独评估，不与 WebDAV 混为一谈：
+
+- Tauri 前端本身是 React + Vite，可以构建为静态站点。
+- 文件访问需改用 File System Access API（Chromium）或导入/导出 zip；
+  Safari/Firefox 支持不完整。
+- 没有 Tauri 的原子 rename 与任意路径访问，`_settings.md` 的自动写回需要
+  用户授权目录。
+- 结论：**桌面端稳定后再做**；第一版最多提供“只读预览 + 导出”，不承诺完整
+  编辑。若只是想要 WebDAV，按第 3 节执行即可。
+
+---
+
+## 6. 模块化与代码边界 · Modular boundaries
+
+| 目录 | 只做一件事 | 不允许 |
+|---|---|---|
+| `src/domain/` | 纯计算：任务状态、周期、报告、编号 | 文件 IO、React、网络 |
+| `src/storage/` | Markdown 解析/序列化、路径、仓库、迁移 | UI 状态、网络 |
+| `src/sync/` | 检测变化；WebDAV 传输与计划 | 直接改 React state |
+| `src/ai/` | 上下文组装、provider、prompt、动作 | 直接写文件 |
+| `src/features/` | 页面与交互 | 协议细节、文件格式细节 |
+| `src/settings/` | 设置类型、校验、本地持久化 | 业务规则 |
+| `src-tauri/` | 文件系统、钥匙串、WebDAV 传输 | 业务判断 |
+
+新增功能时先问“它属于哪一层”，再建目录；不要继续把逻辑堆进 `App.tsx`。
+`App.tsx` 只负责组装：打开 store、刷新数据、切换视图、调用 action。
+
+---
+
+## 7. 测试与发布门槛 · Testing and release gates
+
+每个里程碑合并前必须满足：
+
+1. `npm run typecheck`、`npm test`、`npm run build` 全绿。
+2. 新增纯函数有单元测试（周期、计划生成、上下文裁剪、解析校验）。
+3. `cargo check` 通过；新增 Rust 命令在 14 号文档登记。
+4. 手动验收覆盖：首次启动、迁移、断电/断网、冲突、中文路径。
+5. 文档同批更新：05（格式）、06（同步）、14（接口）、15（使用）、17（排障）。
+
+WebDAV 的集成测试使用本地 `rclone serve webdav` 或 Docker 的
+`bytemark/webdav`，不连接真实云盘；测试账号与密码只存在于测试环境变量。
+
+AI 的测试不调用真实 API：`AiProvider` 用假实现返回固定文本/JSON，验证
+上下文组装、预览流程与失败分支。
+
+---
+
+## 8. 风险与待决事项 · Risks and open questions
+
+| 风险 | 影响 | 缓解 |
+|---|---|---|
+| Markdown 被同步盘部分写入 | 文件损坏 | 原子写 + 临时文件；解析失败时保留原文并提示 |
+| 两端同时改同一文件 | 数据丢失 | 冲突副本，绝不覆盖；后续做行级合并 |
+| WebDAV 服务差异（坚果云/Nextcloud） | 同步失败 | 只依赖 PROPFIND/GET/PUT/MOVE；错误码归一化；集成测试覆盖两家 |
+| 钥匙串在 Linux 缺失 | 密钥无处存放 | 退化为“每次会话输入”，不落盘 |
+| AI 输出包含虚构内容 | 报告失真 | 只传输事实条目；提示词禁止新增；预览确认 |
+| API 费用不可控 | 用户成本 | 显示估算、限制上下文、按功能开关 |
+| 模型/接口变化 | 维护成本 | `AiProvider` 隔离；SDK 版本锁定；错误可降级 |
+
+待决：
+
+1. WebDAV 第一版是否支持自签证书？（建议：不支持，提示用户用系统信任的证书）
+2. AI 默认 provider 是否只做 Anthropic，还是同时做 OpenAI-compatible？
+   （建议：先 Anthropic，接口留好扩展点）
+3. `_ai/` 输出目录是否纳入 `.gitignore` 之外的同步范围？（建议：纳入同步，
+   但 UI 明示这些是生成物，可随时删除）
+
+---
+
+## 9. 参考 · References
+
+- 05 数据模型：Markdown 文件格式与字段
+- 06 同步与冲突：当前扫描器与未来合并策略
+- 14 接口参考：现有 Rust 命令与 TS 模块
+- 18 开发指南：验证命令与文档更新规则
+- Anthropic TypeScript SDK：<https://github.com/anthropics/anthropic-sdk-typescript>
+- WebDAV RFC 4918：<https://www.rfc-editor.org/rfc/rfc4918>

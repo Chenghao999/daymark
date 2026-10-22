@@ -1,88 +1,110 @@
 # 06 · Sync and Conflict Design
 
-> 中文摘要：这是 Daymark 最关键的设计。原则是不让两个进程同时持有同一个 SQLite
-> 文件的写锁：本地工作副本 + 共享文件交换。1.0 只做变更检测与提示，自动合并放到 P1。
+> 中文摘要：这是 Daymark 最关键的设计。0.1 用“一天一个 Markdown 文件”把并发
+> 编辑面缩小到单日，并用整个文件夹的签名做变更检测；自动合并放到 P1。原则是
+> 永不静默覆盖别人的改动，检测不到就不动手。
 
 ## 1. The problem
 
-A SQLite file placed in a cloud-sync folder can be written by two machines. If
-both hold the file open and write, SQLite locks and WAL files are themselves
-synced, which can corrupt the database. Daymark does not assume it is the only
-writer.
+A data folder placed in a cloud-sync folder is written by two machines. A single
+monolithic database file has two failure modes: the client uploads a half-written
+file, or one device's whole history replaces another's. Daymark does not assume
+it is the only writer, and it no longer shares one file for everything.
 
-## 2. Chosen model: local working copy + shared file exchange
+Per-day files change the shape of the problem: two devices editing different
+days touch different files, so most concurrency is harmless. The remaining risk
+is the same day edited on both sides, plus the small shared files
+(`_settings.md`, `_categories.md`, `_backlog.md`).
+
+## 2. Chosen model: per-day files + whole-folder detection
 
 ```
-Machine A                    Synced folder                 Machine B
-daymark.db (local)  ⇄  exchange/  ⇄  daymark.db (local)
+Device A                     Synced folder                    Device B
+2026-10-22.md   ⇄   2026-10/2026-10-22.md   ⇄   2026-10-22.md
+                    2026-11/2026-11-03.md
 ```
 
-- Each machine keeps its own SQLite file outside the synced folder, or accepts
-  that the synced file is only written through atomic replacement.
-- Data moves as a **delta package**: a small SQLite file (or JSON bundle)
-  containing changed rows since the last exchange, named with the device ID and
-  monotonic sequence: `delta-<device>-<seq>.db`.
-- On scan, a machine imports deltas from other devices, writes its own delta,
-  and removes deltas it has already imported (or moves them to `imported/`).
-- The shared file is never held open for writing. Exports use write-to-temp +
-  rename; imports happen into the local database.
+- Every write is atomic (temp file + rename), so a sync client never uploads a
+  partial day file.
+- Day files are the unit of collision. A conflict is usually one day, not the
+  whole history.
+- The unit of detection is the folder, not a file.
 
-This removes SQLite lock competition entirely, at the cost of an extra exchange
-step.
+## 3. 0.1 implementation (shipped)
 
-## 3. 1.0 implementation (shipped)
+Detection is the only shipped half:
 
-1.0 ships the **detection half**:
-
-- `sync_meta.last_write_device` and `last_write_at` are updated on every write.
-- The scanner polls the database file's mtime at the configured interval.
-- Daymark re-baselines the mtime after its own writes, so only external changes
-  trigger the banner.
-- On an external change with a different `last_write_device`, the UI shows a
-  conflict banner; the user clicks Reload, which closes and reopens the
-  database and refreshes the views.
+- Rust exposes `tree_signature(root) → {fileCount, latestMtimeMs, fingerprint}`.
+  It walks `.md` files to depth 2, skipping dotfiles, and returns the number of
+  files, the newest mtime, and a hash over every file's path, size and mtime.
+  The scanner compares the fingerprint, so a sync client that replaces a file
+  while preserving its mtime is still detected. Adding or removing any file
+  changes the file count and the fingerprint too.
+- `src/sync/scanner.ts` polls that signature every `scanIntervalSec`.
+- Daymark calls `touch()` after its own writes, re-baselining the signature so
+  its own write does not raise the banner.
+- On a signature change the app shows a reload banner; the user clicks
+  **Reload**, which calls `openStore(root)` again.
 - No automatic merge and no silent overwrite.
 
-This is safe but coarse: if two machines edit offline, the last writer to the
-sync folder wins at the file level. Document that limitation until P1 lands.
+This is coarse on purpose: it is a single IPC call per interval regardless of
+how many files exist. It detects change, not authorship — `deviceId` in the
+file comments is what tells a human who wrote what.
+
+If two devices edit the same day offline, the sync client decides which file
+lands last, and that version wins for that file. Document that limitation until
+P1 lands.
 
 ## 4. P1 implementation plan
 
-### Delta format
+### Merge unit
 
-- Table `change_log(seq INTEGER PK AUTOINCREMENT, entity TEXT, entity_id TEXT,
-  op TEXT, changed_at TEXT, device_id TEXT, payload TEXT)`.
-- Export rows with `seq > last_exported_seq` into a delta database.
-- Import applies rows idempotently by `(device_id, seq)`.
+Merge at the task level, using the metadata already written into each file:
+
+| Identity | Source |
+|---|---|
+| Task id | `id` in `<!-- daymark task ... -->` |
+| Version | `rowVersion`, then `updatedAt` |
+| Author | `deviceId` |
+
+No change log and no delta database are needed: the files themselves carry the
+versioning fields, and a merge can be computed from the two copies of a day
+file.
 
 ### Conflict rules
 
-Per field, not per row:
+Per field, not per line:
 
 | Case | Resolution |
 |---|---|
 | Only one side changed the field | Take that value |
 | Both changed, equal | No conflict |
-| Both changed, different | Keep both in `conflicts` and ask the UI |
+| Both changed, different | Keep both in a conflict record and ask the UI |
+| Task present on one side only | Keep it (added), unless deleted after the other side's last read |
 | Delete vs edit | Keep the edit; surface "deleted elsewhere" |
 | Complete vs reopen | Completion wins until the user resolves |
-
-`updated_at` + `device_id` + `row_version` identify the two sides.
 
 ### UI
 
 Three actions per conflicted field: **keep mine**, **keep theirs**, **keep
 both** (creates a second task). The UI never auto-resolves a genuine conflict.
+After resolution the day file is written once, with a fresh `rowVersion`.
 
-### Mutual exclusion
+### Guards
 
-- Import/export use a marker file in the exchange folder
-  (`lock-<device>.json`, with a timestamp and expiry).
-- A machine that sees a fresh lock backs off and retries with jitter.
-- Stale locks expire after 5 minutes.
+- A merge writes only files it actually changed, reusing the atomic write path.
+- `_categories.md` and `_settings.md` merge per line / per key, so simultaneous
+  edits to different categories do not collide.
+- If the folder signature changes during a merge, abort and ask the user to
+  reload rather than retrying blindly.
 
-## 5. Non-goals
+## 5. Roadmap
 
-- CRDT text merge for notes in 1.0.
-- Real-time sync; the exchange interval is the resolution.
+WebDAV sync and the AI assistant are roadmap items only and are not implemented;
+see `19-roadmap.md` for the plan. CalDAV remains design-only (doc 07).
+
+## 6. Non-goals
+
+- CRDT text merge for notes.
+- Real-time sync; the scan interval is the resolution.
 - Server-side coordination of any kind.
