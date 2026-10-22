@@ -45,13 +45,15 @@ OneDrive、iCloud Drive、Syncthing 或支持 WebDAV 的目录，同步这件事
 `0.1.0` — working skeleton on Markdown storage: day/week/month calendar
 (Monday or Sunday start), task CRUD with backlog and completion states, category
 presets and numbering, daily/weekly/monthly/yearly reports with configurable
-assessment month/year and DOCX export, bilingual UI (zh-CN / en), custom data
+assessment month/year and DOCX export, English-first UI with a full Chinese
+translation (zh-CN / en), custom data
 folder, synced settings file, external-change scanner, and a one-time migration
 from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
-导出、中英文界面、自定义数据目录、可同步的设置文件、外部变更检测，以及从旧
+导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
+外部变更检测，以及从旧
 `daymark.db` 的一次性迁移。
 
 Not implemented yet / 尚未实现：WebDAV sync inside the app and AI assistance.
