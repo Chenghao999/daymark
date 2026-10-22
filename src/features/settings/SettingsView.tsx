@@ -53,6 +53,19 @@ export default function SettingsView({
         </label>
 
         <label className="field">
+          <span>{t("settings.weekStart")}</span>
+          <select
+            value={settings.weekStartsOn}
+            onChange={(event) =>
+              onPatch({ weekStartsOn: Number(event.currentTarget.value) === 0 ? 0 : 1 })
+            }
+          >
+            <option value={1}>{t("settings.weekStartMonday")}</option>
+            <option value={0}>{t("settings.weekStartSunday")}</option>
+          </select>
+        </label>
+
+        <label className="field">
           <span>{t("settings.numbering")}</span>
           <select
             value={settings.numbering}
@@ -62,6 +75,47 @@ export default function SettingsView({
             <option value="arabic">{t("settings.numberingArabic")}</option>
             <option value="alpha">{t("settings.numberingAlpha")}</option>
           </select>
+        </label>
+
+        <label className="field">
+          <span>{t("settings.assessmentMonth")}</span>
+          <select
+            value={settings.assessmentMonthStartDay}
+            onChange={(event) => onPatch({ assessmentMonthStartDay: Number(event.currentTarget.value) })}
+          >
+            {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+              <option key={day} value={day}>
+                {t("settings.monthStartDay", { day })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">{t("settings.assessmentMonthHint")}</p>
+
+        <label className="field">
+          <span>{t("settings.assessmentYear")}</span>
+          <select
+            value={settings.assessmentYearStartMonth}
+            onChange={(event) => onPatch({ assessmentYearStartMonth: Number(event.currentTarget.value) })}
+          >
+            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+              <option key={month} value={month}>
+                {t("settings.yearStartMonth", { month })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">
+          {t("settings.assessmentYearHint", { day: settings.assessmentMonthStartDay })}
+        </p>
+
+        <label className="field">
+          <span>{t("settings.userName")}</span>
+          <input
+            value={settings.userName}
+            onChange={(event) => onPatch({ userName: event.currentTarget.value })}
+            placeholder={t("settings.userNamePlaceholder")}
+          />
         </label>
 
         <label className="field">
@@ -81,6 +135,7 @@ export default function SettingsView({
         <h2>{t("settings.dataLocation")}</h2>
         <code className="path">{settings.dataDir}</code>
         <p className="muted">{t("settings.dataPathHint")}</p>
+        <p className="muted small">{t("settings.storageHint")}</p>
         <button onClick={() => void onChangeFolder()}>{t("settings.changeFolder")}</button>
         <p className="muted small">
           {t("settings.deviceId")}: <code>{deviceId}</code>

@@ -4,7 +4,7 @@ export type TaskSource = "local" | "caldav";
 
 export type NumberingStyle = "chinese" | "arabic" | "alpha";
 
-export type ReportKind = "daily" | "weekly" | "monthly";
+export type ReportKind = "daily" | "weekly" | "monthly" | "yearly";
 
 export type AppLanguage = "en" | "zh-CN";
 

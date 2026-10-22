@@ -12,9 +12,9 @@
   },
   "onboarding": {
     "title": "Choose where your data lives",
-    "body": "Daymark keeps everything in a single SQLite file that you own. Pick a folder — one inside Nutstore, OneDrive, iCloud Drive or Syncthing works well, because syncing the file is what syncs your devices.",
+    "body": "Daymark keeps everything in plain Markdown files that you own: one file per day inside month folders, plus _backlog.md, _categories.md and _settings.md. Pick a folder — one inside Nutstore, OneDrive, iCloud Drive, Syncthing or a WebDAV-synced folder works well, because syncing the folder is what syncs your devices.",
     "choose": "Choose folder",
-    "hint": "The file daymark.db will be created inside the folder you pick."
+    "hint": "The folder will hold YYYY-MM/YYYY-MM-DD.md day files and three underscore files for backlog, categories and settings. Any text editor can read them."
   },
   "actions": {
     "add": "Add task",
@@ -60,10 +60,12 @@
     "daily": "Daily",
     "weekly": "Weekly",
     "monthly": "Monthly",
+    "yearly": "Yearly",
     "preview": "Preview",
     "completed": "{{count}} completed",
     "planned": "{{count}} planned",
     "empty": "No records in this period",
+    "assessmentHint": "Assessment month starts on day {{day}}; assessment year starts in month {{month}}. Change these in Settings.",
     "exported": "Saved to {{path}}",
     "exportFailed": "Export failed: {{message}}",
     "generatedAt": "Generated {{date}}"
@@ -79,13 +81,26 @@
     "numberingChinese": "Chinese (一、二、三)",
     "numberingArabic": "Arabic (1. 2. 3.)",
     "numberingAlpha": "Alphabetical (A. B. C.)",
+    "weekStart": "Week starts on",
+    "weekStartMonday": "Monday",
+    "weekStartSunday": "Sunday",
+    "assessmentMonth": "Assessment month starts on",
+    "monthStartDay": "Day {{day}}",
+    "assessmentMonthHint": "Day 1 is the calendar month. Day 26 means the 26th of one month through the 25th of the next.",
+    "assessmentYear": "Assessment year starts in",
+    "yearStartMonth": "Month {{month}}",
+    "assessmentYearHint": "The assessment year starts on day {{day}} of this month and runs for twelve months.",
+    "userName": "Name on reports",
+    "userNamePlaceholder": "Optional",
     "categories": "Categories",
     "addCategory": "Add category",
     "categoryNameEn": "English name",
     "categoryNameZh": "Chinese name",
     "deviceId": "Device ID",
-    "conflict": "Another device wrote to this file. Reload to see the changes.",
-    "dataPathHint": "Keep this file inside a synced folder to use Daymark on several devices."
+    "conflict": "Another device changed the data folder. Reload to see the changes.",
+    "storageFormat": "Markdown files",
+    "dataPathHint": "Keep this folder inside a synced location to use Daymark on several devices.",
+    "storageHint": "_backlog.md · YYYY-MM/YYYY-MM-DD.md · _categories.md · _settings.md"
   },
   "days": {
     "mon": "Mon",

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import type { AppLanguage, Category, Completion, NumberingStyle, ReportKind, Task } from "../../domain/types";
-import { generateReport, reportPeriod } from "../../domain/reports";
-import { listCompletions } from "../../db/repository";
+import { reportPeriod, type PeriodOptions } from "../../domain/periods";
+import { generateReport } from "../../domain/reports";
+import { listCompletions } from "../../storage/repository";
 import { exportReportDocx } from "./exportDocx";
 
 interface ReportsViewProps {
@@ -12,6 +13,9 @@ interface ReportsViewProps {
   categories: Category[];
   language: AppLanguage;
   numbering: NumberingStyle;
+  weekStartsOn: 0 | 1;
+  assessmentMonthStartDay: number;
+  assessmentYearStartMonth: number;
   onNumberingChange: (style: NumberingStyle) => void;
 }
 
@@ -21,6 +25,9 @@ export default function ReportsView({
   categories,
   language,
   numbering,
+  weekStartsOn,
+  assessmentMonthStartDay,
+  assessmentYearStartMonth,
   onNumberingChange,
 }: ReportsViewProps) {
   const { t } = useTranslation();
@@ -30,15 +37,23 @@ export default function ReportsView({
   const [exporting, setExporting] = useState(false);
 
   const period = useMemo(() => {
-    const { start, end } = reportPeriod(kind, anchor);
+    const options: PeriodOptions = {
+      weekStartsOn,
+      assessmentMonthStartDay,
+      assessmentYearStartMonth,
+    };
+    const { start, end } = reportPeriod(kind, anchor, options);
+    const range = `${format(start, "yyyy-MM-dd")} ~ ${format(end, "yyyy-MM-dd")}`;
+    let label = range;
     if (kind === "daily") {
-      return { start, end, label: format(start, "yyyy-MM-dd") };
+      label = format(start, "yyyy-MM-dd");
+    } else if (kind === "monthly" && assessmentMonthStartDay === 1) {
+      label = format(start, "yyyy-MM");
+    } else if (kind === "yearly" && assessmentYearStartMonth === 1 && assessmentMonthStartDay === 1) {
+      label = format(start, "yyyy");
     }
-    if (kind === "weekly") {
-      return { start, end, label: `${format(start, "yyyy-MM-dd")} ~ ${format(end, "yyyy-MM-dd")}` };
-    }
-    return { start, end, label: format(start, "yyyy-MM") };
-  }, [anchor, kind]);
+    return { start, end, label };
+  }, [anchor, kind, weekStartsOn, assessmentMonthStartDay, assessmentYearStartMonth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +103,7 @@ export default function ReportsView({
     <div className="reports-view">
       <div className="reports-toolbar">
         <div className="segmented">
-          {(["daily", "weekly", "monthly"] as ReportKind[]).map((item) => (
+          {(["daily", "weekly", "monthly", "yearly"] as ReportKind[]).map((item) => (
             <button key={item} className={kind === item ? "active" : ""} onClick={() => setKind(item)}>
               {t(`reports.${item}`)}
             </button>
@@ -107,6 +122,15 @@ export default function ReportsView({
           {t("actions.export")}
         </button>
       </div>
+
+      {(kind === "monthly" || kind === "yearly") && (
+        <p className="muted small">
+          {t("reports.assessmentHint", {
+            day: assessmentMonthStartDay,
+            month: assessmentYearStartMonth,
+          })}
+        </p>
+      )}
 
       <article className="report-paper">
         <header>

@@ -5,7 +5,7 @@ import { addDays, format, startOfWeek } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import { zhCN } from "date-fns/locale/zh-CN";
 import type { AppLanguage, Category, NumberingStyle, Task } from "./domain/types";
-import { closeDatabase, deviceId as readDeviceId, openDatabase } from "./db/client";
+import { closeStore, deviceId as readDeviceId, openStore } from "./storage/client";
 import {
   archiveCategory,
   completeTask,
@@ -16,9 +16,10 @@ import {
   reopenTask,
   softDeleteTask,
   updateTask,
-} from "./db/repository";
-import { databasePath, loadSettings, saveSettings, type AppSettings } from "./settings/store";
-import { startFileScanner, type FileScanner } from "./sync/scanner";
+} from "./storage/repository";
+import { loadSyncedSettings, saveSyncedSettings } from "./storage/settingsFile";
+import { loadSettings, sanitize, saveSettings, type AppSettings } from "./settings/store";
+import { startFolderScanner, type FolderScanner } from "./sync/scanner";
 import TaskEditor, { type TaskDraft } from "./components/TaskEditor";
 import WeekView from "./features/calendar/WeekView";
 import DayView from "./features/calendar/DayView";
@@ -42,7 +43,7 @@ export default function App() {
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bootedRef = useRef(false);
-  const scannerRef = useRef<FileScanner | null>(null);
+  const scannerRef = useRef<FolderScanner | null>(null);
 
   const language = settings.language;
   const dateLocale = language === "zh-CN" ? zhCN : enUS;
@@ -53,13 +54,28 @@ export default function App() {
     setCategories(nextCategories);
   }, []);
 
-  const activateFolder = useCallback(
-    async (dir: string) => {
-      const next = { ...settings, dataDir: dir };
+  /**
+   * Adopt settings that may have come from `_settings.md`: persist them
+   * locally and keep i18next in step, since the file can change the language
+   * on a device that has not restarted.
+   */
+  const adoptSettings = useCallback(
+    (next: AppSettings) => {
       saveSettings(next);
       setSettings(next);
+      if (i18n.language !== next.language) void i18n.changeLanguage(next.language);
+    },
+    [i18n],
+  );
+
+  const activateFolder = useCallback(
+    async (dir: string) => {
       try {
-        await openDatabase(databasePath(next));
+        await openStore(dir);
+        const synced = await loadSyncedSettings(dir);
+        const next = sanitize({ ...settings, dataDir: dir, ...(synced ?? {}) });
+        adoptSettings(next);
+        if (!synced) await saveSyncedSettings(dir, next);
         await refresh();
         setReady(true);
         setError(null);
@@ -67,7 +83,7 @@ export default function App() {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     },
-    [refresh, settings],
+    [adoptSettings, refresh, settings],
   );
 
   useEffect(() => {
@@ -76,20 +92,45 @@ export default function App() {
     if (!settings.dataDir) return;
     void (async () => {
       try {
-        await openDatabase(databasePath(settings));
+        await openStore(settings.dataDir);
+        const synced = await loadSyncedSettings(settings.dataDir);
+        if (synced) {
+          adoptSettings(sanitize({ ...settings, ...synced }));
+        } else {
+          await saveSyncedSettings(settings.dataDir, settings);
+        }
         await refresh();
         setReady(true);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     })();
-  }, [refresh, settings]);
+  }, [adoptSettings, refresh, settings]);
+
+  // The settings file lives in the data folder so it travels with the
+  // Markdown. The first run after opening a folder is skipped because the
+  // folder was just written by activateFolder/boot; later edits write it.
+  const settingsWriteReady = useRef(false);
+  useEffect(() => {
+    if (!ready || !settings.dataDir) return;
+    if (!settingsWriteReady.current) {
+      settingsWriteReady.current = true;
+      return;
+    }
+    // Debounce: the report signature field changes on every keystroke.
+    const timer = window.setTimeout(() => {
+      void saveSyncedSettings(settings.dataDir, settings)
+        .then(() => scannerRef.current?.touch())
+        .catch(() => undefined);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [ready, settings]);
 
   useEffect(() => {
     if (!ready) return;
     scannerRef.current?.stop();
-    const scanner = startFileScanner({
-      filePath: databasePath(settings),
+    const scanner = startFolderScanner({
+      rootPath: settings.dataDir,
       intervalMs: Math.max(10, settings.scanIntervalSec) * 1000,
       onExternalChange: () => setConflict(true),
     });
@@ -98,7 +139,7 @@ export default function App() {
       scanner.stop();
       scannerRef.current = null;
     };
-  }, [ready, settings]);
+  }, [ready, settings.dataDir, settings.scanIntervalSec]);
 
   async function chooseFolder() {
     const picked = await openDialog({ directory: true, multiple: false, title: t("onboarding.choose") });
@@ -107,8 +148,12 @@ export default function App() {
 
   async function reloadFromDisk() {
     try {
-      await closeDatabase();
-      await openDatabase(databasePath(settings));
+      closeStore();
+      await openStore(settings.dataDir);
+      const synced = await loadSyncedSettings(settings.dataDir);
+      if (synced) {
+        adoptSettings(sanitize({ ...settings, ...synced }));
+      }
       await refresh();
       setConflict(false);
       await scannerRef.current?.touch();
@@ -195,7 +240,7 @@ export default function App() {
     );
   }
 
-  const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
+  const weekStart = startOfWeek(anchor, { weekStartsOn: settings.weekStartsOn });
   const periodTitle =
     view === "week"
       ? `${format(weekStart, "MMM d", { locale: dateLocale })} – ${format(addDays(weekStart, 6), "MMM d, yyyy", { locale: dateLocale })}`
@@ -225,7 +270,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-footer" title={settings.dataDir}>
-          <span>{settings.dbFileName}</span>
+          <span>{t("settings.storageFormat")}</span>
           <small>{settings.dataDir.split("/").filter(Boolean).pop()}</small>
         </div>
       </aside>
@@ -273,6 +318,7 @@ export default function App() {
               tasks={tasks}
               categories={categories}
               language={language}
+              weekStartsOn={settings.weekStartsOn}
               onSelectDay={(day) => {
                 setAnchor(day);
                 setView("day");
@@ -314,6 +360,7 @@ export default function App() {
               anchor={anchor}
               tasks={tasks}
               language={language}
+              weekStartsOn={settings.weekStartsOn}
               onSelectDay={(day) => {
                 setAnchor(day);
                 setView("day");
@@ -327,6 +374,9 @@ export default function App() {
               categories={categories}
               language={language}
               numbering={settings.numbering}
+              weekStartsOn={settings.weekStartsOn}
+              assessmentMonthStartDay={settings.assessmentMonthStartDay}
+              assessmentYearStartMonth={settings.assessmentYearStartMonth}
               onNumberingChange={(numbering: NumberingStyle) => patchSettings({ numbering })}
             />
           )}
@@ -341,10 +391,12 @@ export default function App() {
               onAddCategory={async (en, zh, color) => {
                 await createCategory(en, zh, color);
                 await refresh();
+                await touchScanner();
               }}
               onArchiveCategory={async (id) => {
                 await archiveCategory(id);
                 await refresh();
+                await touchScanner();
               }}
             />
           )}

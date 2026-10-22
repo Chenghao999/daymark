@@ -1,49 +1,61 @@
-import { invoke } from "@tauri-apps/api/core";
+import { treeSignature } from "../storage/fs";
 
-export interface FileScannerOptions {
-  filePath: string;
+export interface FolderScannerOptions {
+  /** Root folder that holds `_backlog.md`, `_categories.md` and month folders. */
+  rootPath: string;
   intervalMs: number;
-  /** Called when the file's mtime changed without Daymark writing it. */
-  onExternalChange: (mtimeMs: number) => void;
+  /** Called when the folder changed without Daymark writing it. */
+  onExternalChange: () => void;
 }
 
-export interface FileScanner {
+export interface FolderScanner {
   stop(): void;
-  /** Re-baseline after Daymark itself wrote to the database. */
+  /** Re-baseline after Daymark itself wrote to the store. */
   touch(): Promise<void>;
 }
 
+interface Signature {
+  fileCount: number;
+  latestMtimeMs: number | null;
+  fingerprint: string;
+}
+
 /**
- * Polls the database file's mtime. This is deliberately simple: the desktop
- * app only needs to notice that a sync client dropped a new version, and the
- * merge step is handled by the caller.
+ * Polls a cheap signature of the data folder: how many Markdown files exist,
+ * the newest mtime and a fingerprint over each file's path, size and mtime.
+ * The fingerprint matters because sync clients may preserve mtimes when they
+ * replace a file; the size still changes.
  */
-export function startFileScanner(options: FileScannerOptions): FileScanner {
-  let baseline: number | null = null;
+export function startFolderScanner(options: FolderScannerOptions): FolderScanner {
+  let baseline: Signature | null = null;
   let inFlight = false;
   let stopped = false;
 
-  async function readMtime(): Promise<number | null> {
+  async function readSignature(): Promise<Signature | null> {
     try {
-      return await invoke<number | null>("file_mtime_ms", { path: options.filePath });
+      return await treeSignature(options.rootPath);
     } catch {
       return null;
     }
+  }
+
+  function same(a: Signature, b: Signature): boolean {
+    return a.fingerprint === b.fingerprint;
   }
 
   async function tick(): Promise<void> {
     if (inFlight || stopped) return;
     inFlight = true;
     try {
-      const mtime = await readMtime();
-      if (mtime === null) return;
+      const signature = await readSignature();
+      if (signature === null) return;
       if (baseline === null) {
-        baseline = mtime;
+        baseline = signature;
         return;
       }
-      if (mtime !== baseline) {
-        baseline = mtime;
-        options.onExternalChange(mtime);
+      if (!same(signature, baseline)) {
+        baseline = signature;
+        options.onExternalChange();
       }
     } finally {
       inFlight = false;
@@ -62,8 +74,8 @@ export function startFileScanner(options: FileScannerOptions): FileScanner {
       window.clearInterval(timer);
     },
     async touch() {
-      const mtime = await readMtime();
-      if (mtime !== null) baseline = mtime;
+      const signature = await readSignature();
+      if (signature !== null) baseline = signature;
     },
   };
 }

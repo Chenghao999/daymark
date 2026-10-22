@@ -12,9 +12,9 @@
   },
   "onboarding": {
     "title": "选择数据存放位置",
-    "body": "Daymark 的所有数据都在一个属于你的 SQLite 文件里。选一个文件夹即可——放在坚果云、OneDrive、iCloud Drive 或 Syncthing 的同步目录里效果最好，因为同步这个文件就等于同步了你的设备。",
+    "body": "Daymark 的所有数据都是属于你的纯 Markdown 文本：按月份文件夹存放，每天一个文件，另有 _backlog.md、_categories.md 和 _settings.md。选一个文件夹即可——放在坚果云、OneDrive、iCloud Drive、Syncthing 或支持 WebDAV 的同步目录里效果最好，因为同步这个文件夹就等于同步了你的设备。",
     "choose": "选择文件夹",
-    "hint": "daymark.db 会创建在你选择的文件夹中。"
+    "hint": "文件夹里会出现 YYYY-MM/YYYY-MM-DD.md 日记文件，以及待办、分类、设置三个下划线开头的文件。用任何文本编辑器都能打开。"
   },
   "actions": {
     "add": "新建任务",
@@ -60,10 +60,12 @@
     "daily": "日报",
     "weekly": "周报",
     "monthly": "月报",
+    "yearly": "年报",
     "preview": "预览",
     "completed": "已完成 {{count}} 项",
     "planned": "已排期 {{count}} 项",
     "empty": "本周期没有记录",
+    "assessmentHint": "考核月从每月 {{day}} 日开始，考核年从 {{month}} 月开始。可在设置中修改。",
     "exported": "已保存到 {{path}}",
     "exportFailed": "导出失败：{{message}}",
     "generatedAt": "生成于 {{date}}"
@@ -79,13 +81,26 @@
     "numberingChinese": "中文数字（一、二、三）",
     "numberingArabic": "阿拉伯数字（1. 2. 3.）",
     "numberingAlpha": "字母（A. B. C.）",
+    "weekStart": "每周第一天",
+    "weekStartMonday": "周一",
+    "weekStartSunday": "周日",
+    "assessmentMonth": "考核月起始日",
+    "monthStartDay": "每月 {{day}} 日",
+    "assessmentMonthHint": "选 1 表示自然月；选 26 表示从上月 26 日到本月 25 日。",
+    "assessmentYear": "考核年起始月",
+    "yearStartMonth": "{{month}} 月",
+    "assessmentYearHint": "考核年从该月 {{day}} 日开始，连续十二个月。",
+    "userName": "报告署名",
+    "userNamePlaceholder": "可选",
     "categories": "任务大类",
     "addCategory": "添加大类",
     "categoryNameEn": "英文名称",
     "categoryNameZh": "中文名称",
     "deviceId": "设备 ID",
-    "conflict": "另一台设备写入了这个文件。重新载入以查看变更。",
-    "dataPathHint": "把文件放在同步目录里，就能在多台设备上使用 Daymark。"
+    "conflict": "另一台设备改动了数据文件夹。重新载入以查看变更。",
+    "storageFormat": "Markdown 文本",
+    "dataPathHint": "把文件夹放在同步目录里，就能在多台设备上使用 Daymark。",
+    "storageHint": "_backlog.md · YYYY-MM/YYYY-MM-DD.md · _categories.md · _settings.md"
   },
   "days": {
     "mon": "一",

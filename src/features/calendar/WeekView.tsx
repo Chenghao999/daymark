@@ -9,6 +9,8 @@ interface WeekViewProps {
   tasks: Task[];
   categories: Category[];
   language: AppLanguage;
+  /** 0 = Sunday, 1 = Monday. Comes from the synced settings file. */
+  weekStartsOn: 0 | 1;
   onSelectDay: (day: Date) => void;
   onToggle: (task: Task) => void;
   onEdit: (task: Task) => void;
@@ -30,6 +32,7 @@ export default function WeekView({
   tasks,
   categories,
   language,
+  weekStartsOn,
   onSelectDay,
   onToggle,
   onEdit,
@@ -37,7 +40,7 @@ export default function WeekView({
 }: WeekViewProps) {
   const { t } = useTranslation();
   const locale = language === "zh-CN" ? zhCN : enUS;
-  const start = startOfWeek(anchor, { weekStartsOn: 1 });
+  const start = startOfWeek(anchor, { weekStartsOn });
   const days = Array.from({ length: 7 }, (_, index) => addDays(start, index));
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const todayKey = format(new Date(), "yyyy-MM-dd");

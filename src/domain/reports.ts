@@ -10,6 +10,9 @@ import type {
   Task,
 } from "./types";
 
+export type { PeriodOptions, ReportPeriod } from "./periods";
+export { reportPeriod } from "./periods";
+
 export interface ReportInput {
   kind: ReportKind;
   language: "en" | "zh-CN";
@@ -22,46 +25,6 @@ export interface ReportInput {
   tasks: Task[];
   completions: Completion[];
   generatedAt?: Date;
-}
-
-export interface ReportPeriod {
-  /** First moment of the period in local time. */
-  start: Date;
-  /** Last moment of the period in local time, inclusive. */
-  end: Date;
-}
-
-/**
- * Canonical period boundaries for a report. Weeks start on Monday. Every kind
- * spans whole local days, which is what the completion query and the report
- * filter both expect.
- */
-export function reportPeriod(kind: ReportKind, anchor: Date): ReportPeriod {
-  const year = anchor.getFullYear();
-  const month = anchor.getMonth();
-  const day = anchor.getDate();
-
-  if (kind === "daily") {
-    return {
-      start: new Date(year, month, day),
-      end: new Date(year, month, day, 23, 59, 59, 999),
-    };
-  }
-
-  if (kind === "weekly") {
-    // getDay(): Sunday = 0. Shift so Monday = 0.
-    const offsetFromMonday = (anchor.getDay() + 6) % 7;
-    const start = new Date(year, month, day - offsetFromMonday);
-    return {
-      start,
-      end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999),
-    };
-  }
-
-  return {
-    start: new Date(year, month, 1),
-    end: new Date(year, month + 1, 0, 23, 59, 59, 999),
-  };
 }
 
 const UTC_UNCATEGORIZED = "uncategorized";
@@ -155,11 +118,13 @@ export function reportTitle(kind: ReportKind, language: "en" | "zh-CN"): string 
   if (language === "zh-CN") {
     if (kind === "daily") return "日报";
     if (kind === "weekly") return "周报";
-    return "月报";
+    if (kind === "monthly") return "月报";
+    return "年报";
   }
   if (kind === "daily") return "Daily Report";
   if (kind === "weekly") return "Weekly Report";
-  return "Monthly Report";
+  if (kind === "monthly") return "Monthly Report";
+  return "Annual Report";
 }
 
 export function uncategorizedLabel(language: "en" | "zh-CN"): string {

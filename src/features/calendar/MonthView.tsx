@@ -9,14 +9,16 @@ interface MonthViewProps {
   anchor: Date;
   tasks: Task[];
   language: AppLanguage;
+  /** 0 = Sunday, 1 = Monday. Comes from the synced settings file. */
+  weekStartsOn: 0 | 1;
   onSelectDay: (day: Date) => void;
 }
 
-export default function MonthView({ anchor, tasks, language, onSelectDay }: MonthViewProps) {
+export default function MonthView({ anchor, tasks, language, weekStartsOn, onSelectDay }: MonthViewProps) {
   const { t } = useTranslation();
   const locale = language === "zh-CN" ? zhCN : enUS;
   const monthStart = startOfMonth(anchor);
-  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridStart = startOfWeek(monthStart, { weekStartsOn });
   const monthEnd = endOfMonth(anchor);
   const cells = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
   const weekdayLabels = Array.from({ length: 7 }, (_, index) =>
