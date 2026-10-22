@@ -1,5 +1,15 @@
 # Daymark · 日迹
 
+[![CI](https://github.com/Chenghao999/daymark/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Chenghao999/daymark/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
+![Storage](https://img.shields.io/badge/storage-Markdown-success)
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white)
+
 **A local-first daily planner and automatic work-report generator.**
 **本地优先的日计划工具与自动周报生成器。**
 
@@ -133,6 +143,25 @@ through its exported interface, never through internal files: the caller map,
 the public signatures and the single-module debugging workflow are in
 [`docs/18-development-guide.md`](docs/18-development-guide.md) §4.1 and
 [`docs/14-interface-reference.md`](docs/14-interface-reference.md).
+
+## Testing · 测试
+
+```bash
+npm run verify          # typecheck + unit tests + production build
+npm test                # Vitest once
+npm run test:coverage   # V8 coverage report in coverage/
+npm run test:watch      # watch mode
+```
+
+The Rust shell is checked separately:
+
+```bash
+cargo check --locked --manifest-path src-tauri/Cargo.toml
+```
+
+CI (`.github/workflows/ci.yml`) runs the frontend job on Ubuntu (typecheck,
+tests with coverage, build) and `cargo check` on macOS for every push to `main`
+and every pull request. The status badge above reflects the latest run.
 
 ## Documentation · 文档
 

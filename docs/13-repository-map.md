@@ -23,6 +23,8 @@ daymark/
 ├── src-tauri/                Tauri shell, Rust commands, capabilities, icons
 ├── tests/                    Vitest unit tests for the domain and storage layers
 ├── docs/                     product, engineering and operations documents
+├── .github/
+│   └── workflows/ci.yml      CI: typecheck, tests + coverage, build, cargo check
 └── .vscode/
     └── extensions.json       recommended editor extensions only
 ```
@@ -189,6 +191,7 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `dist/` | `npm run build` | ignored; Tauri bundles it |
 | `src-tauri/target/` | `cargo` / `tauri build` | ignored |
 | `src-tauri/gen/schemas/` | Tauri build | ignored; regenerated from capabilities |
+| `coverage/` | `npm run test:coverage` | ignored; uploaded by CI as an artifact |
 | `package-lock.json` | npm | generated but **committed** |
 | `src-tauri/Cargo.lock` | cargo | generated but **committed** |
 

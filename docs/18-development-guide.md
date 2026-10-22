@@ -69,12 +69,14 @@ Later runs reuse `src-tauri/target/`.
 | `npm run typecheck` | `tsc --noEmit` over `src/`. Tests are not included. |
 | `npm test` | Vitest run once. |
 | `npm run test:watch` | Vitest watch mode. |
+| `npm run test:coverage` | Vitest with V8 coverage; writes `coverage/` (git-ignored). |
+| `npm run verify` | `typecheck` + `test` + `build` in one command. |
 | `npm run tauri build` | Production bundle for the current platform. |
 | `npm run tauri build -- --debug --no-bundle` | Fast sanity build without installers. |
 
 Before every commit, run at least `npm run typecheck`, `npm test`, and a Rust
-check when `src-tauri/` changed. If `cargo` is not on `PATH`, use the absolute
-path:
+check when `src-tauri/` changed. `npm run verify` bundles the first three
+(frontend) checks. If `cargo` is not on `PATH`, use the absolute path:
 
 ```bash
 /opt/homebrew/opt/rustup/bin/cargo check --manifest-path src-tauri/Cargo.toml
@@ -82,6 +84,23 @@ path:
 
 **中文要点：** 提交前至少跑 `typecheck`、`test`；动过 Rust 再加 `cargo check`，
 cargo 不在 PATH 时用 `/opt/homebrew/opt/rustup/bin/cargo`。
+
+### 3.1 Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+
+| Job | Runner | Steps |
+|---|---|---|
+| `frontend` | `ubuntu-latest` | `npm ci` → typecheck → `npm run test:coverage` → `npm run build`; uploads `coverage/` as an artifact |
+| `rust` | `macos-latest` | `cargo check --locked --manifest-path src-tauri/Cargo.toml` with a cached `src-tauri/target` |
+
+Runs for the same branch are cancelled when a newer commit arrives. The README
+badge points at this workflow. Treat a red run as a merge blocker: reproduce
+locally with `npm run verify` and the cargo command above, then push the fix.
+
+**中文要点：** CI 在每次推送 `main` 和每个 PR 上运行前端检查与 Rust 检查；同一分支
+的新提交会取消旧运行。红色状态不得合并，先在本地用 `npm run verify` 和 cargo 命令
+复现。
 
 ## 4. Code conventions
 

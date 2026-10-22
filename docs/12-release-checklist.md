@@ -6,8 +6,9 @@
 ## Before tagging
 
 - [ ] Version bumped in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`.
-- [ ] `npm test` green.
-- [ ] `npm run typecheck` green.
+- [ ] CI green on `main` (`.github/workflows/ci.yml`; README badge shows it).
+- [ ] `npm run verify` green locally (typecheck, tests, build).
+- [ ] `npm run test:coverage` completes and the report looks sane.
 - [ ] A fresh clone builds: `npm ci && npm run build && (cd src-tauri && cargo check)`.
 - [ ] `git status --ignored --short` shows no source directory; every ignored
       path is generated output or user data.

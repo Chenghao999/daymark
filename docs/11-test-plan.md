@@ -18,11 +18,23 @@
 Run:
 
 ```bash
-npm test
+npm test                # once
+npm run test:watch      # while developing
+npm run test:coverage   # V8 coverage in coverage/
+npm run verify          # typecheck + tests + production build
 ```
 
 Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `markdown.test.ts`, `settingsFile.test.ts`.
+
+Automation: `.github/workflows/ci.yml` runs the suite with coverage on Ubuntu
+and `cargo check` on macOS for every pull request and push to `main`. The
+coverage report is uploaded as a build artifact. A red run blocks the merge;
+see doc 18 §3.1 for the local reproduction commands. The README CI badge shows
+the latest result.
+
+**中文要点：** 每次 PR 和推送 `main` 都会自动跑类型检查、带覆盖率的单元测试和构建；
+Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify` 复现。
 
 ## 2. Integration tests (manual or scripted against a temporary folder)
 
