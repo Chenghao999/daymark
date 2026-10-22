@@ -38,7 +38,9 @@ export const SYNCED_KEYS: (keyof SyncedSettings)[] = [
 const STORAGE_KEY = "daymark.settings.v1";
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  language: "zh-CN",
+  // English is the primary UI language; Chinese is one switch away in
+  // Settings. A saved choice always wins over this default.
+  language: "en",
   dataDir: "",
   weekStartsOn: 1,
   assessmentMonthStartDay: 1,

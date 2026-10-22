@@ -42,7 +42,7 @@
 ```markdown
 # Daymark settings / Daymark 设置
 
-- language: zh-CN
+- language: en
 - weekStartsOn: 1
 - assessmentMonthStartDay: 1
 - assessmentYearStartMonth: 1
@@ -50,12 +50,12 @@
 - scanIntervalSec: 60
 - userName:
 
-<!-- daymark settings {"language":"zh-CN","weekStartsOn":1,"assessmentMonthStartDay":1,"assessmentYearStartMonth":1,"numbering":"chinese","scanIntervalSec":60,"userName":""} -->
+<!-- daymark settings {"language":"en","weekStartsOn":1,"assessmentMonthStartDay":1,"assessmentYearStartMonth":1,"numbering":"chinese","scanIntervalSec":60,"userName":""} -->
 ```
 
 | Key | Type | Range / values | Meaning |
 |---|---|---|---|
-| `language` | string | `zh-CN` \| `en` | UI language, applied immediately. |
+| `language` | string | `en` (default) \| `zh-CN` | UI language, applied immediately. |
 | `weekStartsOn` | number | `0` Sunday, `1` Monday | First column of the week view and weekly reports. |
 | `assessmentMonthStartDay` | number | 1–28 (clamped) | First day of an assessment month; `26` means the 26th through the 25th. |
 | `assessmentYearStartMonth` | number | 1–12 | First month of an assessment year, using the same start day. |

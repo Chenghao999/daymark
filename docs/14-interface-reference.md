@@ -364,7 +364,7 @@ File lifecycle: a day file with no tasks and no extras is deleted on save;
 
 ```ts
 interface SyncedSettings {
-  language: AppLanguage;              // default "zh-CN"
+  language: AppLanguage;              // default "en"
   weekStartsOn: 0 | 1;                // default 1 (Monday)
   assessmentMonthStartDay: number;    // default 1, clamped 1-28
   assessmentYearStartMonth: number;   // default 1, clamped 1-12

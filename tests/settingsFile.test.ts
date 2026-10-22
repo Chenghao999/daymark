@@ -71,6 +71,13 @@ describe("settings markdown", () => {
     expect(parsed.language).toBe(DEFAULT_SETTINGS.language);
   });
 
+  it("uses English as the default language for a file without one", () => {
+    expect(parseSettingsMarkdown("# Daymark settings\n")).toMatchObject({
+      language: "en",
+      weekStartsOn: 1,
+    });
+  });
+
   it("survives a broken JSON comment by using readable bullets", () => {
     const text = '- weekStartsOn: 0\n<!-- daymark settings {not json} -->\n';
     expect(parseSettingsMarkdown(text).weekStartsOn).toBe(0);

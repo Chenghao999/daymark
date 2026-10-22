@@ -167,7 +167,7 @@ simply returns to the app. The suggested file name is
 
 | Setting | Values | Scope |
 |---|---|---|
-| Language | 简体中文 / English | Synced (`_settings.md`); applies immediately. |
+| Language | English (default) / 简体中文 | Synced (`_settings.md`); applies immediately. An existing saved choice is kept. |
 | Week starts on | Monday / Sunday | Synced; affects the week view, month grid and weekly reports. |
 | Assessment month starts on | 1–28 | Synced; `26` means the 26th through the 25th. |
 | Assessment year starts in | January–December | Synced; uses the same start day. |
