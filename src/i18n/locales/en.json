@@ -123,7 +123,32 @@
     "webdavResult": "Uploaded {{uploaded}}, downloaded {{downloaded}}, conflicts {{conflicts}}.",
     "webdavError": "Sync failed",
     "webdavConflicts": "Conflict copies (the local originals were kept):",
-    "webdavNotConfigured": "Enter a server URL first."
+    "webdavNotConfigured": "Enter a server URL first.",
+    "ai": "AI assistant",
+    "aiHint": "Optional. Sends the current report text to Anthropic and shows the answer for review before saving.",
+    "aiEnabled": "Enable the AI assistant",
+    "aiApiKey": "Anthropic API key",
+    "aiApiKeyHint": "Stored in this device's local settings only — never in _settings.md or the synced folder.",
+    "aiModel": "Model",
+    "aiModelOpus": "Claude Opus 5.5 (highest quality)",
+    "aiModelSonnet": "Claude Sonnet 5.5 (balanced)",
+    "aiModelHaiku": "Claude Haiku 5.5 (fastest)",
+    "aiPrivacy": "Only the selected report's title, period, categories and task titles are sent. Notes, the API key and local paths are never included. Nothing is written until you press Save."
+  },
+  "ai": {
+    "title": "AI assistant",
+    "featurePolish": "Polish report",
+    "featureReview": "Retrospective",
+    "context": "Sends {{sections}} categories and {{items}} items (~{{chars}} characters).",
+    "preview": "Preview what will be sent",
+    "generate": "Generate",
+    "generating": "Generating…",
+    "result": "Result — edit before saving",
+    "save": "Save to _ai/",
+    "copy": "Copy",
+    "copied": "Copied.",
+    "saved": "Saved to {{path}}",
+    "error": "AI request failed: {{message}}"
   },
   "days": {
     "mon": "Mon",

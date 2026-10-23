@@ -16,6 +16,8 @@
 | `sync/webdav/plan` | upload/download only, unchanged, one-sided change wins, both-sided conflict, first sync, stale baseline, no deletions, deterministic order |
 | `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities |
 | `sync/webdav/manifest` | file whitelist, content hash changes with content, files disappearing mid-scan |
+| `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
+| `ai/settings` | defaults, round-trip, unknown model fallback, malformed JSON, opt-in + key rule, unique output paths |
 | Template validation (P1) | missing required placeholder, unknown placeholder, empty sections |
 
 WebDAV network behaviour is **not** covered by unit tests: `webdav_request` and
@@ -33,7 +35,12 @@ npm run verify          # typecheck + tests + production build
 
 Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `markdown.test.ts`, `settingsFile.test.ts`, `webdavPlan.test.ts`,
-`webdavClient.test.ts`, `webdavManifest.test.ts`.
+`webdavClient.test.ts`, `webdavManifest.test.ts`, `aiPrompt.test.ts`,
+`aiSettings.test.ts`.
+
+AI provider calls are also **not** covered: tests cover prompt construction,
+settings parsing and output paths. Verifying the SDK/API path requires a real
+key and is done by hand.
 
 Automation: `.github/workflows/ci.yml` runs the suite with coverage on Ubuntu
 and `cargo check` on macOS for every pull request and push to `main`. The

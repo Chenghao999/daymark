@@ -176,6 +176,7 @@ simply returns to the app. The suggested file name is
 | Scan for external changes | 30 s / 60 s / 300 s | Synced; how often the folder is polled. |
 | Data location | absolute folder | Device-local; **Change folder** opens another folder. |
 | WebDAV sync | server URL, remote folder, username, password | Device-local; nothing in this card is written to the data folder. |
+| AI assistant | enable, Anthropic API key, model | Device-local; off by default; only the report outline is sent. |
 | Categories | add (English + Chinese names, colour) / archive | Shared, stored in `_categories.md`. |
 | Device ID | read-only UUID | Device-local; identifies this installation. |
 
@@ -226,6 +227,38 @@ one.
 “立即同步”。两边都改过的文件不会互相覆盖，远端版本会另存为
 `(conflict …)` 副本供手工合并；同步不会删除任何文件。密码只存在本机，
 不会写进 `_settings.md`。
+
+### AI assistant
+
+The AI assistant is **off by default**. Enable it in Settings, paste an
+Anthropic API key and choose a model; the Reports page then shows an **AI
+assistant** button next to Export.
+
+- **Polish report** rewrites the period's report as prose while keeping every
+  category and every item.
+- **Retrospective** summarises what was completed, what stayed planned, and
+  suggests what to change next period.
+
+Before anything leaves the machine, the panel states how many categories, items
+and characters will be sent. **Preview what will be sent** shows the exact text.
+Only the report title, period, counts, category names, task titles and dates are
+included — task notes, task ids and the data-folder path are not.
+
+The answer appears in an editable box. Nothing is written to disk until you
+press **Save to `_ai/`**, which creates a new timestamped Markdown file in the
+`_ai/` folder inside your data folder; **Copy** puts it on the clipboard. AI
+output is an ordinary note: it is not a task, it does not enter reports, and
+WebDAV sync does not upload `_ai/`.
+
+The API key is stored in this device's local app data, like the WebDAV password.
+It is never written to `_settings.md` or the data folder. Requests go directly
+from this app to Anthropic and are billed to your account.
+
+**中文要点：** AI 助手默认关闭。启用并填入 Anthropic API 密钥后，报告页会出现
+“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示分类/条目/字符数，
+并可预览完整文本；只发送报告标题、周期、分类和任务标题，不发送备注、任务 ID 和
+本地路径。结果可编辑，只有点“保存到 `_ai/`”才会写成新的 Markdown 文件。密钥只
+存在本机，不写入 `_settings.md`；请求直接发往 Anthropic，按你的账号计费。
 
 ## 9. External changes and the reload banner
 
@@ -282,7 +315,7 @@ choose the copied folder on first launch.
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
 | CalDAV is not implemented | `source` and `externalUid` are reserved fields only. |
 | WebDAV sync is manual and first-version | No background sync, no three-way merge, no deletions; conflicts produce copies you merge by hand. It has not been tested against every WebDAV server. |
-| AI assistant is a roadmap item | Not available in this build; see `19-roadmap.md`. |
+| AI assistant is first-version and online | Requires an Anthropic API key and a network connection; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
@@ -305,4 +338,5 @@ choose the copied folder on first launch.
 | Recover an old SQLite file | Look for `daymark.db.migrated-*` in the folder (see doc 16). |
 | Use two computers | Put the folder in a synced directory and read doc 16 first. |
 | Sync without a desktop client | Settings → WebDAV sync → Test connection → Sync now. |
+| Polish this period's report | Reports → AI assistant → Polish report → Generate → Save to `_ai/`. |
 | Fix a problem | See `17-troubleshooting.md`. |

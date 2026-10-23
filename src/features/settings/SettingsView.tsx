@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { AppLanguage, Category, NumberingStyle } from "../../domain/types";
 import type { AppSettings } from "../../settings/store";
 import type { WebDavConfig } from "../../sync/webdav/types";
+import type { AiConfig } from "../../ai/types";
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -12,6 +13,7 @@ interface SettingsViewProps {
   webdavBusy: boolean;
   webdavStatus: string | null;
   webdavConflicts: string[];
+  ai: AiConfig;
   onLanguage: (language: AppLanguage) => Promise<void>;
   onChangeFolder: () => Promise<void>;
   onPatch: (patch: Partial<AppSettings>) => void;
@@ -20,6 +22,7 @@ interface SettingsViewProps {
   onWebdavPatch: (patch: Partial<WebDavConfig>) => void;
   onWebdavTest: () => Promise<void>;
   onWebdavSync: () => Promise<void>;
+  onAiPatch: (patch: Partial<AiConfig>) => void;
 }
 
 const COLORS = ["#5b8def", "#e0a03a", "#7f8c9a", "#4bb37a", "#c96b9b", "#8a6bd1", "#4aa3a3", "#c0574f"];
@@ -32,6 +35,7 @@ export default function SettingsView({
   webdavBusy,
   webdavStatus,
   webdavConflicts,
+  ai,
   onLanguage,
   onChangeFolder,
   onPatch,
@@ -40,6 +44,7 @@ export default function SettingsView({
   onWebdavPatch,
   onWebdavTest,
   onWebdavSync,
+  onAiPatch,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [nameEn, setNameEn] = useState("");
@@ -233,6 +238,43 @@ export default function SettingsView({
             </ul>
           </div>
         ) : null}
+      </section>
+
+      <section className="settings-card">
+        <h2>{t("settings.ai")}</h2>
+        <p className="muted small">{t("settings.aiHint")}</p>
+
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={ai.enabled}
+            onChange={(event) => onAiPatch({ enabled: event.currentTarget.checked })}
+          />
+          <span>{t("settings.aiEnabled")}</span>
+        </label>
+
+        <label className="field">
+          <span>{t("settings.aiApiKey")}</span>
+          <input
+            type="password"
+            value={ai.apiKey}
+            onChange={(event) => onAiPatch({ apiKey: event.currentTarget.value })}
+            placeholder="sk-ant-…"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <p className="muted small">{t("settings.aiApiKeyHint")}</p>
+
+        <label className="field">
+          <span>{t("settings.aiModel")}</span>
+          <select value={ai.model} onChange={(event) => onAiPatch({ model: event.currentTarget.value })}>
+            <option value="claude-opus-5-5">{t("settings.aiModelOpus")}</option>
+            <option value="claude-sonnet-5-5">{t("settings.aiModelSonnet")}</option>
+            <option value="claude-haiku-5-5">{t("settings.aiModelHaiku")}</option>
+          </select>
+        </label>
+        <p className="muted small">{t("settings.aiPrivacy")}</p>
       </section>
 
       <section className="settings-card">

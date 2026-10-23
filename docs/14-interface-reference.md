@@ -508,6 +508,66 @@ Contract:
 6. `syncWebDav` does not touch React state; the caller reloads the store and
    calls `scanner.touch()` (or `reloadFromDisk()` when files were downloaded).
 
+### AI assistant (`src/ai/`, `src/settings/ai.ts`)
+
+```ts
+interface AiConfig {
+  enabled: boolean;                   // opt-in; default false
+  apiKey: string;                     // device-local only
+  model: string;                      // one of AI_MODELS
+}
+
+type AiFeature = "polish" | "review";
+
+interface AiRequest {
+  feature: AiFeature;
+  language: "en" | "zh-CN";
+  report: ReportDocument;
+  userName: string;
+}
+
+interface AiPrompt { system: string; user: string }
+interface AiResult { text: string; model: string }
+
+interface AiProvider {
+  readonly id: string;
+  complete(prompt: AiPrompt): Promise<AiResult>;
+}
+
+reportOutline(report: ReportDocument): string
+aiContextSummary(report: ReportDocument): { sectionCount; itemCount; characters }
+buildPrompt(request: AiRequest): AiPrompt
+createAiProvider(config: AiConfig): AiProvider
+aiOutputPath(root: string, kind: ReportKind, date: Date): string
+saveAiOutput(root: string, kind: ReportKind, text: string, date?: Date): Promise<string>
+
+AI_MODELS: readonly string[]
+DEFAULT_AI: AiConfig
+loadAiSettings(): AiConfig
+saveAiSettings(config: AiConfig): void
+isAiConfigured(config: AiConfig): boolean
+```
+
+Contract:
+
+1. Sent context is exactly `reportOutline(report)` plus the header fields;
+   task notes, task ids, the data-folder path and the API key are never sent.
+2. `buildPrompt` is pure, so the panel can show the exact user text as a
+   preview before the request.
+3. Providers implement `AiProvider` only. `createAiProvider` is the single
+   branch point; adding another vendor means adding a provider file and a
+   branch there. The UI never imports a provider directly.
+4. The Anthropic provider uses `claude-opus-5-5` by default, adaptive thinking
+   and streaming (`messages.stream(...).finalMessage()`); the SDK is a dynamic
+   import, so it is not in the startup bundle.
+5. Nothing is written until the user presses **Save**. Output goes to
+   `_ai/YYYY-MM-DD-<kind>-HHmmss.md`; the timestamp keeps every answer.
+6. `_ai/` is **not** part of the WebDAV manifest, so AI notes are not uploaded
+   by the sync button.
+7. The API key lives in `localStorage` on this device, never in
+   `_settings.md`. `isAiConfigured` is true only when the assistant is enabled
+   and a non-empty key exists.
+
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 
 All eleven commands are registered in one `generate_handler!` list. Rust structs
@@ -575,6 +635,7 @@ Rules:
 | `daymark.deviceId` | `storage/device.ts` | UUID string | No — device-local |
 | `daymark.webdav.v1` | `settings/webdav.ts` | JSON `WebDavConfig`, including the password | No — device-local, never in `_settings.md` |
 | `daymark.webdav.baseline.v1` | `sync/webdav/baseline.ts` | JSON `Baseline` keyed by URL + remote path | No — per-device merge state |
+| `daymark.ai.v1` | `settings/ai.ts` | JSON `AiConfig`, including the API key | No — device-local, never in `_settings.md` |
 
 Clearing site data resets the device ID and the chosen folder. The data folder
 itself is unaffected.

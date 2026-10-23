@@ -169,7 +169,8 @@ Read `15-user-guide.md` §11 before filing an issue:
 - reopening a task clears its completion timestamp;
 - archived categories cannot be restored in the UI;
 - WebDAV sync is manual, never deletes and does not merge conflicts;
-- no CalDAV, AI assistant, reminders, search or tags yet;
+- the AI assistant is opt-in, needs an API key and a network connection;
+- no CalDAV, natural-language task entry, reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.
 

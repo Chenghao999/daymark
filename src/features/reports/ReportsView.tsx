@@ -5,6 +5,9 @@ import type { AppLanguage, Category, Completion, NumberingStyle, ReportKind, Tas
 import { reportPeriod, type PeriodOptions } from "../../domain/periods";
 import { generateReport } from "../../domain/reports";
 import { listCompletions } from "../../storage/repository";
+import { isAiConfigured } from "../../settings/ai";
+import type { AiConfig } from "../../ai/types";
+import AiPanel from "./AiPanel";
 import { exportReportDocx } from "./exportDocx";
 
 interface ReportsViewProps {
@@ -16,6 +19,9 @@ interface ReportsViewProps {
   weekStartsOn: 0 | 1;
   assessmentMonthStartDay: number;
   assessmentYearStartMonth: number;
+  userName: string;
+  dataDir: string;
+  ai: AiConfig;
   onNumberingChange: (style: NumberingStyle) => void;
 }
 
@@ -28,6 +34,9 @@ export default function ReportsView({
   weekStartsOn,
   assessmentMonthStartDay,
   assessmentYearStartMonth,
+  userName,
+  dataDir,
+  ai,
   onNumberingChange,
 }: ReportsViewProps) {
   const { t } = useTranslation();
@@ -35,6 +44,7 @@ export default function ReportsView({
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const period = useMemo(() => {
     const options: PeriodOptions = {
@@ -118,6 +128,15 @@ export default function ReportsView({
           </select>
         </label>
         <div className="spacer" />
+        {isAiConfigured(ai) && (
+          <button
+            className="ghost"
+            onClick={() => setAiOpen(true)}
+            disabled={report.sections.length === 0}
+          >
+            {t("ai.title")}
+          </button>
+        )}
         <button className="primary" onClick={() => void exportDocx()} disabled={exporting || report.sections.length === 0}>
           {t("actions.export")}
         </button>
@@ -166,6 +185,17 @@ export default function ReportsView({
       </article>
 
       {status && <p className="status">{status}</p>}
+
+      {aiOpen && (
+        <AiPanel
+          report={report}
+          language={language}
+          userName={userName}
+          ai={ai}
+          dataDir={dataDir}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
     </div>
   );
 }

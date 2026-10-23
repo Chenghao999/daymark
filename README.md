@@ -48,12 +48,14 @@ presets and numbering, daily/weekly/monthly/yearly reports with configurable
 assessment month/year and DOCX export, English-first UI with a full Chinese
 translation (zh-CN / en), custom data
 folder, synced settings file, external-change scanner, manual WebDAV sync
-(first version), and a one-time migration from the old `daymark.db`.
+(first version), an opt-in AI assistant for report polish and retrospectives,
+and a one-time migration from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
 导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
-外部变更检测、手动 WebDAV 同步（第一版），以及从旧 `daymark.db` 的一次性迁移。
+外部变更检测、手动 WebDAV 同步（第一版）、可选的 AI 报告润色与周期回顾，
+以及从旧 `daymark.db` 的一次性迁移。
 
 WebDAV sync is manual and deliberately conservative: it never deletes a file
 and never overwrites a file changed on both sides — the remote copy is saved as
@@ -61,10 +63,17 @@ a `(conflict …)` file for you to merge. It has not yet been tested against eve
 WebDAV server. WebDAV 同步为手动、保守实现：不删除文件，两边同时改动时生成
 冲突副本而不覆盖。
 
-Not implemented yet / 尚未实现：AI assistance, background WebDAV sync and
-in-app merge. They are planned in [`docs/19-roadmap.md`](docs/19-roadmap.md);
-CalDAV and automatic merge remain design-only in docs 06 and 07. Until automatic
-merge ships, only one device should have Daymark open on a folder at a time.
+The AI assistant is opt-in and off by default. It sends only the selected
+report's title, period, categories and task titles to Anthropic, shows the exact
+text before sending, and writes nothing until you press Save (into a new file
+under `_ai/`). AI 助手默认关闭，只发送所选报告的分类与任务标题，发送前可预览，
+确认后才写入 `_ai/`。
+
+Not implemented yet / 尚未实现：background WebDAV sync, in-app merge and
+natural-language task entry. They are planned in
+[`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic merge remain
+design-only in docs 06 and 07. Until automatic merge ships, only one device
+should have Daymark open on a folder at a time.
 
 ## Data folder · 数据目录
 
@@ -76,6 +85,8 @@ merge ships, only one device should have Daymark open on a folder at a time.
   2026-10/
     2026-10-22.md           # one day = one file
     2026-10-23.md
+  _ai/                      # optional: saved AI answers (not synced by the app)
+    2026-10-23-weekly-091500.md
 ```
 
 A day file is readable on its own:
@@ -113,7 +124,7 @@ headings, checkboxes, blockquote notes. Unrecognised lines are preserved.
 ```bash
 npm install
 npm run tauri dev      # desktop app
-npm test               # unit tests (storage, periods, reports)
+npm test               # unit tests (domain, storage, WebDAV, AI prompts)
 npm run typecheck      # TypeScript check
 npm run build          # frontend production build
 npm run tauri build    # packaged app
@@ -136,6 +147,7 @@ src/
   storage/      Markdown parser/serializer, paths, repository, migration, settings file
   sync/         external-change scanner and manual WebDAV sync (scanner.ts, webdav/)
   settings/     device-local settings plus the synced subset written to _settings.md
+  ai/           provider interface, prompt/context builders, Anthropic provider, _ai/ output
   features/     calendar views, reports, settings
   components/   task editor
   i18n/         zh-CN and en resources

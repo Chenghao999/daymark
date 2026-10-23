@@ -39,14 +39,15 @@ dependencies (`node_modules/`) and generated Tauri schemas
 |---|---|---|---|
 | Domain | `src/domain/` | types, task state machine, period math, report derivation, numbering | filesystem calls, DOM, Tauri APIs, localStorage |
 | Storage | `src/storage/` | Markdown parse/serialize, paths, in-memory store, repository, migration | report rules, UI state |
-| Sync | `src/sync/` | folder-signature polling and external-change signal | store writes, merge logic |
-| Device settings | `src/settings/` | device-local preferences and the synced settings model | shared task data |
+| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync | store writes, merge logic |
+| AI | `src/ai/` | provider interface, prompt/context builders, `_ai/` output | React state, store writes |
+| Device settings | `src/settings/` | device-local preferences (WebDAV, AI) and the synced settings model | shared task data |
 | Presentation | `src/components/`, `src/features/`, `src/App.tsx` | view state, interaction, layout | Markdown parsing, direct `invoke` calls |
 | i18n | `src/i18n/` | UI resources and i18next setup | product logic |
 | Desktop shell | `src-tauri/` | plugins, IPC commands, window and bundle config | product rules |
 
 The dependency direction is one-way: `features` → `storage`/`domain`/`sync`/
-`settings`. `domain` imports nothing from the other layers, and `storage` does
+`settings`/`ai`. `domain` imports nothing from the other layers, and `storage` does
 not import `features`. This is what keeps the domain testable without a browser
 or a Rust build.
 
@@ -108,12 +109,24 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdav/baseline.ts` | Device-local SHA-256 baseline (`daymark.webdav.baseline.v1`), keyed by URL + remote path. |
 | `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; conflict copies, progress callback, per-file errors. |
 
+### AI assistant (`src/ai/`)
+
+| File | Responsibility |
+|---|---|
+| `types.ts` | `AiConfig`, `AiFeature`, `AiRequest`, `AiPrompt`, `AiResult` and the `AiProvider` interface. Types only. |
+| `context.ts` | `reportOutline(report)` (the exact text that is sent) and `aiContextSummary(report)` (counts shown before sending). Pure. |
+| `prompts.ts` | `buildPrompt(request)` → provider-agnostic `{system,user}` for the polish and retrospective features. Pure. |
+| `providers/anthropic.ts` | `AnthropicProvider`: official SDK, adaptive thinking, streaming, `finalMessage()`. The SDK is imported on first use. |
+| `output.ts` | `aiOutputPath`, `saveAiOutput`: writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md` in the data folder. |
+| `index.ts` | The public entry: `createAiProvider(config)` picks the provider, plus re-exports of the pure helpers and types. |
+
 ### 3.5 Device settings (`src/settings/`)
 
 | File | Responsibility |
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
 | `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
+| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`), model whitelist and `isAiConfigured`. The API key never enters `_settings.md`. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
@@ -123,7 +136,8 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `features/calendar/WeekView.tsx` | Week grid that honours `weekStartsOn`. Exports `taskDateKey` and `tasksForDay`, reused by the other views. |
 | `features/calendar/DayView.tsx` | Single-day list grouped by status, plus the backlog. |
 | `features/calendar/MonthView.tsx` | Month grid with per-day task counts; honours `weekStartsOn`; clicking a day opens the day view. |
-| `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export. |
+| `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export, AI entry point. |
+| `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, generate, editable result, copy and save to `_ai/`. |
 | `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, asks for a path, writes via `write_file_bytes`. |
 | `features/settings/SettingsView.tsx` | Language, week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync, status, conflict list), category add/archive, device ID display. |
 
@@ -147,6 +161,8 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdavPlan.test.ts` | Upload/download/unchanged/conflict decisions, first sync, stale baseline, no deletions. |
 | `webdavClient.test.ts` | Remote path normalisation, URL encoding, href resolution, PROPFIND parsing with and without namespaces. |
 | `webdavManifest.test.ts` | File whitelist, content hashing, files that disappear mid-scan. |
+| `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
+| `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
 
 Tests import only `src/domain/*` and `src/storage/markdown.ts` /
 `src/storage/settingsFile.ts`; no Tauri mocks are needed for those modules. The
@@ -192,7 +208,7 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `16-data-sync-operations.md` | Multi-device setup, conflict handling, backup/restore. |
 | `17-troubleshooting.md` | Symptom → cause → action. |
 | `18-development-guide.md` | Environment, workflow, change playbooks, conventions. |
-| `19-roadmap.md` | Milestones, WebDAV first-version status (§3.8), AI assistant and CalDAV plan. |
+| `19-roadmap.md` | Milestones, WebDAV status (§3.8), AI status (§4.9), CalDAV and M5 plan. |
 
 ## 4. Generated files — do not edit
 

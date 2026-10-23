@@ -45,12 +45,13 @@ There is no background daemon and no network listener.
 | `storage/` | Markdown format, in-memory store, repository, migration | contain report or numbering rules |
 | `sync/` | folder-signature polling, external-change signal, manual WebDAV planning/execution (`sync/webdav/`) | write to the store |
 | `features/` | view state and user interaction | parse Markdown or call `invoke` directly |
-| `settings/` | device-local preferences (including WebDAV config) and the synced settings model | hold task data |
+| `settings/` | device-local preferences (including WebDAV and AI config) and the synced settings model | hold task data |
+| `ai/` | prompt/context building, provider interface, `_ai/` output | import React or write into the store |
 | `src-tauri/` | plugins, file commands, raw WebDAV transport, window | contain product rules |
 
 This is what makes F-25 (modular deployment) possible: reports can be replaced
-without touching storage, WebDAV lives behind `syncWebDav`, and a future AI
-module can be added as a separate feature module.
+without touching storage, WebDAV lives behind `syncWebDav`, and AI lives behind
+`AiProvider` and `buildPrompt`.
 
 ## 4. Data flow
 

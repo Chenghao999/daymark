@@ -19,11 +19,13 @@ import {
 } from "./storage/repository";
 import { loadSyncedSettings, saveSyncedSettings } from "./storage/settingsFile";
 import { loadSettings, sanitize, saveSettings, type AppSettings } from "./settings/store";
+import { loadAiSettings, saveAiSettings } from "./settings/ai";
 import {
   isWebDavConfigured,
   loadWebDavSettings,
   saveWebDavSettings,
 } from "./settings/webdav";
+import type { AiConfig } from "./ai/types";
 import { startFolderScanner, type FolderScanner } from "./sync/scanner";
 import { WebDavClient } from "./sync/webdav/client";
 import { syncWebDav } from "./sync/webdav/engine";
@@ -54,6 +56,7 @@ export default function App() {
   const [webdavBusy, setWebdavBusy] = useState(false);
   const [webdavStatus, setWebdavStatus] = useState<string | null>(null);
   const [webdavConflicts, setWebdavConflicts] = useState<string[]>([]);
+  const [ai, setAi] = useState<AiConfig>(() => loadAiSettings());
   const bootedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
 
@@ -227,6 +230,14 @@ export default function App() {
     setSettings((current) => {
       const next = { ...current, ...patch };
       saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const patchAi = useCallback((patch: Partial<AiConfig>) => {
+    setAi((current) => {
+      const next = { ...current, ...patch };
+      saveAiSettings(next);
       return next;
     });
   }, []);
@@ -456,6 +467,9 @@ export default function App() {
               weekStartsOn={settings.weekStartsOn}
               assessmentMonthStartDay={settings.assessmentMonthStartDay}
               assessmentYearStartMonth={settings.assessmentYearStartMonth}
+              userName={settings.userName}
+              dataDir={settings.dataDir}
+              ai={ai}
               onNumberingChange={(numbering: NumberingStyle) => patchSettings({ numbering })}
             />
           )}
@@ -468,9 +482,11 @@ export default function App() {
               webdavBusy={webdavBusy}
               webdavStatus={webdavStatus}
               webdavConflicts={webdavConflicts}
+              ai={ai}
               onWebdavPatch={patchWebdav}
               onWebdavTest={testWebdav}
               onWebdavSync={runWebdavSync}
+              onAiPatch={patchAi}
               onLanguage={changeLanguage}
               onChangeFolder={chooseFolder}
               onPatch={patchSettings}

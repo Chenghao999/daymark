@@ -1,9 +1,9 @@
 # 19 · Roadmap: WebDAV sync, AI assistant and the modular plan
 # 19 · 路线图：WebDAV 同步、AI 助手与模块化开发计划
 
-> Status: **partly implemented / 部分实现**。M0–M3 已落地（WebDAV 第一版见
-> §3.8）；AI、自动合并与 CalDAV 仍是计划。已实现的模块以 01-18 号文档为准，
-> 本文只记录路线与取舍。
+> Status: **partly implemented / 部分实现**。M0–M4 已落地（WebDAV 第一版见
+> §3.8，AI 第一版见 §4.9）；自然语言录入（M5）、自动合并与 CalDAV 仍是计划。
+> 已实现的模块以 01-18 号文档为准，本文只记录路线与取舍。
 >
 > 日期：2026-10-22。基线版本 `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
@@ -31,7 +31,7 @@
 | M1 | 自定义考核周期与年报 | M0 | 已完成：`src/domain/periods.ts`、年报页签 |
 | M2 | 周起始日设置 | M0 | 已完成：`weekStartsOn`，日/周/月视图与周报共用 |
 | M3 | WebDAV 同步 | M0、M2 | 第一版已完成：`src/sync/webdav/*`、设置页 “WebDAV sync” 卡片（见 §3.8） |
-| M4 | AI 助手（报告润色 / 周回顾） | M0、M1 | `src/ai/*`、报告页“AI 润色” |
+| M4 | AI 助手（报告润色 / 周回顾） | M0、M1 | 第一版已完成：`src/ai/*`、报告页 “AI assistant”（见 §4.9） |
 | M5 | AI 自然语言录入 | M4 | 任务编辑器中的“用一句话创建” |
 | M6 | 自动合并与 CalDAV | M3 | 06/07 号文档的设计落地 |
 
@@ -181,14 +181,14 @@ UI 只调用 `engine.syncNow(config, root, onProgress)`。`plan.ts` 是纯函数
 ### 4.2 隐私模型
 
 1. 默认关闭。开启时显示一段说明：请求会发送到用户配置的模型服务商。
-2. **自带密钥（BYO key）**：密钥存在系统钥匙串；不写入 `_settings.md`，不随
-   文件夹同步。
-3. **按需组装上下文**：只发送当前报告周期内的任务标题、分类、完成时间与
-   备注；默认不发送 `_settings.md`、设备 ID、历史全部文件。
-4. **发送前预览**：第一次使用时显示“本次将发送 N 条任务、约 M 字符”，用户
-   确认后才请求。
-5. **输出不自动落盘**：AI 结果先出现在预览面板，用户点“插入备注”或“另存为
-   `_ai/YYYY-MM-DD-<kind>.md`”才写文件。
+2. **自带密钥（BYO key）**：第一版存在本机 localStorage（UI 明示），后续迁移
+   到系统钥匙串；不写入 `_settings.md`，不随文件夹同步。
+3. **按需组装上下文**：只发送当前报告周期内的报告标题、周期、分类名、任务
+   标题和日期；**不发送备注、任务 ID、设备 ID、本地路径或历史全部文件**。
+4. **发送前预览**：面板始终显示“本次将发送 N 个分类、M 个条目、约 K 字符”，
+   并可展开查看即将发送的完整文本；用户点“生成”后才请求。
+5. **输出不自动落盘**：AI 结果先出现在可编辑的面板，用户点“保存到 `_ai/`”才
+   写文件，文件名为 `_ai/YYYY-MM-DD-<kind>-HHmmss.md`，不覆盖旧结果。
 
 ### 4.3 技术选型
 
@@ -203,25 +203,23 @@ UI 只调用 `engine.syncNow(config, root, onProgress)`。`plan.ts` 是纯函数
 
 ### 4.4 模块划分
 
+第一版实际结构（`4.9` 记录与计划的差异）：
+
 ```
 src/ai/
-  types.ts             # AiProvider, AiRequest, AiResult, AiFeature
+  types.ts             # AiProvider, AiRequest, AiResult, AiFeature, AiConfig
+  context.ts           # 纯函数：ReportDocument → 将要发送的 Markdown 文本
+  prompts.ts           # 纯函数：AiRequest → {system, user}
   providers/
-    anthropic.ts       # 官方 SDK；密钥从 keychain 读取
-    local.ts           # 预留：OpenAI-compatible / Ollama
-  context.ts           # 纯函数：ReportDocument + Task[] → 精简上下文
-  prompts/
-    polishReport.ts
-    weeklyReview.ts
-    parseTask.ts
-  actions/
-    polishReport.ts    # 组装 → 调用 → 返回可预览文本
-    parseTask.ts       # 返回 TaskDraft[]，由 UI 确认后创建
-  keyStore.ts          # 钥匙串读写封装（Rust 命令或插件）
+    anthropic.ts       # 官方 SDK；首次调用时动态加载
+  output.ts            # 保存到 _ai/ 的唯一入口
+  index.ts             # createAiProvider + 公开导出
 ```
 
-UI 只依赖 `actions/*`，不直接 new SDK client。`context.ts`、`parseTask` 的
-解析与校验是纯函数，可用固定样本做单元测试，不需要真实 API。
+后续加入自然语言录入（M5）时，再按计划增加 `prompts/parseTask.ts` 与
+`actions/parseTask.ts`。UI 只依赖 `index.ts` 的公开接口，不直接 new SDK
+client。`context.ts`、`prompts.ts` 的组装是纯函数，可用固定样本做单元测试，
+不需要真实 API。
 
 ### 4.5 第一阶段功能：报告润色
 
@@ -266,6 +264,32 @@ UI：报告页新增“AI 润色”按钮 → 侧栏预览 → “复制” / �
 - 润色结果不包含输入中不存在的任务。
 - 自然语言录入解析出的日期落在用户本地时区，跨月/跨年正确。
 - 关闭 AI 后，所有网络请求停止，代码路径不触发 SDK。
+
+### 4.9 第一版实现状态 · Implementation status (first version)
+
+已落地（2026-10-23）：
+
+| 项目 | 结果 |
+|---|---|
+| 提供商 | `AiProvider` 接口；`AnthropicProvider` 使用官方 `@anthropic-ai/sdk`，`claude-opus-5-5` 默认模型、自适应思考、流式请求、`finalMessage()`；SDK 动态导入，不进启动包 |
+| 上下文 | 纯函数 `reportOutline` / `buildPrompt`；只含报告标题、周期、计数、分类名、任务标题与日期 |
+| 隐私 | 默认关闭；面板显示条目数与字符数，并可展开预览完整发送文本；密钥只存本机 localStorage |
+| 输出 | 结果可编辑；只有点“保存到 `_ai/`”才写入 `_ai/YYYY-MM-DD-<kind>-HHmmss.md`，不覆盖旧文件；`_ai/` 不参与 WebDAV 同步 |
+| UI | 设置页 “AI assistant” 卡片（开关、密钥、模型）；报告页 “AI assistant” 按钮 → 润色 / 周期回顾 |
+| 测试 | `aiPrompt`、`aiSettings` 共 12 个单元测试；typecheck、build 通过 |
+
+与计划/验收标准的差异：
+
+- 未配置密钥时按钮**不显示**，而不是“可见但点击后引导去设置”。设置页卡片
+  始终显示，说明如何启用。
+- 密钥在 localStorage，尚未进入系统钥匙串。
+- **没有用真实 API 密钥做过端到端调用**（无可用密钥）；提示词组装、设置解析、
+  输出路径有单元测试，SDK 调用的网络路径未验证。首次使用请在设置页配置密钥后，
+  用一份小报告试跑并检查结果与计费。
+- 尚未记录 token 用量或费用估算（§4.7）。
+
+下一步（M4 第二版）：钥匙串存储、token/费用估算、离线检测与重试、把润色结果
+插入报告导出而不是只写 `_ai/`；随后做 M5 自然语言录入。
 
 ---
 
