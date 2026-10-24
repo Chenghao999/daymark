@@ -2,8 +2,9 @@
 # 19 · 路线图：WebDAV 同步、AI 助手与模块化开发计划
 
 > Status: **partly implemented / 部分实现**。M0–M5 已落地（WebDAV 第一版见
-> §3.8，AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自动合并与 CalDAV
-> 仍是计划。已实现的模块以 01-18 号文档为准，本文只记录路线与取舍。
+> §3.8，AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自定义 AI 接口、
+> 暗色模式与自动打包也已完成（M7、M8）；自动合并与 CalDAV 仍是计划。
+> 已实现的模块以 01-18 号文档为准，本文只记录路线与取舍。
 >
 > 日期：2026-10-24。基线版本 `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
@@ -34,6 +35,8 @@
 | M4 | AI 助手（报告润色 / 周回顾） | M0、M1 | 第一版已完成：`src/ai/*`、报告页 “AI assistant”（见 §4.9） |
 | M5 | AI 自然语言录入 | M4 | 第一版已完成：`src/ai/tasks.ts`、任务编辑器 “Fill fields” 一句话填表（见 §4.10） |
 | M6 | 自动合并与 CalDAV | M3 | 06/07 号文档的设计落地 |
+| M7 | 自定义 AI 接口 + 暗色模式 | M4 | 已完成：协议/Base URL/自定义模型（§4.11）；外观跟随系统或手动切换 |
+| M8 | 自动打包与发布 | M0 | 已完成：`.github/workflows/release.yml`、`npm run release`（doc 10 §7–8） |
 
 顺序说明：M3 与 M4 相互独立，可并行；但两者都依赖 M0 的文件契约，因此
 **先稳定 Markdown 格式，再接入外部能力**。M6 放在最后，因为自动合并需要
@@ -277,7 +280,7 @@ UI：报告页新增“AI 润色”按钮 → 侧栏预览 → “复制” / �
 | 隐私 | 默认关闭；面板显示条目数、字符数与输入 token 估算，并可展开预览完整发送文本；密钥只存本机 localStorage |
 | 输出 | 结果可编辑；只有点“保存到 `_ai/`”才写入 `_ai/YYYY-MM-DD-<kind>-HHmmss.md`，不覆盖旧文件；`_ai/` 不参与 WebDAV 同步 |
 | UI | 设置页 “AI assistant” 卡片（开关、密钥、模型）；报告页 “AI assistant” 按钮 → 润色 / 周期回顾 |
-| 测试 | `aiPrompt`、`aiSettings`、`aiUsage` 共 17 个单元测试；typecheck、build 通过 |
+| 测试 | `aiPrompt`、`aiSettings`、`aiUsage` 有单元测试；整套 99 个，typecheck、build 通过 |
 
 与计划/验收标准的差异：
 
@@ -307,7 +310,7 @@ UI：报告页新增“AI 润色”按钮 → 侧栏预览 → “复制” / �
 | 行为 | 只**填表**：结果写进编辑器的标题、分类、开始/结束/截止、优先级、全天与备注，用户确认后照常点保存；绝不自动创建任务 |
 | 多任务 | 一句话拆出多条时列出按钮让用户选一条，不会全部套用 |
 | 失败 | JSON 结构错误、没有任务、网络错误都在表单内显示，编辑器原内容不变 |
-| 测试 | `tests/aiTasks.test.ts` 15 个单元测试；总测试 85 个，typecheck 与 build 通过 |
+| 测试 | `tests/aiTasks.test.ts` 16 个单元测试；总测试 99 个，typecheck 与 build 通过 |
 
 与计划/验收标准的差异：
 
@@ -320,8 +323,36 @@ UI：报告页新增“AI 润色”按钮 → 侧栏预览 → “复制” / �
 - 同样**没有用真实 API 密钥做过端到端调用**；提示词、schema 与校验逻辑有
   单元测试覆盖，网络路径未验证。
 
-下一步（M5 第二版）：多任务一次性批量创建、把相对时间解析结果高亮给用户确认、
-支持 `reminders` 字段后再处理“提前提醒”。
+M5 第二版已完成“一次创建全部 N 个任务”（仍由用户点按钮触发，不自动创建）。
+后续：把相对时间解析结果高亮给用户确认；支持 `reminders` 字段后再处理
+“提前一天提醒”。离线时会禁用 AI 按钮，失败后可直接重试。
+
+### 4.11 自定义 AI 接口（M7）
+
+原来的 provider 只能连 Anthropic 官方地址、模型也只能三选一，无法用于中转、
+企业网关或 Oppo AI 这类服务。现在 `AiConfig` 多了三项，全部只存本机：
+
+| 字段 | 作用 |
+|---|---|
+| `protocol` | `anthropic`（`/v1/messages`）或 `openai`（`/v1/chat/completions`） |
+| `baseUrl` | 留空用官方地址；填中转/网关的基础地址，应用负责拼接路径 |
+| `model` | 任意非空模型名，预设只是下拉建议 |
+
+实现要点：
+
+- `createAiProvider` 是唯一分支点：`AnthropicProvider` 把 `baseUrl` 传给官方
+  SDK 的 `baseURL`；`OpenAiProvider` 直接用 `fetch`，不引入第二个 SDK。
+- OpenAI 兼容路径先请求 `response_format: json_schema`，服务端不支持（4xx）时
+  自动重试一次 `json_object`，并在系统提示里附上 schema；`parseTaskResponse`
+  还会剥掉 Markdown 代码围栏，兼容较弱的实现。
+- `baseUrl` 只接受 `http(s)` 绝对地址，尾部斜杠会被去掉；非法值回落为官方地址。
+- 面板仍显示 token 估算与实际用量；离线时按钮禁用（`navigator.onLine`），
+  请求失败后按钮变为“重试”，`AnthropicProvider` 显式 `maxRetries: 2`。
+
+已知限制：仍未用真实密钥端到端验证；未做代理认证的特殊 header；未显示价格。
+
+**暗色模式**：设置 → 外观，可选跟随系统 / 浅色 / 深色，默认跟随系统。主题是
+设备本地设置，不写入 `_settings.md`（桌面和笔记本可以有不同偏好）。
 
 ---
 

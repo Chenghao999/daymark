@@ -4,6 +4,7 @@ import {
   DEFAULT_AI,
   isAiConfigured,
   loadAiSettings,
+  normalizeBaseUrl,
   saveAiSettings,
 } from "../src/settings/ai";
 
@@ -34,26 +35,67 @@ describe("AI settings", () => {
 
   it("round-trips a saved configuration", () => {
     vi.stubGlobal("localStorage", fakeStorage());
-    const config = { enabled: true, apiKey: "sk-ant-test", model: "claude-sonnet-5-5" };
+    const config = {
+      enabled: true,
+      protocol: "openai" as const,
+      apiKey: "sk-test",
+      model: "deepseek-chat",
+      baseUrl: "https://ai.example.com/v1",
+    };
     saveAiSettings(config);
     expect(loadAiSettings()).toEqual(config);
   });
 
-  it("rejects an unknown model and malformed JSON", () => {
+  it("accepts a custom model name and protocol, and falls back on junk", () => {
     vi.stubGlobal(
       "localStorage",
-      fakeStorage({ "daymark.ai.v1": JSON.stringify({ enabled: true, apiKey: "k", model: "gpt" }) }),
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          enabled: true,
+          apiKey: "k",
+          model: "oppo-ai-large",
+          protocol: "openai",
+          baseUrl: "https://relay.example.com/",
+        }),
+      }),
     );
-    expect(loadAiSettings().model).toBe(DEFAULT_AI.model);
+    const loaded = loadAiSettings();
+    expect(loaded.model).toBe("oppo-ai-large");
+    expect(loaded.protocol).toBe("openai");
+    expect(loaded.baseUrl).toBe("https://relay.example.com");
+
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          protocol: "carrier-pigeon",
+          model: "   ",
+          baseUrl: "not a url",
+        }),
+      }),
+    );
+    const fallback = loadAiSettings();
+    expect(fallback.protocol).toBe("anthropic");
+    expect(fallback.model).toBe(DEFAULT_AI.model);
+    expect(fallback.baseUrl).toBe("");
 
     vi.stubGlobal("localStorage", fakeStorage({ "daymark.ai.v1": "{not json" }));
     expect(loadAiSettings()).toEqual(DEFAULT_AI);
   });
 
+  it("only keeps absolute http(s) base URLs", () => {
+    expect(normalizeBaseUrl(" https://relay.example.com/v1/ ")).toBe("https://relay.example.com/v1");
+    expect(normalizeBaseUrl("http://localhost:8080")).toBe("http://localhost:8080");
+    expect(normalizeBaseUrl("relay.example.com")).toBe("");
+    expect(normalizeBaseUrl("ftp://relay.example.com")).toBe("");
+    expect(normalizeBaseUrl("   ")).toBe("");
+  });
+
   it("requires both opt-in and a key before the AI panel is offered", () => {
-    expect(isAiConfigured({ enabled: false, apiKey: "k", model: DEFAULT_AI.model })).toBe(false);
-    expect(isAiConfigured({ enabled: true, apiKey: "  ", model: DEFAULT_AI.model })).toBe(false);
-    expect(isAiConfigured({ enabled: true, apiKey: " k ", model: DEFAULT_AI.model })).toBe(true);
+    const base = { protocol: "anthropic" as const, baseUrl: "", model: DEFAULT_AI.model };
+    expect(isAiConfigured({ ...base, enabled: false, apiKey: "k" })).toBe(false);
+    expect(isAiConfigured({ ...base, enabled: true, apiKey: "  " })).toBe(false);
+    expect(isAiConfigured({ ...base, enabled: true, apiKey: " k " })).toBe(true);
   });
 });
 

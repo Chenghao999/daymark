@@ -511,10 +511,14 @@ Contract:
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 
 ```ts
+type AiProtocol = "anthropic" | "openai";
+
 interface AiConfig {
   enabled: boolean;                   // opt-in; default false
+  protocol: AiProtocol;               // /v1/messages or /v1/chat/completions
   apiKey: string;                     // device-local only
-  model: string;                      // one of AI_MODELS
+  model: string;                      // any non-empty name
+  baseUrl: string;                    // "" = official endpoint
 }
 
 type AiFeature = "polish" | "review";
@@ -561,6 +565,9 @@ DEFAULT_AI: AiConfig
 loadAiSettings(): AiConfig
 saveAiSettings(config: AiConfig): void
 isAiConfigured(config: AiConfig): boolean
+normalizeProtocol(value: unknown): AiProtocol
+normalizeModel(value: unknown): string
+normalizeBaseUrl(value: unknown): string
 ```
 
 Contract:
@@ -570,11 +577,18 @@ Contract:
 2. `buildPrompt` is pure, so the panel can show the exact user text as a
    preview before the request.
 3. Providers implement `AiProvider` only. `createAiProvider` is the single
-   branch point; adding another vendor means adding a provider file and a
-   branch there. The UI never imports a provider directly.
+   branch point: `protocol: "anthropic"` → `AnthropicProvider` (`/v1/messages`,
+   optional `baseURL`), `protocol: "openai"` → `OpenAiProvider`
+   (`{baseUrl}/chat/completions`). Adding another vendor means adding a provider
+   file and a branch there. The UI never imports a provider directly.
 4. The Anthropic provider uses `claude-opus-5-5` by default, adaptive thinking
    and streaming (`messages.stream(...).finalMessage()`); the SDK is a dynamic
-   import, so it is not in the startup bundle.
+   import, so it is not in the startup bundle. `baseUrl` is passed through as
+   the SDK's `baseURL`, so an Anthropic-compatible relay works unchanged;
+   `maxRetries` is 2.
+   The OpenAI-compatible provider uses `fetch`, requests `json_schema` first and
+   retries once with `json_object` on a 4xx, because many relays reject the
+   former field.
 5. Nothing is written until the user presses **Save**. Output goes to
    `_ai/YYYY-MM-DD-<kind>-HHmmss.md`; the timestamp keeps every answer.
 6. `_ai/` is **not** part of the WebDAV manifest, so AI notes are not uploaded

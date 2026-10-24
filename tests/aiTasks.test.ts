@@ -148,6 +148,12 @@ describe("task parsing", () => {
     expect(parseTaskResponse(answer(), [])).toEqual([]);
   });
 
+  it("accepts JSON wrapped in Markdown fences", () => {
+    const parsed = parseTaskResponse("```json\n" + answer(task()) + "\n```", ["cat-work"]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].title).toBe("Lunch with Ana");
+  });
+
   it("rejects malformed JSON and a wrongly shaped answer", () => {
     expect(() => parseTaskResponse("not json", [])).toThrow(/valid JSON/);
     expect(() => parseTaskResponse(JSON.stringify({ items: [] }), [])).toThrow(/task list/);

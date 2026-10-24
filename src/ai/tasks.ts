@@ -122,7 +122,7 @@ export function buildTaskPrompt(input: TaskPromptInput): AiPrompt {
 export function parseTaskResponse(text: string, knownCategoryIds: Iterable<string>): TaskSuggestion[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(stripFences(text));
   } catch {
     throw new Error("The model did not return valid JSON.");
   }
@@ -205,6 +205,13 @@ function normalizePriority(value: unknown): 0 | 1 | 2 | 3 {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/** Some OpenAI-compatible servers still wrap JSON in Markdown fences. */
+function stripFences(text: string): string {
+  const trimmed = text.trim();
+  const fenced = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(trimmed);
+  return fenced ? fenced[1].trim() : trimmed;
 }
 
 function localStamp(date: Date): string {

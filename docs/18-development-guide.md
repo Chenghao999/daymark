@@ -155,7 +155,8 @@ doc 14; the table below is the map of who may call what.
 | `ai/prompts.ts` | `buildPrompt(request) → {system,user}` | `ai/index.ts`, tests | fixed `ReportDocument` in, strings out |
 | `ai/context.ts` | `reportOutline`, `aiContextSummary` | prompts, tests | pure |
 | `ai/tasks.ts` | `buildTaskPrompt`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse` | `TaskEditor.tsx`, tests | pure: fixed `Date` + JSON string in, suggestions out |
-| `ai/providers/anthropic.ts` | `AnthropicProvider` (`complete`, `completeJson`) | `ai/index.ts` only | network; not unit-tested |
+| `ai/providers/anthropic.ts` | `AnthropicProvider` (`complete`, `completeJson`, optional `baseURL`) | `ai/index.ts` only | network; not unit-tested |
+| `ai/providers/openai.ts` | `OpenAiProvider` (`fetch`, json_schema → json_object fallback) | `ai/index.ts` only | stub global `fetch` |
 | `ai/output.ts` | `aiOutputPath`, `saveAiOutput` | `AiPanel.tsx` | `aiOutputPath` is pure; write via a temp folder |
 | `ai/usage.ts` | `estimateTokens`, `estimatePrompt` | `AiPanel.tsx`, tests | pure strings in, token counts out |
 | `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `isAiConfigured`, `AI_MODELS` | `App.tsx`, `ReportsView` | stub `localStorage` |

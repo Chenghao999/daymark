@@ -49,13 +49,34 @@ assessment month/year and DOCX export, English-first UI with a full Chinese
 translation (zh-CN / en), custom data
 folder, synced settings file, external-change scanner, manual WebDAV sync
 (first version), an opt-in AI assistant for report polish, retrospectives and
-one-sentence task entry, and a one-time migration from the old `daymark.db`.
+one-sentence task entry (Anthropic- or OpenAI-compatible endpoints, including
+relays such as Oppo AI), light/dark/system appearance, and a one-time migration
+from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
 导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
 外部变更检测、手动 WebDAV 同步（第一版）、可选的 AI 报告润色、周期回顾与
-一句话建任务，以及从旧 `daymark.db` 的一次性迁移。
+一句话建任务（支持 Anthropic/OpenAI 兼容接口与中转）、浅色/深色/跟随系统外观，
+以及从旧 `daymark.db` 的一次性迁移。
+
+## Try it · 如何体验
+
+```bash
+npm ci
+npm run app          # development window (Tauri + Vite, hot reload)
+npm run app:build    # local installer under src-tauri/target/release/bundle/
+```
+
+Requirements: Node 22 and Rust stable; macOS also needs Xcode Command Line
+Tools (`xcode-select --install`), Windows needs WebView2. On first launch,
+choose an empty folder as the data folder.
+
+Installers are built in CI by [`.github/workflows/release.yml`](.github/workflows/release.yml):
+pushing a `v*` tag (or `npm run release`) builds macOS arm64/x64, Windows x64
+and Linux x64 and drafts a GitHub Release. Builds are unsigned for now, so
+macOS needs right-click → Open and Windows shows SmartScreen. Details:
+[`docs/10-build-distribution.md`](docs/10-build-distribution.md) §7–8.
 
 WebDAV sync is manual and deliberately conservative: it never deletes a file
 and never overwrites a file changed on both sides — the remote copy is saved as
@@ -63,14 +84,18 @@ a `(conflict …)` file for you to merge. It has not yet been tested against eve
 WebDAV server. WebDAV 同步为手动、保守实现：不删除文件，两边同时改动时生成
 冲突副本而不覆盖。
 
-The AI assistant is opt-in and off by default. It sends only the selected
-report's title, period, categories and task titles to Anthropic, shows the exact
-text before sending, and writes nothing until you press Save (into a new file
-under `_ai/`). The same assistant can also turn one sentence into a task: the
-editor fills its fields and you still press Save yourself — nothing is created
-automatically. AI 助手默认关闭，只发送所选报告的分类与任务标题，发送前可预览，
-确认后才写入 `_ai/`；也可用一句话（如“下周二中午开会”）自动填好任务表单，
-确认后才会保存。
+The AI assistant is opt-in and off by default. It can talk to an
+Anthropic-compatible endpoint (including relays) or an OpenAI-compatible one;
+the protocol, base URL and model name are all configurable, and the key stays
+on this device. It sends only the selected report's title, period, categories
+and task titles to the endpoint, shows the exact text before sending, and
+writes nothing until you press Save (into a new file under `_ai/`). The same
+assistant can also turn one sentence into a task — or several tasks at once:
+the editor fills its fields (or you press “Create all”) and the save is still
+yours. AI 助手默认关闭，接口协议、地址和模型都可配置（支持 Anthropic/OpenAI
+兼容中转，如 Oppo AI），密钥只存本机。只发送所选报告的分类与任务标题，发送前可
+预览，确认后才写入 `_ai/`；也可用一句话填好任务表单或一次创建多个任务，仍由你
+确认保存。
 
 Not implemented yet / 尚未实现：background WebDAV sync and in-app merge. They are
 planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic
@@ -125,11 +150,11 @@ headings, checkboxes, blockquote notes. Unrecognised lines are preserved.
 
 ```bash
 npm install
-npm run tauri dev      # desktop app
-npm test               # unit tests (domain, storage, WebDAV, AI prompts)
+npm run app            # desktop app (alias: npm run tauri dev)
+npm test               # unit tests (domain, storage, WebDAV, AI)
 npm run typecheck      # TypeScript check
 npm run build          # frontend production build
-npm run tauri build    # packaged app
+npm run app:build      # packaged installer (alias: npm run tauri build)
 ```
 
 Rust changes should also pass `cargo check` inside `src-tauri/`.
@@ -149,7 +174,7 @@ src/
   storage/      Markdown parser/serializer, paths, repository, migration, settings file
   sync/         external-change scanner and manual WebDAV sync (scanner.ts, webdav/)
   settings/     device-local settings plus the synced subset written to _settings.md
-  ai/           provider interface, prompt/context builders, Anthropic provider, _ai/ output
+  ai/           provider interface, prompt/context builders, Anthropic + OpenAI providers, _ai/ output
   features/     calendar views, reports, settings
   components/   task editor
   i18n/         zh-CN and en resources

@@ -23,8 +23,12 @@ daymark/
 ├── src-tauri/                Tauri shell, Rust commands, capabilities, icons
 ├── tests/                    Vitest unit tests for the domain and storage layers
 ├── docs/                     product, engineering and operations documents
+├── scripts/
+│   └── release.sh            verify, tag and push; CI builds the installers
 ├── .github/
-│   └── workflows/ci.yml      CI: typecheck, tests + coverage, build, cargo check
+│   └── workflows/
+│       ├── ci.yml            CI: typecheck, tests + coverage, build, cargo check
+│       └── release.yml       tagged/manual desktop builds for four targets
 └── .vscode/
     └── extensions.json       recommended editor extensions only
 ```
@@ -117,7 +121,8 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `context.ts` | `reportOutline(report)` (the exact text that is sent) and `aiContextSummary(report)` (counts shown before sending). Pure. |
 | `prompts.ts` | `buildPrompt(request)` → provider-agnostic `{system,user}` for the polish and retrospective features. Pure. |
 | `tasks.ts` | `buildTaskPrompt(input)`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse(text, ids)`: one sentence → validated `TaskSuggestion[]`. Never writes a task. Pure. |
-| `providers/anthropic.ts` | `AnthropicProvider`: official SDK, adaptive thinking, streaming, `finalMessage()`. The SDK is imported on first use. |
+| `providers/anthropic.ts` | `AnthropicProvider`: official SDK, adaptive thinking, streaming, `finalMessage()`, optional `baseURL` for relays. The SDK is imported on first use. |
+| `providers/openai.ts` | `OpenAiProvider`: `fetch` against `{baseUrl}/chat/completions`, `json_schema` with a `json_object` fallback, usage mapping. |
 | `output.ts` | `aiOutputPath`, `saveAiOutput`: writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md` in the data folder. |
 | `usage.ts` | `estimateTokens(text)`, `estimatePrompt(prompt)`: rough Latin/CJK character-based estimate shown before a request. Pure. |
 | `index.ts` | The public entry: `createAiProvider(config)` picks the provider, plus re-exports of the pure helpers and types. |
@@ -128,7 +133,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
 | `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
-| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`), model whitelist and `isAiConfigured`. The API key never enters `_settings.md`. |
+| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): protocol, base URL, any model name and `isAiConfigured`. The API key never enters `_settings.md`. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
@@ -141,7 +146,8 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export, AI entry point. |
 | `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, generate, editable result, copy and save to `_ai/`. |
 | `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, asks for a path, writes via `write_file_bytes`. |
-| `features/settings/SettingsView.tsx` | Language, week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync, status, conflict list), category add/archive, device ID display. |
+| `features/settings/SettingsView.tsx` | Language, appearance (system/light/dark), week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync, status, conflict list), AI card (protocol, base URL, key, model, privacy), category add/archive, device ID display. |
+| `hooks/useOnline.ts` | `useOnline()`: `navigator.onLine` plus online/offline events; disables AI buttons while offline. |
 
 ### 3.7 Internationalisation (`src/i18n/`)
 

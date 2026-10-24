@@ -9,6 +9,7 @@ import {
   saveAiOutput,
 } from "../../ai";
 import type { AppLanguage, ReportDocument } from "../../domain/types";
+import { useOnline } from "../../hooks/useOnline";
 
 interface AiPanelProps {
   report: ReportDocument;
@@ -21,6 +22,7 @@ interface AiPanelProps {
 
 export default function AiPanel({ report, language, userName, ai, dataDir, onClose }: AiPanelProps) {
   const { t } = useTranslation();
+  const online = useOnline();
   const [feature, setFeature] = useState<AiFeature>("polish");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -120,8 +122,12 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
 
         {result === null ? (
           <div className="button-row">
-            <button className="primary" onClick={() => void generate()} disabled={busy}>
-              {busy ? t("ai.generating") : t("ai.generate")}
+            <button
+              className="primary"
+              onClick={() => void generate()}
+              disabled={busy || !online}
+            >
+              {busy ? t("ai.generating") : error ? t("ai.retry") : t("ai.generate")}
             </button>
             <button className="ghost" onClick={onClose} disabled={busy}>
               {t("actions.cancel")}
@@ -158,6 +164,7 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
           </>
         )}
 
+        {!online && <p className="muted small">{t("ai.offline")}</p>}
         {error && <p className="error">{t("ai.error", { message: error })}</p>}
       </div>
     </div>

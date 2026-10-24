@@ -6,9 +6,19 @@ import type { AppLanguage, ReportDocument } from "../domain/types";
  */
 export interface AiConfig {
   enabled: boolean;
+  /** Wire protocol the endpoint speaks. */
+  protocol: AiProtocol;
   apiKey: string;
   model: string;
+  /** Empty means the provider's official endpoint; otherwise a relay/proxy. */
+  baseUrl: string;
 }
+
+/**
+ * `anthropic` is `/v1/messages` (also used by Anthropic-compatible relays);
+ * `openai` is `/v1/chat/completions` (OpenAI and most compatible vendors).
+ */
+export type AiProtocol = "anthropic" | "openai";
 
 /** What the assistant is asked to produce. */
 export type AiFeature = "polish" | "review";

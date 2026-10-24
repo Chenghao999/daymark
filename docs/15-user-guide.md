@@ -230,9 +230,19 @@ one.
 
 ### AI assistant
 
-The AI assistant is **off by default**. Enable it in Settings, paste an
-Anthropic API key and choose a model; the Reports page then shows an **AI
+The AI assistant is **off by default**. Enable it in Settings, choose the API
+protocol, paste a key and pick a model; the Reports page then shows an **AI
 assistant** button next to Export.
+
+- **API protocol** — `Anthropic-compatible` for Anthropic and Claude relays
+  (`/v1/messages`), or `OpenAI-compatible` for OpenAI-style services such as
+  DeepSeek, Kimi, GLM, OpenRouter and most enterprise gateways
+  (`/v1/chat/completions`).
+- **API base URL** — leave empty for the official endpoint. For a relay or a
+  vendor such as Oppo AI, enter its base address; the app appends the protocol's
+  path itself.
+- **Model name** — any model the endpoint accepts. The dropdown is a set of
+  suggestions, not a whitelist.
 
 - **Polish report** rewrites the period's report as prose while keeping every
   category and every item.
@@ -256,12 +266,24 @@ The API key is stored in this device's local app data, like the WebDAV password.
 It is never written to `_settings.md` or the data folder. Requests go directly
 from this app to Anthropic and are billed to your account.
 
-**中文要点：** AI 助手默认关闭。启用并填入 Anthropic API 密钥后，报告页会出现
-“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示分类/条目/字符数与
-token 估算，并可预览完整文本；只发送报告标题、周期、分类和任务标题，不发送备注、
-任务 ID 和本地路径。结果可编辑，只有点“保存到 `_ai/`”才会写成新的 Markdown 文件。
-密钥只存在本机，不写入 `_settings.md`；请求直接发往 Anthropic，按你的账号计费，
-面板会显示本次实际使用的 token 数。
+**中文要点：** AI 助手默认关闭。启用后选择接口协议、填写密钥与模型：协议可选
+Anthropic 兼容（`/v1/messages`）或 OpenAI 兼容（`/v1/chat/completions`）；接口
+地址留空用官方地址，用中转、Oppo AI 等服务时填基础地址；模型名可任意填写。
+随后报告页会出现“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示
+分类/条目/字符数与 token 估算，并可预览完整文本；只发送报告标题、周期、分类和
+任务标题，不发送备注、任务 ID 和本地路径。结果可编辑，只有点“保存到 `_ai/`”
+才会写成新的 Markdown 文件。密钥只存在本机，不写入 `_settings.md`；请求直接发往
+你配置的接口，按你的账号计费，面板会显示本次实际使用的 token 数。离线时按钮
+禁用，失败后按钮变为“重试”。
+
+### Appearance
+
+Settings → **Appearance**: **Follow system** (default), **Light** or **Dark**.
+The choice is saved on this device only, so a desktop and a laptop can differ.
+“Follow system” picks up OS changes immediately.
+
+**中文要点：** 设置 → 外观：跟随系统（默认）、浅色、深色。主题只保存在本机，
+不同设备可以不同；选“跟随系统”时随系统切换即时生效。
 
 ### One-sentence task entry
 
@@ -363,4 +385,6 @@ choose the copied folder on first launch.
 | Sync without a desktop client | Settings → WebDAV sync → Test connection → Sync now. |
 | Polish this period's report | Reports → AI assistant → Polish report → Generate → Save to `_ai/`. |
 | Create a task from a sentence | New task → Describe it in one sentence → Fill fields → review → Save. |
+| Use a relay or Oppo AI | Settings → AI assistant → choose the protocol, enter the base URL and model, then Test. |
+| Change the theme | Settings → Appearance → Follow system / Light / Dark. |
 | Fix a problem | See `17-troubleshooting.md`. |

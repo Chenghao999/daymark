@@ -4,6 +4,8 @@ import type { AiJsonSchema, AiPrompt, AiProvider, AiResult, AiUsage } from "../t
 export interface AnthropicProviderOptions {
   apiKey: string;
   model: string;
+  /** Empty uses the official endpoint; relays use the same `/v1/messages` wire format. */
+  baseUrl?: string;
   maxTokens?: number;
 }
 
@@ -28,6 +30,8 @@ export class AnthropicProvider implements AiProvider {
       const { default: AnthropicClient } = await import("@anthropic-ai/sdk");
       this.client = new AnthropicClient({
         apiKey: this.options.apiKey,
+        baseURL: this.options.baseUrl || undefined,
+        maxRetries: 2,
         dangerouslyAllowBrowser: true,
       });
     }

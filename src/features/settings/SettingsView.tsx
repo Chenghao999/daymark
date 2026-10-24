@@ -73,6 +73,18 @@ export default function SettingsView({
         </label>
 
         <label className="field">
+          <span>{t("settings.appearance")}</span>
+          <select
+            value={settings.theme}
+            onChange={(event) => onPatch({ theme: event.currentTarget.value as AppSettings["theme"] })}
+          >
+            <option value="system">{t("settings.themeSystem")}</option>
+            <option value="light">{t("settings.themeLight")}</option>
+            <option value="dark">{t("settings.themeDark")}</option>
+          </select>
+        </label>
+
+        <label className="field">
           <span>{t("settings.weekStart")}</span>
           <select
             value={settings.weekStartsOn}
@@ -267,13 +279,49 @@ export default function SettingsView({
         <p className="muted small">{t("settings.aiApiKeyHint")}</p>
 
         <label className="field">
-          <span>{t("settings.aiModel")}</span>
-          <select value={ai.model} onChange={(event) => onAiPatch({ model: event.currentTarget.value })}>
-            <option value="claude-opus-5-5">{t("settings.aiModelOpus")}</option>
-            <option value="claude-sonnet-5-5">{t("settings.aiModelSonnet")}</option>
-            <option value="claude-haiku-5-5">{t("settings.aiModelHaiku")}</option>
+          <span>{t("settings.aiProtocol")}</span>
+          <select
+            value={ai.protocol}
+            onChange={(event) => onAiPatch({ protocol: event.currentTarget.value as AiConfig["protocol"] })}
+          >
+            <option value="anthropic">{t("settings.aiProtocolAnthropic")}</option>
+            <option value="openai">{t("settings.aiProtocolOpenai")}</option>
           </select>
         </label>
+        <p className="muted small">{t("settings.aiProtocolHint")}</p>
+
+        <label className="field">
+          <span>{t("settings.aiBaseUrl")}</span>
+          <input
+            value={ai.baseUrl}
+            onChange={(event) => onAiPatch({ baseUrl: event.currentTarget.value })}
+            placeholder={
+              ai.protocol === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com"
+            }
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <p className="muted small">{t("settings.aiBaseUrlHint")}</p>
+
+        <label className="field">
+          <span>{t("settings.aiModel")}</span>
+          <input
+            list="ai-model-presets"
+            value={ai.model}
+            onChange={(event) => onAiPatch({ model: event.currentTarget.value })}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <datalist id="ai-model-presets">
+            <option value="claude-opus-5-5" />
+            <option value="claude-sonnet-5-5" />
+            <option value="claude-haiku-5-5" />
+            <option value="gpt-4.1-mini" />
+            <option value="deepseek-chat" />
+          </datalist>
+        </label>
+        <p className="muted small">{t("settings.aiModelHint")}</p>
         <p className="muted small">{t("settings.aiPrivacy")}</p>
       </section>
 

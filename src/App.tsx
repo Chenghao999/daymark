@@ -73,8 +73,7 @@ export default function App() {
    * Adopt settings that may have come from `_settings.md`: persist them
    * locally and keep i18next in step, since the file can change the language
    * on a device that has not restarted.
-   */
-  const adoptSettings = useCallback(
+   */  const adoptSettings = useCallback(
     (next: AppSettings) => {
       saveSettings(next);
       setSettings(next);
@@ -121,6 +120,14 @@ export default function App() {
       }
     })();
   }, [adoptSettings, refresh, settings]);
+
+  // Theme is device-local: "system" follows the OS, while light/dark pin it.
+  // The attribute wins over the media query in App.css.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (settings.theme === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", settings.theme);
+  }, [settings.theme]);
 
   // The settings file lives in the data folder so it travels with the
   // Markdown. The first run after opening a folder is skipped because the
@@ -197,6 +204,17 @@ export default function App() {
       };
       await updateTask(next);
     } else {
+      await createTask(draft);
+    }
+    setEditorOpen(false);
+    setEditing(null);
+    setDraftDate(null);
+    await refresh();
+    await touchScanner();
+  }
+
+  async function createDrafts(drafts: TaskDraft[]) {
+    for (const draft of drafts) {
       await createTask(draft);
     }
     setEditorOpen(false);
@@ -513,6 +531,7 @@ export default function App() {
           language={language}
           ai={ai}
           onSave={saveDraft}
+          onCreateMany={createDrafts}
           onDelete={editing ? () => deleteTask(editing) : undefined}
           onClose={() => {
             setEditorOpen(false);

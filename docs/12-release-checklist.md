@@ -8,6 +8,8 @@
 - [ ] Version bumped in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`.
 - [ ] CI green on `main` (`.github/workflows/ci.yml`; README badge shows it).
 - [ ] `npm run verify` green locally (typecheck, tests, build).
+- [ ] The Release workflow has built all four targets (macOS arm64/x64, Linux,
+      Windows) at least once since the last dependency change.
 - [ ] `npm run test:coverage` completes and the report looks sane.
 - [ ] A fresh clone builds: `npm ci && npm run build && (cd src-tauri && cargo check)`.
 - [ ] `git status --ignored --short` shows no source directory; every ignored

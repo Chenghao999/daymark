@@ -6,6 +6,7 @@ import type { AiConfig } from "../ai/types";
 import type { TaskSuggestion } from "../ai/tasks";
 import { buildTaskPrompt, createAiProvider, parseTaskResponse, TASK_SUGGESTION_SCHEMA } from "../ai";
 import { isAiConfigured } from "../settings/ai";
+import { useOnline } from "../hooks/useOnline";
 
 export interface TaskDraft {
   title: string;
@@ -25,6 +26,7 @@ interface TaskEditorProps {
   language: "en" | "zh-CN";
   ai: AiConfig;
   onSave: (draft: TaskDraft) => Promise<void>;
+  onCreateMany?: (drafts: TaskDraft[]) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
 }
@@ -34,6 +36,19 @@ function toLocalInput(value: string | null): string {
   return value.slice(0, 16);
 }
 
+function draftOfSuggestion(suggestion: TaskSuggestion): TaskDraft {
+  return {
+    title: suggestion.title,
+    notes: suggestion.notes,
+    categoryId: suggestion.categoryId,
+    startAt: suggestion.startAt,
+    endAt: suggestion.endAt,
+    dueAt: suggestion.dueAt,
+    priority: suggestion.priority,
+    allDay: suggestion.allDay,
+  };
+}
+
 export default function TaskEditor({
   task,
   defaultDate,
@@ -41,10 +56,12 @@ export default function TaskEditor({
   language,
   ai,
   onSave,
+  onCreateMany,
   onDelete,
   onClose,
 }: TaskEditorProps) {
   const { t } = useTranslation();
+  const online = useOnline();
   const [title, setTitle] = useState(task?.title ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [categoryId, setCategoryId] = useState<string>(task?.categoryId ?? categories[0]?.id ?? "");
@@ -110,6 +127,23 @@ export default function TaskEditor({
     }
   }
 
+  async function createAll() {
+    if (!onCreateMany || suggestions.length === 0) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      await onCreateMany(suggestions.map(draftOfSuggestion));
+    } catch (cause) {
+      setAiError(
+        t("task.aiCreateFailed", {
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+      );
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!title.trim()) {
@@ -162,13 +196,14 @@ export default function TaskEditor({
                 <button
                   type="button"
                   onClick={() => void fillWithAi()}
-                  disabled={aiBusy || !quickText.trim()}
+                  disabled={aiBusy || !quickText.trim() || !online}
                 >
                   {aiBusy ? t("task.aiFilling") : t("task.aiFill")}
                 </button>
               </div>
             </label>
             <p className="muted small">{t("task.aiHint")}</p>
+            {!online && <p className="muted small">{t("ai.offline")}</p>}
             {suggestions.length > 1 && (
               <div>
                 <p className="muted small">{t("task.aiPick")}</p>
@@ -184,6 +219,16 @@ export default function TaskEditor({
                     </button>
                   ))}
                 </div>
+                {onCreateMany && (
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() => void createAll()}
+                    disabled={aiBusy}
+                  >
+                    {t("task.aiCreateAll", { count: suggestions.length })}
+                  </button>
+                )}
               </div>
             )}
             {aiError && <p className="error">{aiError}</p>}

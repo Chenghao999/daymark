@@ -1,4 +1,5 @@
 import { AnthropicProvider } from "./providers/anthropic";
+import { OpenAiProvider } from "./providers/openai";
 import type { AiConfig, AiProvider } from "./types";
 
 export { aiContextSummary, reportOutline } from "./context";
@@ -32,5 +33,6 @@ export function createAiProvider(config: AiConfig): AiProvider {
   if (!config.enabled) throw new Error("The AI assistant is disabled.");
   const apiKey = config.apiKey.trim();
   if (!apiKey) throw new Error("An API key is required.");
-  return new AnthropicProvider({ apiKey, model: config.model });
+  const options = { apiKey, model: config.model, baseUrl: config.baseUrl };
+  return config.protocol === "openai" ? new OpenAiProvider(options) : new AnthropicProvider(options);
 }

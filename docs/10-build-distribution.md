@@ -76,3 +76,58 @@ npm run tauri build -- --target x86_64-pc-windows-msvc
 - `daymark_<version>_x64-portable.zip` (Windows).
 - `SHA256SUMS`.
 - Release notes listing migrations, new features and known limitations.
+
+## 7. Automated packaging · 自动打包
+
+`.github/workflows/release.yml` builds the desktop installers:
+
+- Trigger: pushing a tag that matches `v*`, or **Actions → Release → Run
+  workflow**.
+- Matrix: macOS arm64, macOS x64, Linux x64 (AppImage + deb), Windows x64
+  (MSI + NSIS).
+- Every run uploads the bundles as workflow artifacts. A tag push also creates
+  a **draft GitHub Release** with the installers attached, so you can read the
+  notes and publish it yourself.
+- No signing keys are configured yet: macOS bundles and Windows installers are
+  unsigned and trigger OS warnings (see §2, §3).
+
+Cut a release from the repository root:
+
+```bash
+# bump package.json, src-tauri/Cargo.toml and src-tauri/tauri.conf.json together
+npm run release            # verify, tag v<version>, push the tag
+```
+
+`npm run release` refuses to run when the two version fields disagree or the
+tag already exists. Building locally does not need CI:
+
+```bash
+npm run app:build          # same as `npm run tauri build`
+```
+
+## 8. Trying it · 如何体验
+
+Development window (hot reload):
+
+```bash
+npm ci
+npm run app                # tauri dev; needs Node 22 + Rust stable
+```
+
+Prerequisites: macOS → Xcode Command Line Tools (`xcode-select --install`);
+Windows → WebView2 Evergreen runtime; Linux → the packages listed in the
+release workflow (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, …).
+
+Installable build without CI:
+
+```bash
+npm run app:build
+# macOS: src-tauri/target/release/bundle/dmg/*.dmg
+# Windows: src-tauri/target/release/bundle/msi/*.msi, .../nsis/*.exe
+```
+
+Downloading a CI build: open the repository's **Actions → Release** run or the
+draft release, download the artifact for your platform, and install it.
+Unsigned macOS builds need right-click → Open (or `xattr -cr
+/Applications/Daymark.app`); unsigned Windows installers show SmartScreen.
+On first launch, choose a data folder — an empty folder is fine.

@@ -20,9 +20,16 @@ export interface SyncedSettings {
   userName: string;
 }
 
+export type ThemePreference = "system" | "light" | "dark";
+
 export interface AppSettings extends SyncedSettings {
   /** Absolute path of the data folder. Device-local, never written to the file. */
   dataDir: string;
+  /**
+   * Device-local: a desktop may want dark while a laptop stays light, so the
+   * theme is deliberately not part of `_settings.md`.
+   */
+  theme: ThemePreference;
 }
 
 export const SYNCED_KEYS: (keyof SyncedSettings)[] = [
@@ -42,6 +49,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // Settings. A saved choice always wins over this default.
   language: "en",
   dataDir: "",
+  theme: "system",
   weekStartsOn: 1,
   assessmentMonthStartDay: 1,
   assessmentYearStartMonth: 1,
@@ -76,11 +84,16 @@ export function sanitize(settings: AppSettings): AppSettings {
     Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
   return {
     ...settings,
+    theme: normalizeTheme(settings.theme),
     weekStartsOn: settings.weekStartsOn === 0 ? 0 : 1,
     assessmentMonthStartDay: clamp(settings.assessmentMonthStartDay, 1, 28, 1),
     assessmentYearStartMonth: clamp(settings.assessmentYearStartMonth, 1, 12, 1),
     scanIntervalSec: clamp(settings.scanIntervalSec, 10, 3600, 60),
   };
+}
+
+export function normalizeTheme(value: unknown): ThemePreference {
+  return value === "light" || value === "dark" ? value : "system";
 }
 
 export function syncedPart(settings: AppSettings): SyncedSettings {
