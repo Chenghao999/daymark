@@ -32,6 +32,9 @@ export interface AiResult {
   model: string;
 }
 
+/** A JSON Schema handed to a provider that supports structured outputs. */
+export type AiJsonSchema = Record<string, unknown>;
+
 /**
  * The interface every AI provider implements. The UI and the report code only
  * depend on this type, so adding a local model later does not touch them.
@@ -39,4 +42,6 @@ export interface AiResult {
 export interface AiProvider {
   readonly id: string;
   complete(prompt: AiPrompt): Promise<AiResult>;
+  /** Structured output: `result.text` is guaranteed to be JSON matching the schema. */
+  completeJson(prompt: AiPrompt, schema: AiJsonSchema): Promise<AiResult>;
 }

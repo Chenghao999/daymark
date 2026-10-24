@@ -113,9 +113,10 @@ when debugging. Keeping the surface small is what makes a module replaceable
 
 | File | Responsibility |
 |---|---|
-| `types.ts` | `AiConfig`, `AiFeature`, `AiRequest`, `AiPrompt`, `AiResult` and the `AiProvider` interface. Types only. |
+| `types.ts` | `AiConfig`, `AiFeature`, `AiRequest`, `AiPrompt`, `AiResult`, `AiJsonSchema` and the `AiProvider` interface. Types only. |
 | `context.ts` | `reportOutline(report)` (the exact text that is sent) and `aiContextSummary(report)` (counts shown before sending). Pure. |
 | `prompts.ts` | `buildPrompt(request)` → provider-agnostic `{system,user}` for the polish and retrospective features. Pure. |
+| `tasks.ts` | `buildTaskPrompt(input)`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse(text, ids)`: one sentence → validated `TaskSuggestion[]`. Never writes a task. Pure. |
 | `providers/anthropic.ts` | `AnthropicProvider`: official SDK, adaptive thinking, streaming, `finalMessage()`. The SDK is imported on first use. |
 | `output.ts` | `aiOutputPath`, `saveAiOutput`: writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md` in the data folder. |
 | `index.ts` | The public entry: `createAiProvider(config)` picks the provider, plus re-exports of the pure helpers and types. |
@@ -132,7 +133,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 
 | File | Responsibility |
 |---|---|
-| `components/TaskEditor.tsx` | Modal form for creating/editing a task; validates the title; emits a `TaskDraft`. |
+| `components/TaskEditor.tsx` | Modal form for creating/editing a task; validates the title; emits a `TaskDraft`. When AI is configured it also shows the one-sentence quick fill (M5). |
 | `features/calendar/WeekView.tsx` | Week grid that honours `weekStartsOn`. Exports `taskDateKey` and `tasksForDay`, reused by the other views. |
 | `features/calendar/DayView.tsx` | Single-day list grouped by status, plus the backlog. |
 | `features/calendar/MonthView.tsx` | Month grid with per-day task counts; honours `weekStartsOn`; clicking a day opens the day view. |

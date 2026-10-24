@@ -932,6 +932,27 @@ h3 {
   line-height: 1.5;
 }
 
+.ai-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.ai-quick-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-quick-row button {
+  white-space: nowrap;
+}
+
 /* Responsive */
 
 @media (max-width: 900px) {

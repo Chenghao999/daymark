@@ -68,12 +68,13 @@ Priority: **P0** must ship in 0.1 · **P1** should ship · **P2** optional.
 | F-24 | Unsigned macOS distribution | P0 | build config ready |
 | F-25 | Modular deployment, external resources | P1 | partial |
 | F-26 | WebDAV sync | P2 | first version: manual sync, conflict copies; see doc 19 §3.8 |
-| F-27 | AI assistant | P2 | first version: report polish + retrospective, opt-in; see doc 19 §4.9 |
+| F-27 | AI assistant | P2 | first version: report polish + retrospective + one-sentence task entry, opt-in; see doc 19 §4.9, §4.10 |
 
 F-26 and F-27 both have first versions: WebDAV sync is manual (no background
-sync, no in-app merge) and the AI assistant is opt-in report polish and
-retrospective. Doc 19 §3.8 and §4.9 hold the status, the boundaries and the
-remaining plan.
+sync, no in-app merge) and the AI assistant is opt-in report polish,
+retrospective and one-sentence task filling (it never creates a task itself).
+Doc 19 §3.8, §4.9 and §4.10 hold the status, the boundaries and the remaining
+plan.
 
 ## 5. Non-functional requirements
 

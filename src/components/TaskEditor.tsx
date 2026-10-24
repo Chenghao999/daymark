@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import type { Category, Task } from "../domain/types";
+import type { AiConfig } from "../ai/types";
+import type { TaskSuggestion } from "../ai/tasks";
+import { buildTaskPrompt, createAiProvider, parseTaskResponse, TASK_SUGGESTION_SCHEMA } from "../ai";
+import { isAiConfigured } from "../settings/ai";
 
 export interface TaskDraft {
   title: string;
@@ -19,6 +23,7 @@ interface TaskEditorProps {
   defaultDate: Date | null;
   categories: Category[];
   language: "en" | "zh-CN";
+  ai: AiConfig;
   onSave: (draft: TaskDraft) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
@@ -34,6 +39,7 @@ export default function TaskEditor({
   defaultDate,
   categories,
   language,
+  ai,
   onSave,
   onDelete,
   onClose,
@@ -51,6 +57,58 @@ export default function TaskEditor({
   const [allDay, setAllDay] = useState(task?.allDay ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [quickText, setQuickText] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
+
+  function applySuggestion(suggestion: TaskSuggestion) {
+    setTitle(suggestion.title);
+    setNotes(suggestion.notes);
+    setCategoryId(suggestion.categoryId ?? "");
+    setPriority(suggestion.priority);
+    setAllDay(suggestion.allDay);
+    setStartAt(suggestion.startAt ?? "");
+    setEndAt(suggestion.endAt ?? "");
+    setDueAt(suggestion.dueAt ?? "");
+    setSuggestions([]);
+    setAiError(null);
+  }
+
+  async function fillWithAi() {
+    const text = quickText.trim();
+    if (!text) return;
+    setAiBusy(true);
+    setAiError(null);
+    setSuggestions([]);
+    try {
+      const prompt = buildTaskPrompt({
+        text,
+        now: new Date(),
+        language,
+        categories: categories.map((category) => ({
+          id: category.id,
+          name: language === "zh-CN" ? category.nameZh : category.nameEn,
+        })),
+      });
+      const answer = await createAiProvider(ai).completeJson(prompt, TASK_SUGGESTION_SCHEMA);
+      const parsed = parseTaskResponse(answer.text, categories.map((category) => category.id));
+      const [first, ...rest] = parsed;
+      if (!first) {
+        setAiError(t("task.aiNoTasks"));
+      } else if (rest.length === 0) {
+        applySuggestion(first);
+      } else {
+        setSuggestions(parsed);
+      }
+    } catch (cause) {
+      setAiError(
+        t("task.aiFailed", { message: cause instanceof Error ? cause.message : String(cause) }),
+      );
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -84,6 +142,53 @@ export default function TaskEditor({
             ×
           </button>
         </header>
+
+        {isAiConfigured(ai) && (
+          <div className="ai-quick">
+            <label className="field">
+              <span>{t("task.aiLabel")}</span>
+              <div className="ai-quick-row">
+                <input
+                  value={quickText}
+                  onChange={(event) => setQuickText(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void fillWithAi();
+                    }
+                  }}
+                  placeholder={t("task.aiPlaceholder")}
+                />
+                <button
+                  type="button"
+                  onClick={() => void fillWithAi()}
+                  disabled={aiBusy || !quickText.trim()}
+                >
+                  {aiBusy ? t("task.aiFilling") : t("task.aiFill")}
+                </button>
+              </div>
+            </label>
+            <p className="muted small">{t("task.aiHint")}</p>
+            {suggestions.length > 1 && (
+              <div>
+                <p className="muted small">{t("task.aiPick")}</p>
+                <div className="button-row">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      type="button"
+                      key={`${suggestion.title}-${index}`}
+                      className="ghost small"
+                      onClick={() => applySuggestion(suggestion)}
+                    >
+                      {suggestion.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {aiError && <p className="error">{aiError}</p>}
+          </div>
+        )}
 
         <label className="field">
           <span>{t("task.title")}</span>

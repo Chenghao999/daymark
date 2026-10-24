@@ -260,6 +260,26 @@ from this app to Anthropic and are billed to your account.
 本地路径。结果可编辑，只有点“保存到 `_ai/`”才会写成新的 Markdown 文件。密钥只
 存在本机，不写入 `_settings.md`；请求直接发往 Anthropic，按你的账号计费。
 
+### One-sentence task entry
+
+Once the assistant is configured, the task editor (new or existing task) starts
+with **Describe it in one sentence**. Type something like
+“Lunch with Ana next Tuesday at noon, category Work”, press **Fill fields**, and
+the editor's title, category, start/end, due date, priority, all-day flag and
+notes are filled in for you.
+
+- The sentence is resolved against your computer's local clock; relative words
+  like “tomorrow” or “next Tuesday” use that date.
+- Only categories that already exist are used — the assistant cannot invent one.
+- If the sentence describes several tasks, you pick one from a list.
+- **Nothing is saved automatically.** Review the fields and press Save; the
+  assistant only fills the form.
+
+**中文要点：** 配置好 AI 后，任务编辑器顶部有“用一句话描述”。输入
+“下周二中午和 Ana 吃饭，分类工作”，点“填充表单”，标题、分类、开始/结束、截止、
+优先级、全天和备注会被填好。相对日期按本机当前时间计算；只会使用已有分类；
+一句话拆出多条任务时由你选择一条。**不会自动保存**，确认字段后照常点保存。
+
 ## 9. External changes and the reload banner
 
 Daymark polls a signature of the data folder — the number of Markdown files and
@@ -339,4 +359,5 @@ choose the copied folder on first launch.
 | Use two computers | Put the folder in a synced directory and read doc 16 first. |
 | Sync without a desktop client | Settings → WebDAV sync → Test connection → Sync now. |
 | Polish this period's report | Reports → AI assistant → Polish report → Generate → Save to `_ai/`. |
+| Create a task from a sentence | New task → Describe it in one sentence → Fill fields → review → Save. |
 | Fix a problem | See `17-troubleshooting.md`. |

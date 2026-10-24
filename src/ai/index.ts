@@ -4,9 +4,17 @@ import type { AiConfig, AiProvider } from "./types";
 export { aiContextSummary, reportOutline } from "./context";
 export { buildPrompt } from "./prompts";
 export { aiOutputPath, saveAiOutput } from "./output";
+export {
+  buildTaskPrompt,
+  parseTaskResponse,
+  MAX_SUGGESTIONS,
+  TASK_SUGGESTION_SCHEMA,
+} from "./tasks";
+export type { TaskPromptInput, TaskSuggestion } from "./tasks";
 export type {
   AiConfig,
   AiFeature,
+  AiJsonSchema,
   AiPrompt,
   AiProvider,
   AiRequest,

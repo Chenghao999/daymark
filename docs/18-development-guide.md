@@ -151,10 +151,11 @@ doc 14; the table below is the map of who may call what.
 | `sync/webdav/client.ts` | `WebDavClient` and the URL/PROPFIND helpers | `engine.ts`, `App.tsx` (test button), tests | unit-test helpers; network goes through `webdav_request` |
 | `sync/webdav/manifest.ts` | `localManifest(root, io?)`, `sha256` | `engine.ts`, tests | inject `ManifestIo` |
 | `settings/webdav.ts` | `loadWebDavSettings`, `saveWebDavSettings`, `isWebDavConfigured` | `App.tsx` | stub `localStorage` |
-| `ai/index.ts` | `createAiProvider`, `buildPrompt`, `reportOutline`, `aiContextSummary`, `saveAiOutput`, types | `AiPanel.tsx` | fake provider object; test the pure helpers alone |
+| `ai/index.ts` | `createAiProvider`, `buildPrompt`, `buildTaskPrompt`, `parseTaskResponse`, `reportOutline`, `aiContextSummary`, `saveAiOutput`, types | `AiPanel.tsx`, `TaskEditor.tsx` | fake provider object; test the pure helpers alone |
 | `ai/prompts.ts` | `buildPrompt(request) → {system,user}` | `ai/index.ts`, tests | fixed `ReportDocument` in, strings out |
 | `ai/context.ts` | `reportOutline`, `aiContextSummary` | prompts, tests | pure |
-| `ai/providers/anthropic.ts` | `AnthropicProvider` | `ai/index.ts` only | network; not unit-tested |
+| `ai/tasks.ts` | `buildTaskPrompt`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse` | `TaskEditor.tsx`, tests | pure: fixed `Date` + JSON string in, suggestions out |
+| `ai/providers/anthropic.ts` | `AnthropicProvider` (`complete`, `completeJson`) | `ai/index.ts` only | network; not unit-tested |
 | `ai/output.ts` | `aiOutputPath`, `saveAiOutput` | `AiPanel.tsx` | `aiOutputPath` is pure; write via a temp folder |
 | `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `isAiConfigured`, `AI_MODELS` | `App.tsx`, `ReportsView` | stub `localStorage` |
 | `settings/store.ts` | `AppSettings`, `SyncedSettings`, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart` | `App.tsx`, `i18n`, `SettingsView`, `storage/settingsFile.ts` | stub `localStorage` |

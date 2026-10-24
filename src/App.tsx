@@ -511,6 +511,7 @@ export default function App() {
           defaultDate={draftDate}
           categories={categories}
           language={language}
+          ai={ai}
           onSave={saveDraft}
           onDelete={editing ? () => deleteTask(editing) : undefined}
           onClose={() => {

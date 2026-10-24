@@ -528,10 +528,12 @@ interface AiRequest {
 
 interface AiPrompt { system: string; user: string }
 interface AiResult { text: string; model: string }
+type AiJsonSchema = Record<string, unknown>;
 
 interface AiProvider {
   readonly id: string;
   complete(prompt: AiPrompt): Promise<AiResult>;
+  completeJson(prompt: AiPrompt, schema: AiJsonSchema): Promise<AiResult>;
 }
 
 reportOutline(report: ReportDocument): string
@@ -540,6 +542,16 @@ buildPrompt(request: AiRequest): AiPrompt
 createAiProvider(config: AiConfig): AiProvider
 aiOutputPath(root: string, kind: ReportKind, date: Date): string
 saveAiOutput(root: string, kind: ReportKind, text: string, date?: Date): Promise<string>
+
+// Natural-language task entry (M5)
+interface TaskSuggestion {
+  title: string; notes: string; categoryId: string | null;
+  startAt: string | null; endAt: string | null; dueAt: string | null;
+  priority: 0 | 1 | 2 | 3; allDay: boolean;
+}
+buildTaskPrompt(input: { text; now; language; categories }): AiPrompt
+parseTaskResponse(text: string, knownCategoryIds: Iterable<string>): TaskSuggestion[]
+TASK_SUGGESTION_SCHEMA: AiJsonSchema
 
 AI_MODELS: readonly string[]
 DEFAULT_AI: AiConfig
@@ -567,6 +579,13 @@ Contract:
 7. The API key lives in `localStorage` on this device, never in
    `_settings.md`. `isAiConfigured` is true only when the assistant is enabled
    and a non-empty key exists.
+8. `completeJson` is used only for structured answers; the schema is sent with
+   the request (`output_config.format`), so no "reply with JSON only" prompt
+   text is needed.
+9. `parseTaskResponse` is the trust boundary for natural-language entry: it
+   rejects impossible dates, out-of-range times, unknown category ids and
+   reversed ranges, caps the list at 10, and returns suggestions only. The
+   editor fills its own state; `createTask` is still called by the user's Save.
 
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 

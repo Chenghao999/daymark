@@ -1,11 +1,11 @@
 # 19 · Roadmap: WebDAV sync, AI assistant and the modular plan
 # 19 · 路线图：WebDAV 同步、AI 助手与模块化开发计划
 
-> Status: **partly implemented / 部分实现**。M0–M4 已落地（WebDAV 第一版见
-> §3.8，AI 第一版见 §4.9）；自然语言录入（M5）、自动合并与 CalDAV 仍是计划。
-> 已实现的模块以 01-18 号文档为准，本文只记录路线与取舍。
+> Status: **partly implemented / 部分实现**。M0–M5 已落地（WebDAV 第一版见
+> §3.8，AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自动合并与 CalDAV
+> 仍是计划。已实现的模块以 01-18 号文档为准，本文只记录路线与取舍。
 >
-> 日期：2026-10-22。基线版本 `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
+> 日期：2026-10-24。基线版本 `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
 ---
 
@@ -32,7 +32,7 @@
 | M2 | 周起始日设置 | M0 | 已完成：`weekStartsOn`，日/周/月视图与周报共用 |
 | M3 | WebDAV 同步 | M0、M2 | 第一版已完成：`src/sync/webdav/*`、设置页 “WebDAV sync” 卡片（见 §3.8） |
 | M4 | AI 助手（报告润色 / 周回顾） | M0、M1 | 第一版已完成：`src/ai/*`、报告页 “AI assistant”（见 §4.9） |
-| M5 | AI 自然语言录入 | M4 | 任务编辑器中的“用一句话创建” |
+| M5 | AI 自然语言录入 | M4 | 第一版已完成：`src/ai/tasks.ts`、任务编辑器 “Fill fields” 一句话填表（见 §4.10） |
 | M6 | 自动合并与 CalDAV | M3 | 06/07 号文档的设计落地 |
 
 顺序说明：M3 与 M4 相互独立，可并行；但两者都依赖 M0 的文件契约，因此
@@ -207,19 +207,20 @@ UI 只调用 `engine.syncNow(config, root, onProgress)`。`plan.ts` 是纯函数
 
 ```
 src/ai/
-  types.ts             # AiProvider, AiRequest, AiResult, AiFeature, AiConfig
+  types.ts             # AiProvider, AiRequest, AiResult, AiFeature, AiConfig, AiJsonSchema
   context.ts           # 纯函数：ReportDocument → 将要发送的 Markdown 文本
   prompts.ts           # 纯函数：AiRequest → {system, user}
+  tasks.ts             # 纯函数：一句话 → 提示词 / schema / 校验后的任务建议
   providers/
     anthropic.ts       # 官方 SDK；首次调用时动态加载
   output.ts            # 保存到 _ai/ 的唯一入口
   index.ts             # createAiProvider + 公开导出
 ```
 
-后续加入自然语言录入（M5）时，再按计划增加 `prompts/parseTask.ts` 与
-`actions/parseTask.ts`。UI 只依赖 `index.ts` 的公开接口，不直接 new SDK
-client。`context.ts`、`prompts.ts` 的组装是纯函数，可用固定样本做单元测试，
-不需要真实 API。
+自然语言录入（M5）没有另建 `prompts/parseTask.ts`：它和报告功能共用
+`AiPrompt`，所以放在同一个 `tasks.ts` 里，UI 仍只依赖 `index.ts` 的公开接口，
+不直接 new SDK client。`context.ts`、`prompts.ts`、`tasks.ts` 的组装是纯函数，
+可用固定样本做单元测试，不需要真实 API。
 
 ### 4.5 第一阶段功能：报告润色
 
@@ -289,7 +290,36 @@ UI：报告页新增“AI 润色”按钮 → 侧栏预览 → “复制” / �
 - 尚未记录 token 用量或费用估算（§4.7）。
 
 下一步（M4 第二版）：钥匙串存储、token/费用估算、离线检测与重试、把润色结果
-插入报告导出而不是只写 `_ai/`；随后做 M5 自然语言录入。
+插入报告导出而不是只写 `_ai/`。
+
+### 4.10 M5 第一版实现状态 · Natural-language task entry (first version)
+
+已落地（2026-10-24）：
+
+| 项目 | 结果 |
+|---|---|
+| 入口 | 任务编辑器顶部 “Describe it in one sentence / 用一句话描述” → **Fill fields / 填充表单**；仅当 AI 已启用且填了密钥时出现 |
+| 结构 | `TASK_SUGGESTION_SCHEMA` 交给 Anthropic structured outputs（`completeJson`），不靠提示词“只返回 JSON” |
+| 上下文 | `buildTaskPrompt` 只发送当前本地时间（含星期）、界面语言、分类 `id → name` 列表和那句话；不发送已有任务或备注 |
+| 校验 | `parseTaskResponse` 逐项检查：真实日期、`HH:mm` 范围、全天任务只留日期、结束不得早于开始、分类 id 必须存在、优先级只能是 0–3、标题为空则丢弃、最多 10 条 |
+| 行为 | 只**填表**：结果写进编辑器的标题、分类、开始/结束/截止、优先级、全天与备注，用户确认后照常点保存；绝不自动创建任务 |
+| 多任务 | 一句话拆出多条时列出按钮让用户选一条，不会全部套用 |
+| 失败 | JSON 结构错误、没有任务、网络错误都在表单内显示，编辑器原内容不变 |
+| 测试 | `tests/aiTasks.test.ts` 15 个单元测试；总测试 85 个，typecheck 与 build 通过 |
+
+与计划/验收标准的差异：
+
+- 没有引入 `zod`：结构化输出已保证形状，`parseTaskResponse` 手写校验足够，
+  少一个运行时依赖。
+- 解析失败时只显示错误信息，**没有**展示原始模型输出（模型输出是 JSON，
+  对用户意义不大；调试时可在控制台观察）。
+- 没有“提前一天提醒”这类提醒能力：数据模型还没有提醒字段，提示词也不会
+  假装支持；`dueAt` 只表示截止日期。
+- 同样**没有用真实 API 密钥做过端到端调用**；提示词、schema 与校验逻辑有
+  单元测试覆盖，网络路径未验证。
+
+下一步（M5 第二版）：多任务一次性批量创建、把相对时间解析结果高亮给用户确认、
+支持 `reminders` 字段后再处理“提前提醒”。
 
 ---
 

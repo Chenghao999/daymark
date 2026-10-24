@@ -52,7 +52,15 @@
     "completed": "已完成",
     "scheduled": "已排期",
     "noTasks": "暂无安排",
-    "validationTitle": "标题不能为空"
+    "validationTitle": "标题不能为空",
+    "aiLabel": "用一句话描述",
+    "aiPlaceholder": "例如：下周二中午和 Ana 吃饭，分类工作",
+    "aiFill": "填充表单",
+    "aiFilling": "思考中…",
+    "aiHint": "助手只负责填表，请确认字段后再保存，不会自动创建任务。",
+    "aiPick": "这句话对应多个任务，请选择一个：",
+    "aiNoTasks": "没能从这句话里读出任务。",
+    "aiFailed": "助手没能填表：{{message}}"
   },
   "reports": {
     "title": "报告",

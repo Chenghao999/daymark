@@ -52,7 +52,15 @@
     "completed": "Completed",
     "scheduled": "Scheduled",
     "noTasks": "Nothing scheduled",
-    "validationTitle": "A title is required"
+    "validationTitle": "A title is required",
+    "aiLabel": "Describe it in one sentence",
+    "aiPlaceholder": "e.g. Lunch with Ana next Tuesday at noon, category Work",
+    "aiFill": "Fill fields",
+    "aiFilling": "Thinking…",
+    "aiHint": "The assistant only fills this form — review the fields, then save. Nothing is created automatically.",
+    "aiPick": "The sentence matches several tasks — pick one:",
+    "aiNoTasks": "No task could be read from that sentence.",
+    "aiFailed": "The assistant could not fill the form: {{message}}"
   },
   "reports": {
     "title": "Reports",

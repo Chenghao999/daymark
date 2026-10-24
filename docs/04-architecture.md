@@ -46,7 +46,7 @@ There is no background daemon and no network listener.
 | `sync/` | folder-signature polling, external-change signal, manual WebDAV planning/execution (`sync/webdav/`) | write to the store |
 | `features/` | view state and user interaction | parse Markdown or call `invoke` directly |
 | `settings/` | device-local preferences (including WebDAV and AI config) and the synced settings model | hold task data |
-| `ai/` | prompt/context building, provider interface, `_ai/` output | import React or write into the store |
+| `ai/` | prompt/context building, provider interface, report polish/retrospective, one-sentence task parsing, `_ai/` output | import React or write into the store |
 | `src-tauri/` | plugins, file commands, raw WebDAV transport, window | contain product rules |
 
 This is what makes F-25 (modular deployment) possible: reports can be replaced

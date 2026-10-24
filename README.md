@@ -48,14 +48,14 @@ presets and numbering, daily/weekly/monthly/yearly reports with configurable
 assessment month/year and DOCX export, English-first UI with a full Chinese
 translation (zh-CN / en), custom data
 folder, synced settings file, external-change scanner, manual WebDAV sync
-(first version), an opt-in AI assistant for report polish and retrospectives,
-and a one-time migration from the old `daymark.db`.
+(first version), an opt-in AI assistant for report polish, retrospectives and
+one-sentence task entry, and a one-time migration from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
 导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
-外部变更检测、手动 WebDAV 同步（第一版）、可选的 AI 报告润色与周期回顾，
-以及从旧 `daymark.db` 的一次性迁移。
+外部变更检测、手动 WebDAV 同步（第一版）、可选的 AI 报告润色、周期回顾与
+一句话建任务，以及从旧 `daymark.db` 的一次性迁移。
 
 WebDAV sync is manual and deliberately conservative: it never deletes a file
 and never overwrites a file changed on both sides — the remote copy is saved as
@@ -66,14 +66,16 @@ WebDAV server. WebDAV 同步为手动、保守实现：不删除文件，两边�
 The AI assistant is opt-in and off by default. It sends only the selected
 report's title, period, categories and task titles to Anthropic, shows the exact
 text before sending, and writes nothing until you press Save (into a new file
-under `_ai/`). AI 助手默认关闭，只发送所选报告的分类与任务标题，发送前可预览，
-确认后才写入 `_ai/`。
+under `_ai/`). The same assistant can also turn one sentence into a task: the
+editor fills its fields and you still press Save yourself — nothing is created
+automatically. AI 助手默认关闭，只发送所选报告的分类与任务标题，发送前可预览，
+确认后才写入 `_ai/`；也可用一句话（如“下周二中午开会”）自动填好任务表单，
+确认后才会保存。
 
-Not implemented yet / 尚未实现：background WebDAV sync, in-app merge and
-natural-language task entry. They are planned in
-[`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic merge remain
-design-only in docs 06 and 07. Until automatic merge ships, only one device
-should have Daymark open on a folder at a time.
+Not implemented yet / 尚未实现：background WebDAV sync and in-app merge. They are
+planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic
+merge remain design-only in docs 06 and 07. Until automatic merge ships, only
+one device should have Daymark open on a folder at a time.
 
 ## Data folder · 数据目录
 

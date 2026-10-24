@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { AiPrompt, AiProvider, AiResult } from "../types";
+import type { AiJsonSchema, AiPrompt, AiProvider, AiResult } from "../types";
 
 export interface AnthropicProviderOptions {
   apiKey: string;
@@ -44,12 +44,33 @@ export class AnthropicProvider implements AiProvider {
     });
 
     const message = await stream.finalMessage();
-    const text = message.content
-      .flatMap((block) => (block.type === "text" ? [block.text] : []))
-      .join("\n")
-      .trim();
-
-    if (!text) throw new Error("The model returned no text.");
-    return { text, model: message.model };
+    return { text: textOf(message.content), model: message.model };
   }
+
+  /**
+   * Structured output for short results (task parsing). Non-streaming: the
+   * answer is a small JSON document, and the schema removes the need for
+   * "reply with JSON only" prompt hacks.
+   */
+  async completeJson(prompt: AiPrompt, schema: AiJsonSchema): Promise<AiResult> {
+    const message = await (await this.getClient()).messages.create({
+      model: this.options.model,
+      max_tokens: 1500,
+      output_config: { format: { type: "json_schema", schema } },
+      system: prompt.system,
+      messages: [{ role: "user", content: prompt.user }],
+    });
+    return { text: textOf(message.content), model: message.model };
+  }
+}
+
+type TextBlockLike = { type: string; text?: string };
+
+function textOf(content: ReadonlyArray<TextBlockLike>): string {
+  const text = content
+    .flatMap((block) => (block.type === "text" && typeof block.text === "string" ? [block.text] : []))
+    .join("\n")
+    .trim();
+  if (!text) throw new Error("The model returned no text.");
+  return text;
 }
