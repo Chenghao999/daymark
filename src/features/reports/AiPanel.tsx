@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { AiConfig, AiFeature } from "../../ai/types";
-import { aiContextSummary, buildPrompt, createAiProvider, saveAiOutput } from "../../ai";
+import type { AiConfig, AiFeature, AiUsage } from "../../ai/types";
+import {
+  aiContextSummary,
+  buildPrompt,
+  createAiProvider,
+  estimatePrompt,
+  saveAiOutput,
+} from "../../ai";
 import type { AppLanguage, ReportDocument } from "../../domain/types";
 
 interface AiPanelProps {
@@ -21,12 +27,14 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
   const [savedPath, setSavedPath] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<AiUsage | null>(null);
 
   const prompt = useMemo(
     () => buildPrompt({ feature, language, report, userName }),
     [feature, language, report, userName],
   );
   const summary = useMemo(() => aiContextSummary(report), [report]);
+  const estimate = useMemo(() => estimatePrompt(prompt), [prompt]);
 
   function choose(next: AiFeature) {
     setFeature(next);
@@ -34,6 +42,7 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
     setSavedPath(null);
     setCopied(false);
     setError(null);
+    setUsage(null);
   }
 
   async function generate() {
@@ -43,6 +52,7 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
     try {
       const answer = await createAiProvider(ai).complete(prompt);
       setResult(answer.text);
+      setUsage(answer.usage ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -99,6 +109,9 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
             chars: summary.characters,
           })}
         </p>
+        <p className="muted small">
+          {t("ai.estimate", { chars: estimate.characters, tokens: estimate.inputTokens })}
+        </p>
 
         <details className="ai-preview">
           <summary>{t("ai.preview")}</summary>
@@ -137,6 +150,11 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
               </button>
             </div>
             {savedPath && <p className="muted small">{t("ai.saved", { path: savedPath })}</p>}
+            {usage && (
+              <p className="muted small">
+                {t("ai.usage", { input: usage.inputTokens, output: usage.outputTokens })}
+              </p>
+            )}
           </>
         )}
 

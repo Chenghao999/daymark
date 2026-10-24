@@ -148,6 +148,8 @@
     "featurePolish": "润色报告",
     "featureReview": "周期回顾",
     "context": "将发送 {{sections}} 个分类、{{items}} 个条目（约 {{chars}} 字符）。",
+    "estimate": "共 {{chars}} 字符，输入约 {{tokens}} tokens。",
+    "usage": "本次使用 {{input}} 个输入、{{output}} 个输出 tokens。",
     "preview": "预览将要发送的内容",
     "generate": "生成",
     "generating": "正在生成…",

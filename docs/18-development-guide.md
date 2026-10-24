@@ -157,6 +157,7 @@ doc 14; the table below is the map of who may call what.
 | `ai/tasks.ts` | `buildTaskPrompt`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse` | `TaskEditor.tsx`, tests | pure: fixed `Date` + JSON string in, suggestions out |
 | `ai/providers/anthropic.ts` | `AnthropicProvider` (`complete`, `completeJson`) | `ai/index.ts` only | network; not unit-tested |
 | `ai/output.ts` | `aiOutputPath`, `saveAiOutput` | `AiPanel.tsx` | `aiOutputPath` is pure; write via a temp folder |
+| `ai/usage.ts` | `estimateTokens`, `estimatePrompt` | `AiPanel.tsx`, tests | pure strings in, token counts out |
 | `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `isAiConfigured`, `AI_MODELS` | `App.tsx`, `ReportsView` | stub `localStorage` |
 | `settings/store.ts` | `AppSettings`, `SyncedSettings`, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart` | `App.tsx`, `i18n`, `SettingsView`, `storage/settingsFile.ts` | stub `localStorage` |
 

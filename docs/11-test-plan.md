@@ -19,6 +19,7 @@
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
 | `ai/settings` | defaults, round-trip, unknown model fallback, malformed JSON, opt-in + key rule, unique output paths |
 | `ai/tasks` | local-time prompt context and weekday, category id → name list, unknown category dropped, impossible dates and out-of-range times rejected, end before start dropped, all-day date-only, priority coercion, multiple tasks, 10-item cap, malformed JSON and wrong shape |
+| `ai/usage` | Latin and CJK rates, mixed scripts, prompt halves counted, rounding never fractional |
 | Template validation (P1) | missing required placeholder, unknown placeholder, empty sections |
 
 WebDAV network behaviour is **not** covered by unit tests: `webdav_request` and

@@ -527,7 +527,8 @@ interface AiRequest {
 }
 
 interface AiPrompt { system: string; user: string }
-interface AiResult { text: string; model: string }
+interface AiUsage { inputTokens: number; outputTokens: number }
+interface AiResult { text: string; model: string; usage?: AiUsage | null }
 type AiJsonSchema = Record<string, unknown>;
 
 interface AiProvider {
@@ -542,6 +543,8 @@ buildPrompt(request: AiRequest): AiPrompt
 createAiProvider(config: AiConfig): AiProvider
 aiOutputPath(root: string, kind: ReportKind, date: Date): string
 saveAiOutput(root: string, kind: ReportKind, text: string, date?: Date): Promise<string>
+estimateTokens(text: string): number
+estimatePrompt(prompt: AiPrompt): { characters: number; inputTokens: number }
 
 // Natural-language task entry (M5)
 interface TaskSuggestion {
@@ -586,6 +589,10 @@ Contract:
    rejects impossible dates, out-of-range times, unknown category ids and
    reversed ranges, caps the list at 10, and returns suggestions only. The
    editor fills its own state; `createTask` is still called by the user's Save.
+10. `estimatePrompt` is a deliberately rough pre-send estimate (Latin ≈ 4
+    characters/token, CJK ≈ 1.5); the panel labels it as an estimate. After a
+    request, `result.usage` carries the provider's exact token counts and the
+    panel shows them. No price is shown, because model pricing changes.
 
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { AiJsonSchema, AiPrompt, AiProvider, AiResult } from "../types";
+import type { AiJsonSchema, AiPrompt, AiProvider, AiResult, AiUsage } from "../types";
 
 export interface AnthropicProviderOptions {
   apiKey: string;
@@ -44,7 +44,7 @@ export class AnthropicProvider implements AiProvider {
     });
 
     const message = await stream.finalMessage();
-    return { text: textOf(message.content), model: message.model };
+    return { text: textOf(message.content), model: message.model, usage: usageOf(message.usage) };
   }
 
   /**
@@ -60,11 +60,19 @@ export class AnthropicProvider implements AiProvider {
       system: prompt.system,
       messages: [{ role: "user", content: prompt.user }],
     });
-    return { text: textOf(message.content), model: message.model };
+    return { text: textOf(message.content), model: message.model, usage: usageOf(message.usage) };
   }
 }
 
 type TextBlockLike = { type: string; text?: string };
+type UsageLike = { input_tokens?: number; output_tokens?: number };
+
+function usageOf(usage: UsageLike | undefined | null): AiUsage | null {
+  if (!usage || typeof usage.input_tokens !== "number" || typeof usage.output_tokens !== "number") {
+    return null;
+  }
+  return { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens };
+}
 
 function textOf(content: ReadonlyArray<TextBlockLike>): string {
   const text = content

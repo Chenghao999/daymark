@@ -148,6 +148,8 @@
     "featurePolish": "Polish report",
     "featureReview": "Retrospective",
     "context": "Sends {{sections}} categories and {{items}} items (~{{chars}} characters).",
+    "estimate": "{{chars}} characters in total — roughly {{tokens}} input tokens.",
+    "usage": "Used {{input}} input and {{output}} output tokens.",
     "preview": "Preview what will be sent",
     "generate": "Generate",
     "generating": "Generating…",

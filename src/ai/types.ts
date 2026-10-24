@@ -27,9 +27,16 @@ export interface AiPrompt {
   user: string;
 }
 
+export interface AiUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface AiResult {
   text: string;
   model: string;
+  /** Reported by the provider when it returns usage; absent for fakes/old logs. */
+  usage?: AiUsage | null;
 }
 
 /** A JSON Schema handed to a provider that supports structured outputs. */

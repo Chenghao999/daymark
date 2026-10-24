@@ -4,6 +4,8 @@ import type { AiConfig, AiProvider } from "./types";
 export { aiContextSummary, reportOutline } from "./context";
 export { buildPrompt } from "./prompts";
 export { aiOutputPath, saveAiOutput } from "./output";
+export { estimatePrompt, estimateTokens } from "./usage";
+export type { PromptEstimate } from "./usage";
 export {
   buildTaskPrompt,
   parseTaskResponse,
@@ -19,6 +21,7 @@ export type {
   AiProvider,
   AiRequest,
   AiResult,
+  AiUsage,
 } from "./types";
 
 /**

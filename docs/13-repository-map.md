@@ -119,6 +119,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `tasks.ts` | `buildTaskPrompt(input)`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse(text, ids)`: one sentence → validated `TaskSuggestion[]`. Never writes a task. Pure. |
 | `providers/anthropic.ts` | `AnthropicProvider`: official SDK, adaptive thinking, streaming, `finalMessage()`. The SDK is imported on first use. |
 | `output.ts` | `aiOutputPath`, `saveAiOutput`: writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md` in the data folder. |
+| `usage.ts` | `estimateTokens(text)`, `estimatePrompt(prompt)`: rough Latin/CJK character-based estimate shown before a request. Pure. |
 | `index.ts` | The public entry: `createAiProvider(config)` picks the provider, plus re-exports of the pure helpers and types. |
 
 ### 3.5 Device settings (`src/settings/`)

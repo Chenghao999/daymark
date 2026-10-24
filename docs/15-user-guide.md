@@ -240,7 +240,9 @@ assistant** button next to Export.
   suggests what to change next period.
 
 Before anything leaves the machine, the panel states how many categories, items
-and characters will be sent. **Preview what will be sent** shows the exact text.
+and characters will be sent, plus a rough input-token estimate. **Preview what
+will be sent** shows the exact text. After a request, the panel shows the
+provider's actual input/output token counts; no price is shown.
 Only the report title, period, counts, category names, task titles and dates are
 included — task notes, task ids and the data-folder path are not.
 
@@ -255,10 +257,11 @@ It is never written to `_settings.md` or the data folder. Requests go directly
 from this app to Anthropic and are billed to your account.
 
 **中文要点：** AI 助手默认关闭。启用并填入 Anthropic API 密钥后，报告页会出现
-“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示分类/条目/字符数，
-并可预览完整文本；只发送报告标题、周期、分类和任务标题，不发送备注、任务 ID 和
-本地路径。结果可编辑，只有点“保存到 `_ai/`”才会写成新的 Markdown 文件。密钥只
-存在本机，不写入 `_settings.md`；请求直接发往 Anthropic，按你的账号计费。
+“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示分类/条目/字符数与
+token 估算，并可预览完整文本；只发送报告标题、周期、分类和任务标题，不发送备注、
+任务 ID 和本地路径。结果可编辑，只有点“保存到 `_ai/`”才会写成新的 Markdown 文件。
+密钥只存在本机，不写入 `_settings.md`；请求直接发往 Anthropic，按你的账号计费，
+面板会显示本次实际使用的 token 数。
 
 ### One-sentence task entry
 
