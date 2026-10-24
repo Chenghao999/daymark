@@ -1,6 +1,7 @@
 # Daymark · 日迹
 
 [![CI](https://github.com/Chenghao999/daymark/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Chenghao999/daymark/actions/workflows/ci.yml)
+[![Release](https://github.com/Chenghao999/daymark/actions/workflows/release.yml/badge.svg)](https://github.com/Chenghao999/daymark/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)

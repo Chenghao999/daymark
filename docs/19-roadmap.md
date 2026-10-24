@@ -36,7 +36,7 @@
 | M5 | AI 自然语言录入 | M4 | 第一版已完成：`src/ai/tasks.ts`、任务编辑器 “Fill fields” 一句话填表（见 §4.10） |
 | M6 | 自动合并与 CalDAV | M3 | 06/07 号文档的设计落地 |
 | M7 | 自定义 AI 接口 + 暗色模式 | M4 | 已完成：协议/Base URL/自定义模型（§4.11）；外观跟随系统或手动切换 |
-| M8 | 自动打包与发布 | M0 | 已完成：`.github/workflows/release.yml`、`npm run release`（doc 10 §7–8） |
+| M8 | 自动打包与发布 | M0 | 已完成：`.github/workflows/release.yml`、`npm run release`（doc 10 §7–8）；2026-10-24 首次打包 `v0.1.0`，四个平台全部成功，安装包附在草稿 Release |
 
 顺序说明：M3 与 M4 相互独立，可并行；但两者都依赖 M0 的文件契约，因此
 **先稳定 Markdown 格式，再接入外部能力**。M6 放在最后，因为自动合并需要
