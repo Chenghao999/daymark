@@ -1,8 +1,10 @@
-/** One task whose two copies both changed and cannot be ordered by version. */
+/** One entry whose two copies both changed and cannot be ordered by version. */
 export interface MergeConflict {
-  taskId: string;
-  title: string;
-  /** Task fields that differ between the local and remote copies. */
+  /** Task id, category id, or settings key. */
+  id: string;
+  /** What the user sees: task title, category name, or settings key. */
+  label: string;
+  /** Differing fields; `["value"]` for a scalar settings key. */
   fields: string[];
 }
 
@@ -15,6 +17,6 @@ export interface MergeOutcome {
    */
   text: string;
   conflicts: MergeConflict[];
-  /** Number of tasks in the merged text; 0 when `clean` is false. */
-  taskCount: number;
+  /** Tasks, categories or settings keys in the merged text; 0 when not clean. */
+  itemCount: number;
 }

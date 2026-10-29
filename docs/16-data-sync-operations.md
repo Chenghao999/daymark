@@ -120,9 +120,11 @@ as they now exist.
 | Clock or filesystem mtime quirks | A change is not detected, or is detected late | Use a 30 s scan interval when actively switching; reload manually when in doubt. |
 
 There is no automatic merge for files delivered by a desktop sync client, and no
-conflict-resolution UI. The built-in WebDAV sync does merge day and backlog
-conflicts task by task since 2026-10-29 (doc 06 §4); the UI and per-key merge of
-`_settings.md` / `_categories.md` are still planned.
+conflict-resolution UI. The built-in WebDAV sync has merged day/backlog files
+task by task and `_settings.md` / `_categories.md` key by key since 2026-10-29
+(doc 06 §4); settings and categories need the last synced text as a merge base,
+so the first sync after upgrading without one still produces a conflict copy.
+The UI and task-deletion tombstones remain planned.
 
 **中文要点：** 最大风险是两台机器同时编辑同一天导致“后写者胜”。迁移后生成的
 `daymark.db.migrated-*` 不要留在同步目录里，否则会同步到所有设备。
@@ -230,13 +232,15 @@ The first version of the merge (doc 06 §4, 2026-10-29) lives in
 
 - tasks are matched by `id` and ordered by `rowVersion`, then `updatedAt`;
 - a completion beats a reopen; tasks added on either side are combined;
+- `_settings.md` and `_categories.md` merge per key/field against the last
+  synced text, so different settings or categories combine;
 - an edit the merge cannot order still produces a conflict copy.
 
 Still planned:
 
 - resolving conflicts per field with explicit UI choices (keep mine / keep
   theirs / keep both);
-- per-key merge of `_settings.md` and `_categories.md`;
+- deletion tombstones for tasks, so a deletion is not re-added by a merge;
 - applying the merge to files a desktop sync client delivered, which are still
   last-writer-wins.
 

@@ -84,6 +84,9 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
       documented limitation instead). With built-in WebDAV sync, run the same
       case and verify the day file is merged task by task; a same-version tie
       still leaves a `(conflict …)` copy.
+- [ ] With built-in WebDAV sync, change the language on A and the week start on
+      B; after syncing both values survive with no conflict copy. Change the
+      same setting differently on both sides and verify a conflict copy remains.
 
 ### Sync-folder latency
 

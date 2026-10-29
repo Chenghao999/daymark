@@ -165,9 +165,9 @@ The full safe procedure is `16-data-sync-operations.md`.
 
 Read `15-user-guide.md` §11 before filing an issue:
 
-- day and backlog conflicts are merged task by task automatically; a merge that
-  cannot order two edits keeps a `(conflict …)` copy for you to resolve;
-  `_settings.md` and `_categories.md` are still last-writer-wins with a copy;
+- day, backlog, settings and category conflicts are merged automatically (tasks
+  by id/version, settings and categories per key/field); a merge that cannot
+  order two edits keeps a `(conflict …)` copy for you to resolve;
 - reopening a task clears its completion timestamp;
 - archived categories cannot be restored in the UI;
 - WebDAV sync is manual and never deletes;

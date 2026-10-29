@@ -498,10 +498,12 @@ interface SyncResult {
 // src/sync/merge/
 mergeableDateKey(path: string): string | null | undefined
 mergeTaskFile(localText: string, remoteText: string, options: MergeOptions): MergeOutcome
+mergeSettingsFile(localText: string, remoteText: string, baseText: string | null): MergeOutcome
+mergeCategoriesFile(localText: string, remoteText: string, baseText: string | null): MergeOutcome
 
 interface MergeOptions { dateKey: string | null; categories: Category[]; deviceId: string; updatedAt: string }
-interface MergeOutcome { clean: boolean; text: string; conflicts: MergeConflict[]; taskCount: number }
-interface MergeConflict { taskId: string; title: string; fields: string[] }
+interface MergeOutcome { clean: boolean; text: string; conflicts: MergeConflict[]; itemCount: number }
+interface MergeConflict { id: string; label: string; fields: string[] }
 
 loadWebDavSettings(): WebDavConfig
 saveWebDavSettings(config: WebDavConfig): void
@@ -518,15 +520,16 @@ Contract:
    sync where both sides already have the same path with different content.
 3. `syncWebDav` reads both sides completely before writing anything. A remote
    read failure aborts the run with no writes.
-4. On conflict, `syncWebDav` first tries `mergeTaskFile` for a day file or
-   `_backlog.md`. A clean merge rewrites the local file, uploads the same text,
+4. On conflict, `syncWebDav` first tries a merge. A day or backlog file goes
+   through `mergeTaskFile`; `_settings.md` and `_categories.md` go through
+   `mergeSettingsFile` / `mergeCategoriesFile` with the baseline's `baseText` as
+   the base. A clean merge rewrites the local file, uploads the same text,
    advances the baseline and counts it in `SyncResult.merged`. If the merge
-   reports a conflict (or the path is `_settings.md` / `_categories.md`), the
-   local file keeps its path and the remote text is written as
-   `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md`; the baseline entry is not
-   advanced, so the next run reports the same conflict until it is merged.
-   `mergeTaskFile` is pure and returns `clean: false` with the local text
-   untouched, so a caller can never write a partial merge.
+   reports a conflict, the local file keeps its path and the remote text is
+   written as `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md`; the baseline
+   entry is not advanced, so the next run reports the same conflict until it is
+   merged. Every merge function is pure and returns `clean: false` with the
+   local text untouched, so a caller can never write a partial merge.
 5. `putText` writes `<path>.daymark-tmp` then `MOVE`s it over the target, and
    falls back to a direct `PUT` when the server answers 405/501.
 6. `syncWebDav` does not touch React state; the caller reloads the store and
@@ -698,7 +701,7 @@ Rules:
 | `daymark.settings.v1` | `settings/store.ts` | JSON `AppSettings` including `dataDir` | No — device-local |
 | `daymark.deviceId` | `storage/device.ts` | UUID string | No — device-local |
 | `daymark.webdav.v1` | `settings/webdav.ts` | JSON `WebDavConfig`, including the password | No — device-local, never in `_settings.md` |
-| `daymark.webdav.baseline.v1` | `sync/webdav/baseline.ts` | JSON `Baseline` keyed by URL + remote path | No — per-device merge state |
+| `daymark.webdav.baseline.v1` | `sync/webdav/baseline.ts` | JSON `Baseline` keyed by URL + remote path; entries may carry `baseText` for `_settings.md` / `_categories.md` | No — per-device merge state |
 | `daymark.ai.v1` | `settings/ai.ts` | JSON `AiConfig`, including the API key | No — device-local, never in `_settings.md` |
 
 Clearing site data resets the device ID and the chosen folder. The data folder

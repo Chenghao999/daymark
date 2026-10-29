@@ -43,7 +43,7 @@ dependencies (`node_modules/`) and generated Tauri schemas
 |---|---|---|---|
 | Domain | `src/domain/` | types, task state machine, period math, report derivation, numbering | filesystem calls, DOM, Tauri APIs, localStorage |
 | Storage | `src/storage/` | Markdown parse/serialize, paths, in-memory store, repository, migration | report rules, UI state |
-| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync, task-level merge of two copies | React state, store mutation |
+| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync, merge of two copies (tasks, settings, categories) | React state, store mutation |
 | AI | `src/ai/` | provider interface, prompt/context builders, `_ai/` output | React state, store writes |
 | Device settings | `src/settings/` | device-local preferences (WebDAV, AI) and the synced settings model | shared task data |
 | Presentation | `src/components/`, `src/features/`, `src/App.tsx` | view state, interaction, layout | Markdown parsing, direct `invoke` calls |
@@ -114,6 +114,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic task-level merge for day/backlog conflicts, conflict copies for the rest, progress callback, per-file errors. |
 | `merge/types.ts` | `MergeConflict`, `MergeOutcome`. Types only. |
 | `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. |
+| `merge/files.ts` | Pure `mergeSettingsFile` and `mergeCategoriesFile`: three-way merge against the last synced text; per settings key, per category id and field; a category deletion wins only when the other side did not edit it. |
 | `merge/index.ts` | Public entry: `mergeableDateKey(path)` (day file → date, `_backlog.md` → null, anything else → undefined) plus the merge exports. |
 
 ### AI assistant (`src/ai/`)
@@ -173,6 +174,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdavClient.test.ts` | Remote path normalisation, URL encoding, href resolution, PROPFIND parsing with and without namespaces. |
 | `webdavManifest.test.ts` | File whitelist, content hashing, files that disappear mid-scan. |
 | `mergeTasks.test.ts` | Task-level merge: added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, extras from both sides, hand-written lines, backlog, path classification. |
+| `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
 

@@ -2,13 +2,18 @@ import type { Category } from "../../domain/types";
 import { deviceId } from "../../storage/device";
 import { pathExists, readTextFile, writeTextFile } from "../../storage/fs";
 import { parseCategoriesMarkdown } from "../../storage/markdown";
-import { categoriesPath } from "../../storage/paths";
-import { mergeTaskFile, mergeableDateKey } from "../merge";
+import { CATEGORIES_FILE, SETTINGS_FILE, categoriesPath } from "../../storage/paths";
+import {
+  mergeCategoriesFile,
+  mergeSettingsFile,
+  mergeTaskFile,
+  mergeableDateKey,
+} from "../merge";
 import { loadBaseline, saveBaseline } from "./baseline";
 import { WebDavClient, WebDavError } from "./client";
 import { localManifest, sha256 } from "./manifest";
 import { planSync } from "./plan";
-import type { Baseline, SyncProgress, SyncResult, WebDavConfig } from "./types";
+import type { Baseline, BaselineEntry, SyncProgress, SyncResult, WebDavConfig } from "./types";
 
 export interface SyncOptions {
   onProgress?: (progress: SyncProgress) => void;
@@ -78,6 +83,29 @@ export async function syncWebDav(
     return categories;
   };
 
+  // Settings and categories have no per-entry version, so the last synced text
+  // is their three-way merge base. Day files carry versions per task and keep
+  // no text here.
+  const threeWay = new Set([SETTINGS_FILE, CATEGORIES_FILE]);
+  const entryFor = (path: string, text: string, hash: string): BaselineEntry => ({
+    local: hash,
+    remote: hash,
+    ...(threeWay.has(path) ? { baseText: text } : {}),
+  });
+
+  const applyMerge = async (path: string, text: string): Promise<void> => {
+    await writeTextFile(`${root}/${path}`, text);
+    // The local file now holds the merge. Count it even if the upload fails
+    // below: the caller reloads the store, and the next run sees "local
+    // changed" and uploads the merged text. Leaving the in-memory store stale
+    // would let the next edit overwrite this merge.
+    merged += 1;
+    await ensureRemoteDirectory(client, path);
+    await client.putText(path, text);
+    const hash = await sha256(text);
+    nextBaseline[path] = entryFor(path, text, hash);
+  };
+
   // Remove baseline entries for files that no longer exist on either side.
   for (const path of Object.keys(nextBaseline)) {
     if (!local.hashes.has(path) && !remoteHashes.has(path)) delete nextBaseline[path];
@@ -85,7 +113,8 @@ export async function syncWebDav(
 
   for (const path of plan.unchanged) {
     const hash = local.hashes.get(path) as string;
-    nextBaseline[path] = { local: hash, remote: hash };
+    const text = local.texts.get(path) ?? "";
+    nextBaseline[path] = entryFor(path, text, hash);
   }
 
   const total = plan.uploads.length + plan.downloads.length + plan.conflicts.length;
@@ -98,7 +127,7 @@ export async function syncWebDav(
       await ensureRemoteDirectory(client, operation.path);
       await client.putText(operation.path, text);
       const hash = local.hashes.get(operation.path) as string;
-      nextBaseline[operation.path] = { local: hash, remote: hash };
+      nextBaseline[operation.path] = entryFor(operation.path, text, hash);
       uploaded += 1;
     } catch (error) {
       errors.push(`${operation.path}: ${message(error)}`);
@@ -112,7 +141,7 @@ export async function syncWebDav(
     try {
       await writeTextFile(`${root}/${operation.path}`, text);
       const hash = remoteHashes.get(operation.path) as string;
-      nextBaseline[operation.path] = { local: hash, remote: hash };
+      nextBaseline[operation.path] = entryFor(operation.path, text, hash);
       downloaded += 1;
     } catch (error) {
       errors.push(`${operation.path}: ${message(error)}`);
@@ -125,28 +154,28 @@ export async function syncWebDav(
     const remoteText = remoteTexts.get(path);
     const dateKey = mergeableDateKey(path);
 
-    if (dateKey !== undefined && localText !== undefined && remoteText !== undefined) {
-      // Both sides edited the same day or backlog file. Merge at the task
-      // level; a clean merge replaces both copies, anything ambiguous keeps
-      // both files and is reported exactly as before (doc 06 §4).
-      const outcome = mergeTaskFile(localText, remoteText, {
-        dateKey,
-        categories: await loadCategories(),
-        deviceId: options.device ?? deviceId(),
-        updatedAt: (options.now ?? new Date()).toISOString(),
-      });
-      if (outcome.clean) {
+    if (localText !== undefined && remoteText !== undefined) {
+      // Both sides edited the same file. Day and backlog files merge per task;
+      // settings and categories merge per key against the last synced text. A
+      // clean merge replaces both copies; anything ambiguous keeps both files
+      // and is reported exactly as before (doc 06 §4).
+      const outcome =
+        dateKey !== undefined
+          ? mergeTaskFile(localText, remoteText, {
+              dateKey,
+              categories: await loadCategories(),
+              deviceId: options.device ?? deviceId(),
+              updatedAt: (options.now ?? new Date()).toISOString(),
+            })
+          : threeWay.has(path)
+            ? path === SETTINGS_FILE
+              ? mergeSettingsFile(localText, remoteText, baseline[path]?.baseText ?? null)
+              : mergeCategoriesFile(localText, remoteText, baseline[path]?.baseText ?? null)
+            : null;
+
+      if (outcome?.clean) {
         try {
-          await writeTextFile(`${root}/${path}`, outcome.text);
-          // The local file now holds the merge. Count it even if the upload
-          // fails below: the caller reloads the store, and the next run sees
-          // "local changed" and uploads the merged text. Leaving the in-memory
-          // store stale would let the next edit overwrite this merge.
-          merged += 1;
-          await ensureRemoteDirectory(client, path);
-          await client.putText(path, outcome.text);
-          const hash = await sha256(outcome.text);
-          nextBaseline[path] = { local: hash, remote: hash };
+          await applyMerge(path, outcome.text);
         } catch (error) {
           errors.push(`${path}: ${message(error)}`);
         }

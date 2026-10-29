@@ -80,13 +80,13 @@ macOS needs right-click → Open and Windows shows SmartScreen. Details:
 [`docs/10-build-distribution.md`](docs/10-build-distribution.md) §7–8.
 
 WebDAV sync is manual and deliberately conservative: it never deletes a file.
-When both sides changed the same day or backlog file, it merges the two copies
-task by task — a task edited on one side only keeps that edit, and a task
-changed on both keeps the higher version. Only a change it cannot order is
-saved as a `(conflict …)` file for you to merge; `_settings.md` and
-`_categories.md` still produce conflict copies. WebDAV 同步为手动、保守实现：
-不删除文件；日文件和待办文件两边都改过时按任务自动合并，无法判定先后的改动才
-生成冲突副本。尚未针对所有 WebDAV 服务端做验证。
+When both sides changed the same file, it merges the two copies first — tasks by
+id and version, `_settings.md` and `_categories.md` key by key against the text
+both sides had after the last sync. Only a change it cannot order is saved as a
+`(conflict …)` file for you to merge. WebDAV 同步为手动、保守实现：不删除文件；
+两边都改过时先自动合并——任务按 id 与版本合并，设置和分类按上一次同步的共同
+文本逐键合并；无法判定先后的改动才生成冲突副本。尚未针对所有 WebDAV 服务端
+做验证。
 
 The AI assistant is opt-in and off by default. It can talk to an
 Anthropic-compatible endpoint (including relays) or an OpenAI-compatible one;

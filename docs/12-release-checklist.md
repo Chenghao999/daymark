@@ -67,6 +67,7 @@
 - [ ] `SHA256SUMS` generated and published.
 - [ ] Release notes list format changes, features and known limitations.
 - [ ] Known limitation documented: the built-in WebDAV sync merges day/backlog
-      conflicts at task level, but files delivered by a desktop sync client are
-      still file-level last-writer-wins, and there is no conflict-resolution UI.
+      tasks and per-key settings/categories, but files delivered by a desktop
+      sync client are still file-level last-writer-wins, task deletions are not
+      merged, and there is no conflict-resolution UI.
 - [ ] License and third-party notices included.

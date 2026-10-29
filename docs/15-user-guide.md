@@ -209,17 +209,18 @@ How a sync decides:
 
 - Only the local file changed → upload. Only the remote file changed →
   download. Identical content → skip.
-- Both sides changed the same file → **conflict**. For a day file or
-  `_backlog.md`, Daymark first merges the two copies task by task: an edit made
-  on one side only is kept, and when both sides changed the same task the
-  higher `rowVersion` wins, then the later `updatedAt`, with a completion
-  beating a reopen. A clean merge replaces both copies and is counted as
-  **merged** in the result line. Whatever the merge cannot order — two edits of
-  the same task with the same version, or a change to `_settings.md` /
-  `_categories.md` — stays a conflict: the local file keeps its name, the
-  remote version is saved as `<name> (conflict <device> <date>).md`, and the
-  copy is listed in Settings. Merge those by hand, then delete the copy and
-  sync again.
+- Both sides changed the same file → **conflict**. Daymark first merges the two
+  copies: day and backlog files task by task — an edit made on one side only is
+  kept, and when both sides changed the same task the higher `rowVersion` wins,
+  then the later `updatedAt`, with a completion beating a reopen. `_settings.md`
+  and `_categories.md` merge key by key against the text both sides had after
+  the last sync, so edits to different settings or different categories combine.
+  A clean merge replaces both copies and is counted as **merged** in the result
+  line. Whatever the merge cannot order — two edits of the same task with the
+  same version, or the same setting/category field changed differently on both
+  sides — stays a conflict: the local file keeps its name, the remote version is
+  saved as `<name> (conflict <device> <date>).md`, and the copy is listed in
+  Settings. Merge those by hand, then delete the copy and sync again.
 - A file that exists on both sides with different content on the very first
   sync is also a conflict; Daymark never guesses which side is newer.
 - **Nothing is ever deleted** by a sync. Deleting a file on one side does not
@@ -231,11 +232,12 @@ devices or into backups. Use an app-specific password when the server offers
 one.
 
 **中文要点：** WebDAV 是手动同步：填地址、远端目录和账号，先测试连接，再点
-“立即同步”。日文件和待办文件两边都改过时，会先按任务自动合并：只有一边改过的
-改动保留，同一任务两边都改则版本号高者（再比更新时间）胜出，完成优先于重开；
-能干净合并时两份文件都会被合并结果替换。无法判定先后（同版本同时间的不同改动）
-以及 `_settings.md`、`_categories.md` 的冲突仍会另存为 `(conflict …)` 副本供
-手工合并；同步不会删除任何文件。密码只存在本机，不会写进 `_settings.md`。
+“立即同步”。两边都改过时先自动合并：日文件和待办文件按任务合并（只有一边改过
+的保留，同一任务版本号高者、再比更新时间的胜出，完成优先于重开）；设置和分类按
+键/字段合并，以最后一次同步时两边相同的文本为基准，因此改不同设置或不同分类
+不会冲突。能干净合并时两份文件都会被合并结果替换。无法判定先后的改动（同版本
+同时间的不同改动、同一键被两边改成不同值）仍另存为 `(conflict …)` 副本供手工
+合并；同步不会删除任何文件。密码只存在本机，不会写进 `_settings.md`。
 
 ### AI assistant
 
@@ -363,7 +365,7 @@ choose the copied folder on first launch.
 
 | Limitation | Consequence |
 |---|---|
-| Automatic merge is task-level only | A clean merge re-serialises the whole day file. Edits to the same task with equal versions, and changes to `_settings.md` / `_categories.md`, still produce conflict copies. Deletions are not merged. |
+| Automatic merge is task-level only | A clean merge re-serialises the whole file. Edits to the same task with equal versions, or to the same settings key / category field changed differently on both sides, still produce conflict copies. Task deletions are not merged. |
 | Reopening clears completion metadata | The task's earlier completion date is lost. |
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |

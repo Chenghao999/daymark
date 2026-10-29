@@ -2,6 +2,7 @@ import { BACKLOG_FILE, isDayFile } from "../../storage/paths";
 
 export type { MergeConflict, MergeOutcome } from "./types";
 export { mergeTaskFile, type MergeOptions } from "./tasks";
+export { mergeCategoriesFile, mergeSettingsFile } from "./files";
 
 /**
  * The date key of a file whose tasks can be merged, `null` for the backlog,

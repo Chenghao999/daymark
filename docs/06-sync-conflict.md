@@ -108,23 +108,27 @@ After resolution the day file is written once, with a fresh `rowVersion`.
 | Merge unit | Task `id` from the metadata comment. A hand-written line without metadata is matched by content instead, because its id is generated anew on every parse |
 | Ordering | Higher `rowVersion`, then later `updatedAt`; a completion beats a reopen; two completions → later `completedAt` |
 | Combination | Tasks added on either side are unioned; unmanaged lines (extras) from both copies are kept |
+| Settings | `mergeSettingsFile`: per key, using the last synced `_settings.md` text as the base |
+| Categories | `mergeCategoriesFile`: per category id and field against the same kind of base; a deletion wins only when the other side did not edit the category |
 | Unresolved | A tie no rule can order returns a conflict and the engine writes neither side: the local file keeps its name, the remote text becomes a conflict copy |
-| Applied by | `syncWebDav` when both sides changed a day or backlog file: it rewrites the local file, uploads the merged text and advances the baseline; `SyncResult.merged` counts it |
-| Still manual | Per-key merge of `_settings.md` / `_categories.md`; the keep-mine / keep-theirs / keep-both UI; deletion tombstones |
+| Applied by | `syncWebDav` when both sides changed a file: it rewrites the local file, uploads the merged text and advances the baseline; `SyncResult.merged` counts it |
+| Still manual | The keep-mine / keep-theirs / keep-both UI; task deletion tombstones |
 
-Known limitations: ordering is record-level, not field-level, so when both
+Known limitations: task ordering is record-level, not field-level, so when both
 devices edit different fields of the same task the newer record wins and the
-older field edit is dropped. Deletions are not represented in the file format,
-so a task removed on one side is re-added by the merge.
+older field edit is dropped. Deletions of tasks are not represented in the file
+format, so a task removed on one side is re-added by the merge. Settings and
+categories need a stored base: the first sync after upgrading without one treats
+any differing value as a conflict, then records the base for next time.
 
 ## 5. Roadmap
 
 Manual WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
-a per-device baseline and now merges day and backlog files task by task before
-falling back to conflict copies. `_settings.md` / `_categories.md` still have no
-automatic merge, and the conflict-resolution UI in §4 is not built. Background
-sync and the AI assistant are still roadmap items; see `19-roadmap.md` §3.8 and
-§4. CalDAV remains design-only (doc 07).
+a per-device baseline and merges day/backlog files task by task and
+`_settings.md` / `_categories.md` key by key before falling back to conflict
+copies. The conflict-resolution UI in §4 is not built. Background sync and the
+AI assistant are still roadmap items; see `19-roadmap.md` §3.8 and §4. CalDAV
+remains design-only (doc 07).
 
 ## 6. Non-goals
 

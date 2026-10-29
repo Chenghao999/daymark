@@ -24,6 +24,12 @@ export interface RemoteEntry {
 export interface BaselineEntry {
   local: string;
   remote: string;
+  /**
+   * Last synced text, kept only for `_settings.md` and `_categories.md`.
+   * Those files have no per-entry version, so this is the base of their
+   * three-way merge. Day files carry versions per task and store no text.
+   */
+  baseText?: string;
 }
 
 export type Baseline = Record<string, BaselineEntry>;

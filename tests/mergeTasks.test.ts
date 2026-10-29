@@ -78,7 +78,7 @@ describe("task-level merge", () => {
 
     expect(outcome.clean).toBe(true);
     expect(taskIds(outcome.text)).toEqual(["a", "b"]);
-    expect(outcome.taskCount).toBe(2);
+    expect(outcome.itemCount).toBe(2);
   });
 
   it("takes the higher rowVersion when both copies of a task changed", () => {
@@ -138,7 +138,7 @@ describe("task-level merge", () => {
     expect(outcome.clean).toBe(false);
     expect(outcome.text).toBe(local);
     expect(outcome.conflicts).toEqual([
-      { taskId: "task-1", title: "Local title", fields: ["title"] },
+      { id: "task-1", label: "Local title", fields: ["title"] },
     ]);
   });
 
@@ -168,7 +168,7 @@ describe("task-level merge", () => {
     const outcome = mergeTaskFile(text, text, options);
 
     expect(outcome.clean).toBe(true);
-    expect(outcome.taskCount).toBe(1);
+    expect(outcome.itemCount).toBe(1);
   });
 
   it("merges backlog files with a null date key", () => {

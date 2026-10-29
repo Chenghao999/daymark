@@ -55,7 +55,7 @@ export function mergeTaskFile(
   }
 
   if (conflicts.length > 0) {
-    return { clean: false, text: localText, conflicts, taskCount: 0 };
+    return { clean: false, text: localText, conflicts, itemCount: 0 };
   }
 
   const extras = [...new Set([...local.extras, ...remote.extras])];
@@ -66,7 +66,7 @@ export function mergeTaskFile(
     extras,
     { updatedAt: options.updatedAt, deviceId: options.deviceId },
   );
-  return { clean: true, text, conflicts: [], taskCount: merged.size };
+  return { clean: true, text, conflicts: [], itemCount: merged.size };
 }
 
 function resolvePair(
@@ -97,8 +97,8 @@ function resolvePair(
   // Same version, same timestamp, different content: keep the local copy and
   // let the user decide. Writing either one silently would lose an edit.
   conflicts.push({
-    taskId: local.task.id,
-    title: local.task.title,
+    id: local.task.id,
+    label: local.task.title,
     fields: differingFields(local, remote),
   });
   return local;
