@@ -134,7 +134,7 @@
     "webdavPhase_local": "Reading local files",
     "webdavPhase_remote": "Reading remote files",
     "webdavPhase_apply": "Applying changes",
-    "webdavResult": "Uploaded {{uploaded}}, downloaded {{downloaded}}, conflicts {{conflicts}}.",
+    "webdavResult": "Uploaded {{uploaded}}, downloaded {{downloaded}}, merged {{merged}}, conflicts {{conflicts}}.",
     "webdavError": "Sync failed",
     "webdavConflicts": "Conflict copies (the local originals were kept):",
     "webdavNotConfigured": "Enter a server URL first.",

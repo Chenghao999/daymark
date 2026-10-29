@@ -2,16 +2,18 @@
 
 > **Status:** partly implemented. M0–M5 have shipped (WebDAV v1 in §3.8, AI v1 in
 > §4.9, natural-language entry v1 in §4.10); custom AI endpoints, dark mode and
-> automated packaging are also complete (M7, M8). Automatic merge and CalDAV
-> remain planned. Documents 01–18 are the source of truth for what exists; this
-> document records only the plan and its trade-offs. Date: 2026-10-24. Baseline
+> automated packaging are also complete (M7, M8). M6 v1 — task-level automatic
+> merge — has shipped (§3.9); the conflict-resolution UI and CalDAV remain
+> planned. Documents 01–18 are the source of truth for what exists; this
+> document records only the plan and its trade-offs. Date: 2026-10-29. Baseline
 > version `0.1.0`; storage has moved from SQLite to Markdown text.
 >
 > **中文摘要：** Daymark（日迹）的路线图。M0–M5 已落地（WebDAV 第一版见 §3.8，
 > AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自定义 AI 接口、暗色模式与
-> 自动打包也已完成（M7、M8）；自动合并与 CalDAV 仍是计划。已实现的模块以 01–18
-> 号文档为准，本文只记录路线与取舍。日期：2026-10-24，基线版本 `0.1.0`，存储
-> 已从 SQLite 切换为 Markdown 文本。
+> 自动打包也已完成（M7、M8）；M6 第一版（任务级自动合并）已落地（§3.9），
+> 冲突解决界面与 CalDAV 仍是计划。已实现的模块以 01–18 号文档为准，本文只记录
+> 路线与取舍。日期：2026-10-29，基线版本 `0.1.0`，存储已从 SQLite 切换为
+> Markdown 文本。
 
 ---
 
@@ -42,7 +44,7 @@
 | M3 | WebDAV sync | M0, M2 | v1 done: `src/sync/webdav/*`, "WebDAV sync" card in Settings (see §3.8) |
 | M4 | AI assistant (report polishing / period review) | M0, M1 | v1 done: `src/ai/*`, "AI assistant" on the Reports page (see §4.9) |
 | M5 | AI natural-language entry | M4 | v1 done: `src/ai/tasks.ts`, "Fill fields" one-sentence entry in the task editor (see §4.10) |
-| M6 | Automatic merge and CalDAV | M3 | Implement the designs in docs 06 and 07 |
+| M6 | Automatic merge and CalDAV | M3 | v1 done: automatic task-level merge in `src/sync/merge/*`, applied by `syncWebDav` (see §3.9); conflict-resolution UI and CalDAV still planned |
 | M7 | Custom AI endpoints + dark mode | M4 | Done: protocol / base URL / custom model (§4.11); appearance follows the system or switches manually |
 | M8 | Automated packaging and release | M0 | Done: `.github/workflows/release.yml`, `npm run release` (doc 10 §7–8); first packaged `v0.1.0` on 2026-10-24, all four platforms succeeded, installers attached to the draft release |
 
@@ -193,6 +195,25 @@ First-version boundaries (deliberate, not defects):
 
 Next (M3 v2): keychain storage, `If-Match`/ETag overwrite protection, scheduled
 sync, integration tests against a local `rclone serve webdav`.
+
+### 3.9 Automatic merge (M6, first version) · 自动合并
+
+Shipped (2026-10-29): `src/sync/merge/{types,tasks,index}.ts`, covered by 10
+unit tests in `tests/mergeTasks.test.ts`.
+
+| Item | Result |
+|---|---|
+| Trigger | A path whose two copies both changed in `planSync` |
+| Unit | Task `id` from the metadata comment; metadata-less hand-written lines match by content |
+| Rules | Higher `rowVersion`, then later `updatedAt`; completion beats reopen; tasks added on either side are unioned; unmanaged lines from both copies are kept |
+| Clean merge | Local file rewritten, remote `PUT` with the same text, baseline advanced, counted as `merged` in `SyncResult` |
+| Unresolved | Neither side is written; the remote copy becomes a conflict copy exactly as before |
+| Not done | `_settings.md` / `_categories.md` per-key merge, the keep-mine / keep-theirs / keep-both UI, deletion tombstones, field-level merging |
+
+Boundary: without storing a base version, ordering is record-level. Two devices
+editing different fields of the same task get the newer record, not a merge of
+both fields. Adding the last synced text (or a per-task base) to the baseline is
+the next step if field-level merging is needed.
 
 ---
 

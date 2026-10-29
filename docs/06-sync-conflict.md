@@ -45,7 +45,8 @@ Detection is the only shipped half:
   its own write does not raise the banner.
 - On a signature change the app shows a reload banner; the user clicks
   **Reload**, which calls `openStore(root)` again.
-- No automatic merge and no silent overwrite.
+- Automatic merge is not part of this detection layer; it is applied later by
+  the WebDAV engine (§4) and never silently overwrites an unresolved conflict.
 
 This is coarse on purpose: it is a single IPC call per interval regardless of
 how many files exist. It detects change, not authorship — `deviceId` in the
@@ -98,13 +99,32 @@ After resolution the day file is written once, with a fresh `rowVersion`.
 - If the folder signature changes during a merge, abort and ask the user to
   reload rather than retrying blindly.
 
+### Implementation status (v1, 2026-10-29)
+
+`src/sync/merge/` implements the day-file half of this design:
+
+| Piece | Result |
+|---|---|
+| Merge unit | Task `id` from the metadata comment. A hand-written line without metadata is matched by content instead, because its id is generated anew on every parse |
+| Ordering | Higher `rowVersion`, then later `updatedAt`; a completion beats a reopen; two completions → later `completedAt` |
+| Combination | Tasks added on either side are unioned; unmanaged lines (extras) from both copies are kept |
+| Unresolved | A tie no rule can order returns a conflict and the engine writes neither side: the local file keeps its name, the remote text becomes a conflict copy |
+| Applied by | `syncWebDav` when both sides changed a day or backlog file: it rewrites the local file, uploads the merged text and advances the baseline; `SyncResult.merged` counts it |
+| Still manual | Per-key merge of `_settings.md` / `_categories.md`; the keep-mine / keep-theirs / keep-both UI; deletion tombstones |
+
+Known limitations: ordering is record-level, not field-level, so when both
+devices edit different fields of the same task the newer record wins and the
+older field edit is dropped. Deletions are not represented in the file format,
+so a task removed on one side is re-added by the merge.
+
 ## 5. Roadmap
 
 Manual WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
-a per-device baseline and produces conflict copies, but it does **not** merge —
-the sections above remain the design for merging. Background sync and the AI
-assistant are still roadmap items; see `19-roadmap.md` §3.8 and §4. CalDAV
-remains design-only (doc 07).
+a per-device baseline and now merges day and backlog files task by task before
+falling back to conflict copies. `_settings.md` / `_categories.md` still have no
+automatic merge, and the conflict-resolution UI in §4 is not built. Background
+sync and the AI assistant are still roadmap items; see `19-roadmap.md` §3.8 and
+§4. CalDAV remains design-only (doc 07).
 
 ## 6. Non-goals
 

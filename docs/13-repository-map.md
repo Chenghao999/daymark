@@ -43,7 +43,7 @@ dependencies (`node_modules/`) and generated Tauri schemas
 |---|---|---|---|
 | Domain | `src/domain/` | types, task state machine, period math, report derivation, numbering | filesystem calls, DOM, Tauri APIs, localStorage |
 | Storage | `src/storage/` | Markdown parse/serialize, paths, in-memory store, repository, migration | report rules, UI state |
-| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync | store writes, merge logic |
+| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync, task-level merge of two copies | React state, store mutation |
 | AI | `src/ai/` | provider interface, prompt/context builders, `_ai/` output | React state, store writes |
 | Device settings | `src/settings/` | device-local preferences (WebDAV, AI) and the synced settings model | shared task data |
 | Presentation | `src/components/`, `src/features/`, `src/App.tsx` | view state, interaction, layout | Markdown parsing, direct `invoke` calls |
@@ -111,7 +111,10 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdav/manifest.ts` | `sha256`, `localManifest(root, io?)` over `_settings.md`, `_categories.md`, `_backlog.md` and valid day files. `ManifestIo` lets tests inject a fake file system. |
 | `webdav/plan.ts` | Pure `planSync(local, remote, baseline)` → uploads, downloads, conflicts, unchanged. No deletions and no silent overwrite. |
 | `webdav/baseline.ts` | Device-local SHA-256 baseline (`daymark.webdav.baseline.v1`), keyed by URL + remote path. |
-| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; conflict copies, progress callback, per-file errors. |
+| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic task-level merge for day/backlog conflicts, conflict copies for the rest, progress callback, per-file errors. |
+| `merge/types.ts` | `MergeConflict`, `MergeOutcome`. Types only. |
+| `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. |
+| `merge/index.ts` | Public entry: `mergeableDateKey(path)` (day file → date, `_backlog.md` → null, anything else → undefined) plus the merge exports. |
 
 ### AI assistant (`src/ai/`)
 
@@ -169,6 +172,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdavPlan.test.ts` | Upload/download/unchanged/conflict decisions, first sync, stale baseline, no deletions. |
 | `webdavClient.test.ts` | Remote path normalisation, URL encoding, href resolution, PROPFIND parsing with and without namespaces. |
 | `webdavManifest.test.ts` | File whitelist, content hashing, files that disappear mid-scan. |
+| `mergeTasks.test.ts` | Task-level merge: added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, extras from both sides, hand-written lines, backlog, path classification. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
 
@@ -246,7 +250,7 @@ Never hand-edit a generated file. Change its source (`package.json`,
 | Add a numbering style | `domain/types.ts`, `domain/numbering.ts`, both locale files, settings UI | docs 08, 09, 14 |
 | Add a screen | `features/<name>/`, then wire it in `App.tsx` (`View` union + nav) | docs 13, 14, both locale files |
 | Add a native capability | `src-tauri/src/lib.rs`, `generate_handler!`, `capabilities/default.json`, `storage/fs.ts` wrapper | docs 14, 17 |
-| Add a sync behaviour | `sync/scanner.ts` (detection) or the P1 merge module | docs 06, 16 |
+| Add a sync behaviour | `sync/scanner.ts` (detection), `sync/webdav/` (transport and planning) or `sync/merge/` (combining two copies) | docs 06, 14, 16 |
 | Add a device preference | `settings/store.ts`, `storage/settingsFile.ts`, `SettingsView.tsx` | docs 14, 15 |
 | Add a user-visible string | both `en.json` and `zh-CN.json` | doc 09 |
 | Change the migration | `storage/migrate.ts` + `storage/client.ts` | docs 05, 12, 16 |

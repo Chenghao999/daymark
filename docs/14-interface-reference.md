@@ -485,6 +485,24 @@ localManifest(root: string, io?: ManifestIo): Promise<{ hashes: Map<string,strin
 planSync(local: Map<string,string>, remote: Map<string,string>, baseline: Baseline): SyncPlan
 syncWebDav(config: WebDavConfig, root: string, options?: SyncOptions): Promise<SyncResult>
 
+interface SyncResult {
+  uploaded: number;
+  downloaded: number;
+  merged: number;                     // both sides changed, merge was clean
+  unchanged: number;
+  conflictCopies: string[];
+  conflicts: string[];                // paths still needing a manual merge
+  errors: string[];
+}
+
+// src/sync/merge/
+mergeableDateKey(path: string): string | null | undefined
+mergeTaskFile(localText: string, remoteText: string, options: MergeOptions): MergeOutcome
+
+interface MergeOptions { dateKey: string | null; categories: Category[]; deviceId: string; updatedAt: string }
+interface MergeOutcome { clean: boolean; text: string; conflicts: MergeConflict[]; taskCount: number }
+interface MergeConflict { taskId: string; title: string; fields: string[] }
+
 loadWebDavSettings(): WebDavConfig
 saveWebDavSettings(config: WebDavConfig): void
 isWebDavConfigured(config: WebDavConfig): boolean
@@ -500,9 +518,15 @@ Contract:
    sync where both sides already have the same path with different content.
 3. `syncWebDav` reads both sides completely before writing anything. A remote
    read failure aborts the run with no writes.
-4. On conflict, the local file keeps its path and the remote text is written as
+4. On conflict, `syncWebDav` first tries `mergeTaskFile` for a day file or
+   `_backlog.md`. A clean merge rewrites the local file, uploads the same text,
+   advances the baseline and counts it in `SyncResult.merged`. If the merge
+   reports a conflict (or the path is `_settings.md` / `_categories.md`), the
+   local file keeps its path and the remote text is written as
    `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md`; the baseline entry is not
    advanced, so the next run reports the same conflict until it is merged.
+   `mergeTaskFile` is pure and returns `clean: false` with the local text
+   untouched, so a caller can never write a partial merge.
 5. `putText` writes `<path>.daymark-tmp` then `MOVE`s it over the target, and
    falls back to a direct `PUT` when the server answers 405/501.
 6. `syncWebDav` does not touch React state; the caller reloads the store and

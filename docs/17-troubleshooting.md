@@ -165,12 +165,14 @@ The full safe procedure is `16-data-sync-operations.md`.
 
 Read `15-user-guide.md` §11 before filing an issue:
 
-- no automatic merge between devices; the same day is last-writer-wins;
+- day and backlog conflicts are merged task by task automatically; a merge that
+  cannot order two edits keeps a `(conflict …)` copy for you to resolve;
+  `_settings.md` and `_categories.md` are still last-writer-wins with a copy;
 - reopening a task clears its completion timestamp;
 - archived categories cannot be restored in the UI;
-- WebDAV sync is manual, never deletes and does not merge conflicts;
+- WebDAV sync is manual and never deletes;
 - the AI assistant is opt-in, needs an API key and a network connection;
-- no CalDAV, natural-language task entry, reminders, search or tags yet;
+- no CalDAV, reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.
 

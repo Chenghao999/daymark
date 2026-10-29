@@ -1,5 +1,9 @@
+import type { Category } from "../../domain/types";
 import { deviceId } from "../../storage/device";
-import { pathExists, writeTextFile } from "../../storage/fs";
+import { pathExists, readTextFile, writeTextFile } from "../../storage/fs";
+import { parseCategoriesMarkdown } from "../../storage/markdown";
+import { categoriesPath } from "../../storage/paths";
+import { mergeTaskFile, mergeableDateKey } from "../merge";
 import { loadBaseline, saveBaseline } from "./baseline";
 import { WebDavClient, WebDavError } from "./client";
 import { localManifest, sha256 } from "./manifest";
@@ -46,6 +50,7 @@ export async function syncWebDav(
       return {
         uploaded: 0,
         downloaded: 0,
+        merged: 0,
         unchanged: 0,
         conflictCopies: [],
         conflicts: [],
@@ -62,6 +67,16 @@ export async function syncWebDav(
   const conflictCopies: string[] = [];
   let uploaded = 0;
   let downloaded = 0;
+  let merged = 0;
+  let categories: Category[] | null = null;
+
+  const loadCategories = async (): Promise<Category[]> => {
+    if (categories === null) {
+      const text = await readTextFile(categoriesPath(root));
+      categories = text ? parseCategoriesMarkdown(text) : [];
+    }
+    return categories;
+  };
 
   // Remove baseline entries for files that no longer exist on either side.
   for (const path of Object.keys(nextBaseline)) {
@@ -106,7 +121,41 @@ export async function syncWebDav(
   }
 
   for (const path of plan.conflicts) {
-    const text = remoteTexts.get(path);
+    const localText = local.texts.get(path);
+    const remoteText = remoteTexts.get(path);
+    const dateKey = mergeableDateKey(path);
+
+    if (dateKey !== undefined && localText !== undefined && remoteText !== undefined) {
+      // Both sides edited the same day or backlog file. Merge at the task
+      // level; a clean merge replaces both copies, anything ambiguous keeps
+      // both files and is reported exactly as before (doc 06 §4).
+      const outcome = mergeTaskFile(localText, remoteText, {
+        dateKey,
+        categories: await loadCategories(),
+        deviceId: options.device ?? deviceId(),
+        updatedAt: (options.now ?? new Date()).toISOString(),
+      });
+      if (outcome.clean) {
+        try {
+          await writeTextFile(`${root}/${path}`, outcome.text);
+          // The local file now holds the merge. Count it even if the upload
+          // fails below: the caller reloads the store, and the next run sees
+          // "local changed" and uploads the merged text. Leaving the in-memory
+          // store stale would let the next edit overwrite this merge.
+          merged += 1;
+          await ensureRemoteDirectory(client, path);
+          await client.putText(path, outcome.text);
+          const hash = await sha256(outcome.text);
+          nextBaseline[path] = { local: hash, remote: hash };
+        } catch (error) {
+          errors.push(`${path}: ${message(error)}`);
+        }
+        progress({ phase: "apply", done: ++done, total, path });
+        continue;
+      }
+    }
+
+    const text = remoteText;
     if (text !== undefined) {
       try {
         const target = await conflictPath(root, path, options);
@@ -126,6 +175,7 @@ export async function syncWebDav(
   return {
     uploaded,
     downloaded,
+    merged,
     unchanged: plan.unchanged.length,
     conflictCopies,
     conflicts: plan.conflicts,

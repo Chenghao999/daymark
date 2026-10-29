@@ -80,8 +80,10 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
 - [ ] A edits `2026-10-22.md` and B edits `2026-10-23.md` while offline; after
       sync and reload both days are intact — per-day files do not collide.
 - [ ] Both edit the same day offline; the reload banner appears and the last
-      file to land wins (P1 merge is not implemented — verify the documented
-      limitation instead).
+      file to land wins (desktop sync clients do not merge — verify the
+      documented limitation instead). With built-in WebDAV sync, run the same
+      case and verify the day file is merged task by task; a same-version tie
+      still leaves a `(conflict …)` copy.
 
 ### Sync-folder latency
 

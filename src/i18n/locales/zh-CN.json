@@ -134,7 +134,7 @@
     "webdavPhase_local": "读取本地文件",
     "webdavPhase_remote": "读取远端文件",
     "webdavPhase_apply": "写入变更",
-    "webdavResult": "已上传 {{uploaded}}，已下载 {{downloaded}}，冲突 {{conflicts}}。",
+    "webdavResult": "已上传 {{uploaded}}，已下载 {{downloaded}}，已合并 {{merged}}，冲突 {{conflicts}}。",
     "webdavError": "同步失败",
     "webdavConflicts": "冲突副本（本地原文件已保留）：",
     "webdavNotConfigured": "请先填写服务器地址。",

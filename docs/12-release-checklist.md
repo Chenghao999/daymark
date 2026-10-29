@@ -66,6 +66,7 @@
 
 - [ ] `SHA256SUMS` generated and published.
 - [ ] Release notes list format changes, features and known limitations.
-- [ ] Known limitation documented: automatic merge is not shipped; a day edited
-      on two devices is resolved at the file level by the sync client.
+- [ ] Known limitation documented: the built-in WebDAV sync merges day/backlog
+      conflicts at task level, but files delivered by a desktop sync client are
+      still file-level last-writer-wins, and there is no conflict-resolution UI.
 - [ ] License and third-party notices included.

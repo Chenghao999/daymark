@@ -6,6 +6,12 @@ export interface StoredTask {
   completion: Completion | null;
   /** `YYYY-MM-DD` for a day file, `null` for the backlog file. */
   dateKey: string | null;
+  /**
+   * True when the line was read without a `<!-- daymark task -->` comment, so
+   * its id was generated for this parse and does not identify the task across
+   * devices. The merge compares such entries by content instead of id.
+   */
+  handWritten?: boolean;
 }
 
 export interface StoreState {

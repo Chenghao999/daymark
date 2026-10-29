@@ -79,11 +79,14 @@ and Linux x64 and drafts a GitHub Release. Builds are unsigned for now, so
 macOS needs right-click → Open and Windows shows SmartScreen. Details:
 [`docs/10-build-distribution.md`](docs/10-build-distribution.md) §7–8.
 
-WebDAV sync is manual and deliberately conservative: it never deletes a file
-and never overwrites a file changed on both sides — the remote copy is saved as
-a `(conflict …)` file for you to merge. It has not yet been tested against every
-WebDAV server. WebDAV 同步为手动、保守实现：不删除文件，两边同时改动时生成
-冲突副本而不覆盖。
+WebDAV sync is manual and deliberately conservative: it never deletes a file.
+When both sides changed the same day or backlog file, it merges the two copies
+task by task — a task edited on one side only keeps that edit, and a task
+changed on both keeps the higher version. Only a change it cannot order is
+saved as a `(conflict …)` file for you to merge; `_settings.md` and
+`_categories.md` still produce conflict copies. WebDAV 同步为手动、保守实现：
+不删除文件；日文件和待办文件两边都改过时按任务自动合并，无法判定先后的改动才
+生成冲突副本。尚未针对所有 WebDAV 服务端做验证。
 
 The AI assistant is opt-in and off by default. It can talk to an
 Anthropic-compatible endpoint (including relays) or an OpenAI-compatible one;
@@ -98,10 +101,10 @@ yours. AI 助手默认关闭，接口协议、地址和模型都可配置（支�
 预览，确认后才写入 `_ai/`；也可用一句话填好任务表单或一次创建多个任务，仍由你
 确认保存。
 
-Not implemented yet / 尚未实现：background WebDAV sync and in-app merge. They are
-planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic
-merge remain design-only in docs 06 and 07. Until automatic merge ships, only
-one device should have Daymark open on a folder at a time.
+Not implemented yet / 尚未实现：background WebDAV sync, an in-app conflict
+resolution UI and CalDAV. They are planned in
+[`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic merge remain
+design-only in docs 06 and 07. 后台同步、冲突解决界面与 CalDAV 仍在路线图中。
 
 ## Data folder · 数据目录
 

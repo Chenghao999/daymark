@@ -313,10 +313,11 @@ export default function App() {
           : t("settings.webdavResult", {
               uploaded: result.uploaded,
               downloaded: result.downloaded,
+              merged: result.merged,
               conflicts: result.conflicts.length,
             }),
       );
-      if (result.downloaded > 0) await reloadFromDisk();
+      if (result.downloaded > 0 || result.merged > 0) await reloadFromDisk();
       else await touchScanner();
     } catch (cause) {
       setWebdavStatus(

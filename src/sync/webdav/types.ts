@@ -53,6 +53,8 @@ export interface SyncProgress {
 export interface SyncResult {
   uploaded: number;
   downloaded: number;
+  /** Both sides changed, but a task-level merge resolved every difference. */
+  merged: number;
   unchanged: number;
   /** Conflict copies written next to the local original. */
   conflictCopies: string[];

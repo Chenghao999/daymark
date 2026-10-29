@@ -315,7 +315,11 @@ function toStoredTask(
     externalUid: meta?.externalUid ?? null,
   };
 
-  return { task, completion, dateKey };
+  const stored: StoredTask = { task, completion, dateKey };
+  // Only set the flag for metadata-less lines, so an ordinary parse result is
+  // identical to before for callers that compare whole objects.
+  if (meta === null) stored.handWritten = true;
+  return stored;
 }
 
 function serializeEntry(entry: StoredTask): string[] {
