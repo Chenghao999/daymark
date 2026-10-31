@@ -280,6 +280,18 @@ export class WebDavClient {
   }
 }
 
+/** Creates the parent folder of `path`; a folder that already exists is fine. */
+export async function ensureRemoteDirectory(client: WebDavClient, path: string): Promise<void> {
+  const slash = path.lastIndexOf("/");
+  if (slash < 0) return;
+  try {
+    await client.mkcol(path.slice(0, slash));
+  } catch {
+    // `mkcol` already accepts 405 (already exists). A real failure will be
+    // reported by the PUT that follows with a more useful message.
+  }
+}
+
 function failure(response: WebDavResponse, action: string): WebDavError {
   const detail = response.body.trim().slice(0, 300);
   return new WebDavError(

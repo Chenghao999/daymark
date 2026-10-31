@@ -29,7 +29,9 @@ import type { AiConfig } from "./ai/types";
 import { startFolderScanner, type FolderScanner } from "./sync/scanner";
 import { WebDavClient } from "./sync/webdav/client";
 import { syncWebDav } from "./sync/webdav/engine";
-import type { WebDavConfig } from "./sync/webdav/types";
+import { resolveConflict } from "./sync/webdav/resolve";
+import type { SyncConflict, WebDavConfig } from "./sync/webdav/types";
+import type { MergeDecisions } from "./sync/merge";
 import TaskEditor, { type TaskDraft } from "./components/TaskEditor";
 import WeekView from "./features/calendar/WeekView";
 import DayView from "./features/calendar/DayView";
@@ -55,7 +57,7 @@ export default function App() {
   const [webdav, setWebdav] = useState<WebDavConfig>(() => loadWebDavSettings());
   const [webdavBusy, setWebdavBusy] = useState(false);
   const [webdavStatus, setWebdavStatus] = useState<string | null>(null);
-  const [webdavConflicts, setWebdavConflicts] = useState<string[]>([]);
+  const [webdavConflicts, setWebdavConflicts] = useState<SyncConflict[]>([]);
   const [ai, setAi] = useState<AiConfig>(() => loadAiSettings());
   const bootedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
@@ -306,7 +308,7 @@ export default function App() {
             }),
           ),
       });
-      setWebdavConflicts(result.conflictCopies);
+      setWebdavConflicts(result.conflicts);
       setWebdavStatus(
         result.errors.length > 0
           ? `${t("settings.webdavError")}: ${result.errors.slice(0, 3).join("; ")}`
@@ -319,6 +321,38 @@ export default function App() {
       );
       if (result.downloaded > 0 || result.merged > 0) await reloadFromDisk();
       else await touchScanner();
+    } catch (cause) {
+      setWebdavStatus(
+        `${t("settings.webdavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    } finally {
+      setWebdavBusy(false);
+    }
+  }
+
+  async function resolveWebdavConflict(conflict: SyncConflict, decisions: MergeDecisions) {
+    setWebdavBusy(true);
+    try {
+      const result = await resolveConflict(webdav, settings.dataDir, conflict, decisions);
+      if (result.resolved) {
+        setWebdavConflicts((current) => current.filter((item) => item.path !== conflict.path));
+        setWebdavStatus(t("settings.webdavResolved", { path: conflict.path }));
+      } else {
+        // A partial answer leaves the file untouched; keep only what is still open.
+        setWebdavConflicts((current) =>
+          current.map((item) =>
+            item.path === conflict.path ? { ...item, items: result.remaining } : item,
+          ),
+        );
+        setWebdavStatus(
+          result.error
+            ? `${t("settings.webdavError")}: ${result.error}`
+            : t("settings.webdavResolveIncomplete"),
+        );
+      }
+      // The local file changed even when the upload failed, so the in-memory
+      // store must not survive to write over the merge.
+      if (result.written) await reloadFromDisk();
     } catch (cause) {
       setWebdavStatus(
         `${t("settings.webdavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -505,6 +539,7 @@ export default function App() {
               onWebdavPatch={patchWebdav}
               onWebdavTest={testWebdav}
               onWebdavSync={runWebdavSync}
+              onWebdavResolve={resolveWebdavConflict}
               onAiPatch={patchAi}
               onLanguage={changeLanguage}
               onChangeFolder={chooseFolder}

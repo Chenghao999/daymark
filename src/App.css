@@ -856,15 +856,83 @@ h3 {
   gap: 8px;
 }
 
+.conflict-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.conflict-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  word-break: break-all;
+}
+
 .conflict-list {
   list-style: none;
   margin: 4px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
-  word-break: break-all;
+  word-break: break-word;
+}
+
+.conflict-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--border);
+}
+
+.conflict-item:first-child {
+  border-top: none;
+}
+
+.conflict-label {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.conflict-side {
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.conflict-side b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.conflict-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* Modal */

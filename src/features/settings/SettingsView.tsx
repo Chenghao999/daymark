@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppLanguage, Category, NumberingStyle } from "../../domain/types";
 import type { AppSettings } from "../../settings/store";
-import type { WebDavConfig } from "../../sync/webdav/types";
+import type { SyncConflict, WebDavConfig } from "../../sync/webdav/types";
+import type { MergeDecision, MergeDecisions } from "../../sync/merge";
 import type { AiConfig } from "../../ai/types";
 
 interface SettingsViewProps {
@@ -12,7 +13,7 @@ interface SettingsViewProps {
   webdav: WebDavConfig;
   webdavBusy: boolean;
   webdavStatus: string | null;
-  webdavConflicts: string[];
+  webdavConflicts: SyncConflict[];
   ai: AiConfig;
   onLanguage: (language: AppLanguage) => Promise<void>;
   onChangeFolder: () => Promise<void>;
@@ -22,6 +23,7 @@ interface SettingsViewProps {
   onWebdavPatch: (patch: Partial<WebDavConfig>) => void;
   onWebdavTest: () => Promise<void>;
   onWebdavSync: () => Promise<void>;
+  onWebdavResolve: (conflict: SyncConflict, decisions: MergeDecisions) => Promise<void>;
   onAiPatch: (patch: Partial<AiConfig>) => void;
 }
 
@@ -44,12 +46,28 @@ export default function SettingsView({
   onWebdavPatch,
   onWebdavTest,
   onWebdavSync,
+  onWebdavResolve,
   onAiPatch,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [nameEn, setNameEn] = useState("");
   const [nameZh, setNameZh] = useState("");
   const [color, setColor] = useState(COLORS[0]);
+  // Per conflict path, the answer chosen for each item. A new sync starts blank.
+  const [decisions, setDecisions] = useState<Record<string, MergeDecisions>>({});
+
+  // A sync clears the list before filling it, which is the cue to forget the
+  // answers from the previous run.
+  useEffect(() => {
+    if (webdavConflicts.length === 0) setDecisions({});
+  }, [webdavConflicts]);
+
+  function choose(path: string, itemId: string, decision: MergeDecision) {
+    setDecisions((current) => ({
+      ...current,
+      [path]: { ...current[path], [itemId]: decision },
+    }));
+  }
 
   async function addCategory(event: React.FormEvent) {
     event.preventDefault();
@@ -241,13 +259,77 @@ export default function SettingsView({
         {webdavConflicts.length > 0 ? (
           <div>
             <p className="muted small">{t("settings.webdavConflicts")}</p>
-            <ul className="conflict-list">
-              {webdavConflicts.map((name) => (
-                <li key={name}>
-                  <code>{name}</code>
-                </li>
-              ))}
-            </ul>
+            {webdavConflicts.map((conflict) => {
+              const chosen = decisions[conflict.path] ?? {};
+              // "Keep both" only means something for a task; a setting or a
+              // category has one value per key, not a second copy to keep.
+              const choices: MergeDecision[] =
+                conflict.kind === "tasks" ? ["local", "remote", "both"] : ["local", "remote"];
+              const ready =
+                conflict.items.length > 0 &&
+                conflict.items.every((item) => chosen[item.id] !== undefined);
+
+              return (
+                <div className="conflict-card" key={conflict.path}>
+                  <div className="conflict-head">
+                    <code>{conflict.path}</code>
+                    <span className="muted small">
+                      {t(`settings.webdavKind_${conflict.kind}`)}
+                    </span>
+                  </div>
+
+                  {conflict.items.length > 0 ? (
+                    <ul className="conflict-list">
+                      {conflict.items.map((item) => (
+                        <li className="conflict-item" key={item.id}>
+                          <span className="conflict-label" title={item.fields.join(", ")}>
+                            {item.label}
+                          </span>
+                          <span className="conflict-side">
+                            <b>{t("settings.webdavMine")}</b> {item.local}
+                          </span>
+                          <span className="conflict-side">
+                            <b>{t("settings.webdavTheirs")}</b> {item.remote}
+                          </span>
+                          <div className="conflict-choices" role="group" aria-label={item.label}>
+                            {choices.map((choice) => (
+                              <button
+                                key={choice}
+                                type="button"
+                                className={chosen[item.id] === choice ? "chip active" : "chip"}
+                                aria-pressed={chosen[item.id] === choice}
+                                disabled={webdavBusy}
+                                onClick={() => choose(conflict.path, item.id, choice)}
+                              >
+                                {t(`settings.webdavDecision_${choice}`)}
+                              </button>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted small">{t("settings.webdavConflictNoItems")}</p>
+                  )}
+
+                  {conflict.copy ? (
+                    <p className="muted small">
+                      {t("settings.webdavConflictCopy", { path: conflict.copy })}
+                    </p>
+                  ) : null}
+
+                  <div className="button-row">
+                    <button
+                      className="ghost"
+                      disabled={webdavBusy || !ready}
+                      onClick={() => void onWebdavResolve(conflict, chosen)}
+                    >
+                      {t("settings.webdavApplyConflict")}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : null}
       </section>

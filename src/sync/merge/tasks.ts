@@ -1,7 +1,7 @@
 import type { Category, Task } from "../../domain/types";
 import { parseMarkdown, serializeMarkdown } from "../../storage/markdown";
 import type { StoredTask } from "../../storage/types";
-import type { MergeConflict, MergeOutcome } from "./types";
+import type { MergeConflict, MergeDecisions, MergeOutcome } from "./types";
 
 export interface MergeOptions {
   /** `YYYY-MM-DD`, or null for the backlog file. */
@@ -10,6 +10,8 @@ export interface MergeOptions {
   deviceId: string;
   /** Timestamp written into the merged file header. */
   updatedAt: string;
+  /** User answers for conflicts that no version rule could order. */
+  decisions?: MergeDecisions;
 }
 
 /**
@@ -47,7 +49,9 @@ export function mergeTaskFile(
   for (const entry of remote.tasks) {
     const existing = merged.get(entry.task.id);
     if (existing) {
-      merged.set(entry.task.id, resolvePair(existing, entry, conflicts));
+      const result = resolvePair(existing, entry, conflicts, options);
+      merged.set(entry.task.id, result.kept);
+      if (result.extra) merged.set(result.extra.task.id, result.extra);
       continue;
     }
     if (entry.handWritten && takeHandWritten(handWritten, entry)) continue;
@@ -69,20 +73,27 @@ export function mergeTaskFile(
   return { clean: true, text, conflicts: [], itemCount: merged.size };
 }
 
+interface PairResult {
+  kept: StoredTask;
+  /** Present when the user chose "keep both": the remote copy with a new id. */
+  extra?: StoredTask;
+}
+
 function resolvePair(
   local: StoredTask,
   remote: StoredTask,
   conflicts: MergeConflict[],
-): StoredTask {
-  if (sameEntry(local, remote)) return local;
+  options: MergeOptions,
+): PairResult {
+  if (sameEntry(local, remote)) return { kept: local };
 
   // Completion wins over a reopen until the user resolves it (doc 06 §4).
-  if (local.completion && !remote.completion) return local;
-  if (remote.completion && !local.completion) return remote;
+  if (local.completion && !remote.completion) return { kept: local };
+  if (remote.completion && !local.completion) return { kept: remote };
 
   const version = compareVersion(local.task, remote.task);
-  if (version > 0) return local;
-  if (version < 0) return remote;
+  if (version > 0) return { kept: local };
+  if (version < 0) return { kept: remote };
 
   if (local.completion && remote.completion) {
     const completed =
@@ -91,17 +102,47 @@ function resolvePair(
         : local.completion.completedAt > remote.completion.completedAt
           ? 1
           : -1;
-    if (completed !== 0) return completed > 0 ? local : remote;
+    if (completed !== 0) return { kept: completed > 0 ? local : remote };
   }
 
-  // Same version, same timestamp, different content: keep the local copy and
-  // let the user decide. Writing either one silently would lose an edit.
+  // Same version, same timestamp, different content: no rule can order the two
+  // edits. An explicit user choice settles it; otherwise keep the local copy
+  // and report the conflict so nothing is written silently.
+  const decision = options.decisions?.[local.task.id];
+  if (decision === "remote") return { kept: remote };
+  if (decision === "both") {
+    return { kept: local, extra: duplicateEntry(remote, options) };
+  }
+  if (decision === "local") return { kept: local };
+
+  const fields = differingFields(local, remote);
   conflicts.push({
     id: local.task.id,
     label: local.task.title,
-    fields: differingFields(local, remote),
+    fields,
+    local: previewEntry(local, fields),
+    remote: previewEntry(remote, fields),
   });
-  return local;
+  return { kept: local };
+}
+
+/** The remote copy as a new task, so "keep both" never shares an id. */
+function duplicateEntry(entry: StoredTask, options: MergeOptions): StoredTask {
+  const id = crypto.randomUUID();
+  const task: Task = {
+    ...entry.task,
+    id,
+    createdAt: options.updatedAt,
+    updatedAt: options.updatedAt,
+    deviceId: options.deviceId,
+    rowVersion: 1,
+    source: "local",
+    externalUid: null,
+  };
+  const completion = entry.completion
+    ? { ...entry.completion, id: crypto.randomUUID(), taskId: id }
+    : null;
+  return { task, completion, dateKey: options.dateKey };
 }
 
 function compareVersion(a: Task, b: Task): number {
@@ -129,6 +170,46 @@ function differingFields(a: StoredTask, b: StoredTask): string[] {
     fields.push("completion");
   }
   return fields;
+}
+
+/**
+ * A short description of one side for the chooser. When the title is part of
+ * the difference it is the whole summary; otherwise the differing fields are
+ * listed with their values.
+ */
+function previewEntry(entry: StoredTask, fields: string[]): string {
+  if (fields.includes("title")) return clip(entry.task.title);
+  return clip(fields.map((field) => `${field}: ${fieldValue(entry, field)}`).join(" · "));
+}
+
+function fieldValue(entry: StoredTask, field: string): string {
+  const task = entry.task;
+  switch (field) {
+    case "notes":
+      return clip(task.notes) || "—";
+    case "category":
+      return task.categoryId ?? "—";
+    case "start":
+      return task.startAt ?? "—";
+    case "end":
+      return task.endAt ?? "—";
+    case "due":
+      return task.dueAt ?? "—";
+    case "priority":
+      return String(task.priority);
+    case "allDay":
+      return task.allDay ? "all-day" : "timed";
+    case "externalId":
+      return task.externalUid ?? "—";
+    case "completion":
+      return entry.completion?.completedAt ?? "—";
+    default:
+      return "—";
+  }
+}
+
+function clip(text: string): string {
+  return text.length > 80 ? `${text.slice(0, 79)}…` : text;
 }
 
 /** Semantic identity of a hand-written line; random ids and file metadata excluded. */

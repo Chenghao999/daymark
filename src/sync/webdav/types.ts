@@ -1,3 +1,5 @@
+import type { MergeConflict } from "../merge/types";
+
 /**
  * Device-local WebDAV configuration. It deliberately does not live in
  * `_settings.md`: the password must never travel with the synced folder.
@@ -56,15 +58,26 @@ export interface SyncProgress {
   path?: string;
 }
 
+export type ConflictKind = "tasks" | "settings" | "categories";
+
+/** A path whose two copies could not be merged without a user's decision. */
+export interface SyncConflict {
+  /** Canonical relative path; its local copy is kept. */
+  path: string;
+  /** Relative path of the copy holding the remote text, or null if unwritten. */
+  copy: string | null;
+  kind: ConflictKind;
+  /** Items the merge could not order; empty when the file could not be parsed. */
+  items: MergeConflict[];
+}
+
 export interface SyncResult {
   uploaded: number;
   downloaded: number;
-  /** Both sides changed, but a task-level merge resolved every difference. */
+  /** Both sides changed, but a merge resolved every difference. */
   merged: number;
   unchanged: number;
-  /** Conflict copies written next to the local original. */
-  conflictCopies: string[];
-  /** Paths whose two sides differ and need a manual merge. */
-  conflicts: string[];
+  /** Paths whose two sides differ and need a decision. */
+  conflicts: SyncConflict[];
   errors: string[];
 }

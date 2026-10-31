@@ -83,10 +83,15 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
       file to land wins (desktop sync clients do not merge — verify the
       documented limitation instead). With built-in WebDAV sync, run the same
       case and verify the day file is merged task by task; a same-version tie
-      still leaves a `(conflict …)` copy.
+      still leaves a `(conflict …)` copy and lists the task in Settings.
 - [ ] With built-in WebDAV sync, change the language on A and the week start on
       B; after syncing both values survive with no conflict copy. Change the
       same setting differently on both sides and verify a conflict copy remains.
+- [ ] Keep the same setting conflict and answer it in Settings with keep mine,
+      then again with keep theirs; the chosen value ends up on both devices and
+      the conflict disappears from the list.
+- [ ] Create a same-version task tie on both devices; resolve it with keep both
+      and verify the day shows two tasks with different ids.
 
 ### Sync-folder latency
 

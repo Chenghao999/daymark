@@ -8,7 +8,7 @@ import {
   parseSettingsMarkdown,
   serializeSettingsMarkdown,
 } from "../../storage/settingsFile";
-import type { MergeConflict, MergeOutcome } from "./types";
+import type { MergeConflict, MergeDecision, MergeDecisions, MergeOutcome } from "./types";
 
 /**
  * Three-way merge for the two small shared files. A day file carries a version
@@ -25,6 +25,7 @@ export function mergeSettingsFile(
   localText: string,
   remoteText: string,
   baseText: string | null,
+  decisions?: MergeDecisions,
 ): MergeOutcome {
   const local = parseSettingsMarkdown(localText);
   const remote = parseSettingsMarkdown(remoteText);
@@ -34,7 +35,17 @@ export function mergeSettingsFile(
   const conflicts: MergeConflict[] = [];
 
   const mergeKey = <K extends keyof SyncedSettings>(key: K): void => {
-    merged[key] = pick(local[key], remote[key], base?.[key], key, key, conflicts);
+    const result = pick(local[key], remote[key], base?.[key], decisions?.[key]);
+    merged[key] = result.value;
+    if (result.conflicted) {
+      conflicts.push({
+        id: key,
+        label: key,
+        fields: ["value"],
+        local: describe(local[key]),
+        remote: describe(remote[key]),
+      });
+    }
   };
   for (const key of SYNCED_KEYS) mergeKey(key);
 
@@ -61,6 +72,7 @@ export function mergeCategoriesFile(
   localText: string,
   remoteText: string,
   baseText: string | null,
+  decisions?: MergeDecisions,
 ): MergeOutcome {
   const local = byId(parseCategoriesMarkdown(localText));
   const remote = byId(parseCategoriesMarkdown(remoteText));
@@ -71,7 +83,14 @@ export function mergeCategoriesFile(
   const conflicts: MergeConflict[] = [];
 
   for (const id of ids.sort()) {
-    const result = mergeCategory(id, local.get(id), remote.get(id), base?.get(id), conflicts);
+    const result = mergeCategory(
+      id,
+      local.get(id),
+      remote.get(id),
+      base?.get(id),
+      conflicts,
+      decisions,
+    );
     if (result) merged.push(result);
   }
 
@@ -97,6 +116,7 @@ function mergeCategory(
   remote: Category | undefined,
   base: Category | undefined,
   conflicts: MergeConflict[],
+  decisions?: MergeDecisions,
 ): Category | null {
   if (local && !remote) {
     return base && sameCategory(local, base) ? null : local;
@@ -108,18 +128,24 @@ function mergeCategory(
 
   const merged: Category = { ...local };
   const label = `${local.nameEn} / ${local.nameZh}`;
-  merged.nameEn = pick(local.nameEn, remote.nameEn, base?.nameEn, id, label, conflicts);
-  merged.nameZh = pick(local.nameZh, remote.nameZh, base?.nameZh, id, label, conflicts);
-  merged.color = pick(local.color, remote.color, base?.color, id, label, conflicts);
-  merged.sortOrder = pick(
-    local.sortOrder,
-    remote.sortOrder,
-    base?.sortOrder,
-    id,
-    label,
-    conflicts,
-  );
-  merged.archived = pick(local.archived, remote.archived, base?.archived, id, label, conflicts);
+  const conflicted: string[] = [];
+  const take = <K extends keyof Category>(field: K): void => {
+    const result = pick(local[field], remote[field], base?.[field], decisions?.[id]);
+    merged[field] = result.value;
+    if (result.conflicted) conflicted.push(field);
+  };
+  for (const field of CATEGORY_FIELDS) take(field);
+
+  // One category is one choice, however many of its fields differ.
+  if (conflicted.length > 0) {
+    conflicts.push({
+      id,
+      label,
+      fields: conflicted,
+      local: describeCategory(local),
+      remote: describeCategory(remote),
+    });
+  }
   return merged;
 }
 
@@ -130,20 +156,34 @@ function sameCategory(a: Category, b: Category): boolean {
 /**
  * The one rule every field and key uses. Without a base, only equal values can
  * be accepted; with one, a value equal to the base did not change on that side.
+ * A user's answer settles what is left; otherwise the caller records a
+ * conflict and the local value is kept.
  */
 function pick<T>(
   local: T,
   remote: T,
   base: T | undefined,
-  id: string,
-  label: string,
-  conflicts: MergeConflict[],
-): T {
-  if (local === remote) return local;
-  if (base !== undefined && local === base) return remote;
-  if (base !== undefined && remote === base) return local;
-  conflicts.push({ id, label, fields: ["value"] });
-  return local;
+  decision: MergeDecision | undefined,
+): { value: T; conflicted: boolean } {
+  if (local === remote) return { value: local, conflicted: false };
+  if (base !== undefined && local === base) return { value: remote, conflicted: false };
+  if (base !== undefined && remote === base) return { value: local, conflicted: false };
+  if (decision === "remote") return { value: remote, conflicted: false };
+  if (decision === "local") return { value: local, conflicted: false };
+  return { value: local, conflicted: true };
+}
+
+/** One side of a scalar setting, trimmed for display in the chooser. */
+function describe(value: unknown): string {
+  return clip(String(value));
+}
+
+function describeCategory(category: Category): string {
+  return clip(`${category.nameEn} / ${category.nameZh} · ${category.color}`);
+}
+
+function clip(text: string): string {
+  return text.length > 80 ? `${text.slice(0, 79)}…` : text;
 }
 
 function byId(categories: Category[]): Map<string, Category> {

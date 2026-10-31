@@ -3,16 +3,16 @@
 > **Status:** partly implemented. M0–M5 have shipped (WebDAV v1 in §3.8, AI v1 in
 > §4.9, natural-language entry v1 in §4.10); custom AI endpoints, dark mode and
 > automated packaging are also complete (M7, M8). M6 v1 — automatic merge of
-> tasks, settings and categories — has shipped (§3.9); the conflict-resolution
-> UI and CalDAV remain planned. Documents 01–18 are the source of truth for what
-> exists; this document records only the plan and its trade-offs. Date:
+> tasks, settings and categories, plus the in-app conflict-resolution UI — has
+> shipped (§3.9); CalDAV remains planned. Documents 01–18 are the source of truth
+> for what exists; this document records only the plan and its trade-offs. Date:
 > 2026-10-29. Baseline version `0.1.0`; storage has moved from SQLite to
 > Markdown text.
 >
 > **中文摘要：** Daymark（日迹）的路线图。M0–M5 已落地（WebDAV 第一版见 §3.8，
 > AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自定义 AI 接口、暗色模式与
-> 自动打包也已完成（M7、M8）；M6 第一版（任务、设置与分类的自动合并）已落地
-> （§3.9），冲突解决界面与 CalDAV 仍是计划。已实现的模块以 01–18 号文档为准，
+> 自动打包也已完成（M7、M8）；M6 第一版（任务、设置与分类的自动合并，以及
+> 冲突解决界面）已落地（§3.9），CalDAV 仍是计划。已实现的模块以 01–18 号文档为准，
 > 本文只记录路线与取舍。日期：2026-10-29，基线版本 `0.1.0`，存储已从 SQLite
 > 切换为 Markdown 文本。
 
@@ -45,7 +45,7 @@
 | M3 | WebDAV sync | M0, M2 | v1 done: `src/sync/webdav/*`, "WebDAV sync" card in Settings (see §3.8) |
 | M4 | AI assistant (report polishing / period review) | M0, M1 | v1 done: `src/ai/*`, "AI assistant" on the Reports page (see §4.9) |
 | M5 | AI natural-language entry | M4 | v1 done: `src/ai/tasks.ts`, "Fill fields" one-sentence entry in the task editor (see §4.10) |
-| M6 | Automatic merge and CalDAV | M3 | v1 done: task-level merge plus per-key settings/categories merge in `src/sync/merge/*`, applied by `syncWebDav` (see §3.9); conflict-resolution UI and CalDAV still planned |
+| M6 | Automatic merge and CalDAV | M3 | v1 done: automatic merge in `src/sync/merge/*`, applied by `syncWebDav`, and the keep-mine / keep-theirs / keep-both conflict UI in Settings (`src/sync/webdav/resolve.ts`); see §3.9. CalDAV still planned |
 | M7 | Custom AI endpoints + dark mode | M4 | Done: protocol / base URL / custom model (§4.11); appearance follows the system or switches manually |
 | M8 | Automated packaging and release | M0 | Done: `.github/workflows/release.yml`, `npm run release` (doc 10 §7–8); first packaged `v0.1.0` on 2026-10-24, all four platforms succeeded, installers attached to the draft release |
 
@@ -125,9 +125,10 @@ Settings shows only "configured / not configured" and never echoes the password.
    `reloadFromDisk()`; otherwise call `scanner.touch()`, so sync writes are not
    mistaken for external modifications.
 
-v1 does no background scheduling, no `If-Match` conditional requests and no
-automatic merge; the user presses "Sync now" once per sync. v2 adds scheduled
-sync, ETag conditional requests and a merge UI.
+v1 does no background scheduling and no `If-Match` conditional requests; the
+user presses "Sync now" once per sync. M6 (§3.9) added automatic merge and a
+conflict-resolution UI; v2 adds scheduled sync, ETag conditional requests and
+task deletion tombstones.
 
 ### 3.5 Module layout · 模块划分
 
@@ -136,12 +137,17 @@ src/sync/webdav/
   client.ts      # PROPFIND/GET/PUT/MOVE/DELETE, auth and error normalisation
   manifest.ts    # local file manifest (reuses the storage/fs tree walk)
   plan.ts        # pure function: local/remote manifests → operation plan + conflicts
-  engine.ts      # executes the plan, writes back, progress callbacks
-  types.ts       # WebDavConfig, RemoteEntry, SyncPlan, SyncResult
+  engine.ts      # executes the plan, merges, writes back, progress callbacks
+  resolve.ts     # applies the user's answers for one conflicted file
+  types.ts       # WebDavConfig, RemoteEntry, SyncPlan, SyncConflict, SyncResult
+src/sync/merge/
+  tasks.ts       # task-level merge of a day or backlog file
+  files.ts       # three-way merge of _settings.md and _categories.md
 ```
 
-The UI calls only `engine.syncNow(config, root, onProgress)`. `plan.ts` is pure
-and can be covered by Vitest without a real server.
+The UI calls only `engine.syncNow(config, root, onProgress)` and, per conflict,
+`resolve.resolveConflict(config, root, conflict, decisions)`. `plan.ts` and the
+merge modules are pure and can be covered by Vitest without a real server.
 
 ### 3.6 Transport choice · 传输层选择
 
@@ -163,8 +169,10 @@ parameters; never log them.
   the content is byte-for-byte identical.
 - Change one task title on the remote and another file locally: after sync both
   survive and the conflict list is empty.
-- Both sides change the same file: one conflict copy is created, the original
-  file is not overwritten, and the UI shows both.
+- Both sides edit different tasks of the same file: the merge keeps both tasks
+  and no conflict copy is created. Both sides edit the same task with no version
+  order: a conflict copy is created, the original file is not overwritten, and
+  Settings lists the item with the three choices.
 - Offline, 401, remote 507: readable errors; local files intact (temp file +
   rename).
 - Chinese file names, spaces, `#`, `%`: URL encoding is correct.
@@ -177,7 +185,7 @@ Shipped (2026-10-23):
 |---|---|
 | Transport | `src-tauri/src/webdav.rs`, a single command `webdav_request`, `reqwest` + rustls, 45 s timeout; HTTP errors returned as data |
 | Front-end modules | `src/sync/webdav/{types,client,manifest,plan,baseline,engine}.ts`; settings in `src/settings/webdav.ts` |
-| UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, progress, result, conflict-copy list |
+| UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, progress, result, conflict list |
 | Decision | Three-way comparison (local / remote / baseline), pure function `planSync`; **never deletes, never silently overwrites** |
 | Security | Password stored only in local localStorage, never written to `_settings.md`; Basic auth is sent only when a username is filled in |
 | Tests | 20 unit tests across `webdavPlan`, `webdavClient` and `webdavManifest`; `npm run typecheck`, `npm run test`, `npm run build` and `cargo check` all pass |
@@ -187,7 +195,8 @@ First-version boundaries (deliberate, not defects):
 - Syncs only files Daymark knows about; other files the user puts in the folder
   are not mirrored.
 - Manual trigger only; no background schedule, no sync at login.
-- Conflicts produce copies and a list only; there is no in-app merge editor.
+- Conflict copies stay as the last fallback; since M6 (§3.9) unresolved items are
+  answered in Settings rather than by editing copies.
 - Not yet validated end to end against a real WebDAV service (the §3.7
   checklist still needs a manual run against Nutstore / Nextcloud); unit tests
   cover the pure logic, not the network or differences in each server's
@@ -199,8 +208,9 @@ sync, integration tests against a local `rclone serve webdav`.
 
 ### 3.9 Automatic merge (M6, first version) · 自动合并
 
-Shipped (2026-10-29): `src/sync/merge/{types,tasks,files,index}.ts`, covered by
-19 unit tests in `tests/mergeTasks.test.ts` and `tests/mergeFiles.test.ts`.
+Shipped (2026-10-29): `src/sync/merge/{types,tasks,files,index}.ts` and
+`src/sync/webdav/resolve.ts`, covered by 27 unit tests in
+`tests/mergeTasks.test.ts` and `tests/mergeFiles.test.ts`.
 
 | Item | Result |
 |---|---|
@@ -210,8 +220,9 @@ Shipped (2026-10-29): `src/sync/merge/{types,tasks,files,index}.ts`, covered by
 | Settings | Per key, with the last synced text kept in the device-local baseline as the base |
 | Categories | Per category id and field against the same base; a deletion wins only when the other side did not edit the category |
 | Clean merge | Local file rewritten, remote `PUT` with the same text, baseline advanced, counted as `merged` in `SyncResult` |
-| Unresolved | Neither side is written; the remote copy becomes a conflict copy exactly as before |
-| Not done | The keep-mine / keep-theirs / keep-both UI, deletion tombstones for tasks, field-level merging of task records |
+| Unresolved | Neither side is written; the remote text becomes a conflict copy, and `SyncConflict.items` lists each unordered item with its differing fields |
+| Resolution UI | Settings lists every conflict; each item gets keep mine / keep theirs / keep both (tasks only). Apply re-merges against the current local file and the copy, writes both sides and advances the baseline |
+| Not done | Deletion tombstones for tasks, field-level merging of task records |
 
 Boundary: without a per-task base, task ordering is record-level. Two devices
 editing different fields of the same task get the newer record, not a merge of

@@ -1,3 +1,12 @@
+/** A user's answer for one unresolved conflict item. */
+export type MergeDecision = "local" | "remote" | "both";
+
+/**
+ * Choices keyed by task id, category id or settings key. `both` is only valid
+ * for a task conflict; it adds a second task with a fresh id.
+ */
+export type MergeDecisions = Record<string, MergeDecision>;
+
 /** One entry whose two copies both changed and cannot be ordered by version. */
 export interface MergeConflict {
   /** Task id, category id, or settings key. */
@@ -6,6 +15,10 @@ export interface MergeConflict {
   label: string;
   /** Differing fields; `["value"]` for a scalar settings key. */
   fields: string[];
+  /** One-line summary of this side, for the chooser UI. */
+  local: string;
+  /** One-line summary of the other side. */
+  remote: string;
 }
 
 export interface MergeOutcome {

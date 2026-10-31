@@ -83,10 +83,11 @@ WebDAV sync is manual and deliberately conservative: it never deletes a file.
 When both sides changed the same file, it merges the two copies first — tasks by
 id and version, `_settings.md` and `_categories.md` key by key against the text
 both sides had after the last sync. Only a change it cannot order is saved as a
-`(conflict …)` file for you to merge. WebDAV 同步为手动、保守实现：不删除文件；
-两边都改过时先自动合并——任务按 id 与版本合并，设置和分类按上一次同步的共同
-文本逐键合并；无法判定先后的改动才生成冲突副本。尚未针对所有 WebDAV 服务端
-做验证。
+`(conflict …)` file, listed in Settings so you can choose keep mine, keep theirs
+or keep both. WebDAV 同步为手动、保守实现：不删除文件；两边都改过时先自动合并
+——任务按 id 与版本合并，设置和分类按上一次同步的共同文本逐键合并；无法判定
+先后的改动才生成冲突副本，并在设置页提供“保留我的 / 保留对方的 / 两者都保留”
+的选择。尚未针对所有 WebDAV 服务端做验证。
 
 The AI assistant is opt-in and off by default. It can talk to an
 Anthropic-compatible endpoint (including relays) or an OpenAI-compatible one;
@@ -101,10 +102,9 @@ yours. AI 助手默认关闭，接口协议、地址和模型都可配置（支�
 预览，确认后才写入 `_ai/`；也可用一句话填好任务表单或一次创建多个任务，仍由你
 确认保存。
 
-Not implemented yet / 尚未实现：background WebDAV sync, an in-app conflict
-resolution UI and CalDAV. They are planned in
-[`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV and automatic merge remain
-design-only in docs 06 and 07. 后台同步、冲突解决界面与 CalDAV 仍在路线图中。
+Not implemented yet / 尚未实现：background WebDAV sync and CalDAV. Both are
+planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV remains
+design-only in doc 07. 后台同步与 CalDAV 仍在路线图中，CalDAV 设计见 07 号文档。
 
 ## Data folder · 数据目录
 

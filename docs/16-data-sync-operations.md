@@ -41,7 +41,7 @@ Device A ──writes──▶ 2026-10/2026-10-22.md ◀──sync client──�
 - Daymark detects that the folder changed underneath it and asks you to reload.
 - Daymark does **not** coordinate writers. A desktop sync client decides which
   file lands last; only the built-in WebDAV sync merges day/backlog conflicts
-  task by task (doc 06 §4).
+  task by task and settings/categories key by key (doc 06 §4).
 
 Because each day is its own file, two devices editing different days do not
 collide. The operating rule is therefore narrower than before:
@@ -111,7 +111,7 @@ as they now exist.
 
 | Risk | What happens | Mitigation |
 |---|---|---|
-| Two devices edit the same day | With a desktop sync client: file-level last-writer-wins for that day; the other side's edits to that day can be lost. With built-in WebDAV sync: tasks are merged, and only an edit the merge cannot order produces a conflict copy | One editor per day when using a sync client (§4); different days do not collide. |
+| Two devices edit the same day | With a desktop sync client: file-level last-writer-wins for that day; the other side's edits to that day can be lost. With built-in WebDAV sync: tasks are merged, only an edit the merge cannot order produces a conflict copy, and Settings lists it with keep mine / keep theirs / keep both | One editor per day when using a sync client (§4); different days do not collide. |
 | Reload during a partial download | The app may read a half-downloaded file | Wait for sync completion; keep backups. |
 | Sync client uploads while Daymark writes | The client may capture a mid-write state | Writes are atomic (`*.tmp` + rename), so this is unlikely; still prefer quitting before hand-off. |
 | A day file is deleted on one device | The day disappears everywhere; other devices see the banner | Check the trash or backup before recreating it. |
@@ -119,12 +119,13 @@ as they now exist.
 | `.tmp` files are synced briefly | Sync client copies a transient file | Harmless; they are overwritten or removed by the rename. |
 | Clock or filesystem mtime quirks | A change is not detected, or is detected late | Use a 30 s scan interval when actively switching; reload manually when in doubt. |
 
-There is no automatic merge for files delivered by a desktop sync client, and no
-conflict-resolution UI. The built-in WebDAV sync has merged day/backlog files
-task by task and `_settings.md` / `_categories.md` key by key since 2026-10-29
-(doc 06 §4); settings and categories need the last synced text as a merge base,
-so the first sync after upgrading without one still produces a conflict copy.
-The UI and task-deletion tombstones remain planned.
+There is no automatic merge for files delivered by a desktop sync client. The
+built-in WebDAV sync has merged day/backlog files task by task and
+`_settings.md` / `_categories.md` key by key since 2026-10-29 (doc 06 §4);
+settings and categories need the last synced text as a merge base, so the first
+sync after upgrading without one still produces a conflict copy. Unresolved
+items are answered in `Settings → WebDAV sync`; task-deletion tombstones remain
+planned.
 
 **中文要点：** 最大风险是两台机器同时编辑同一天导致“后写者胜”。迁移后生成的
 `daymark.db.migrated-*` 不要留在同步目录里，否则会同步到所有设备。
@@ -234,12 +235,11 @@ The first version of the merge (doc 06 §4, 2026-10-29) lives in
 - a completion beats a reopen; tasks added on either side are combined;
 - `_settings.md` and `_categories.md` merge per key/field against the last
   synced text, so different settings or categories combine;
-- an edit the merge cannot order still produces a conflict copy.
+- an edit the merge cannot order still produces a conflict copy, and appears in
+  `Settings → WebDAV sync` with keep mine / keep theirs / keep both.
 
 Still planned:
 
-- resolving conflicts per field with explicit UI choices (keep mine / keep
-  theirs / keep both);
 - deletion tombstones for tasks, so a deletion is not re-added by a merge;
 - applying the merge to files a desktop sync client delivered, which are still
   last-writer-wins.
@@ -247,8 +247,8 @@ Still planned:
 Manual WebDAV sync (`Settings → WebDAV sync`) is a separate path for devices
 without a desktop sync client: it uploads/downloads the same files and merges
 day/backlog conflicts as above. The AI assistant's status is in
-`19-roadmap.md` §4. Until the conflict UI lands, resolve conflict copies by
-hand, and keep the one-editor-per-day rule for desktop sync clients.
+`19-roadmap.md` §4. After resolving a conflict, the copy stays on disk as a
+backup; only keep the one-editor-per-day rule for desktop sync clients.
 
 ## 13. Operations checklist
 

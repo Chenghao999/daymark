@@ -87,9 +87,13 @@ Per field, not per line:
 
 ### UI
 
-Three actions per conflicted field: **keep mine**, **keep theirs**, **keep
-both** (creates a second task). The UI never auto-resolves a genuine conflict.
-After resolution the day file is written once, with a fresh `rowVersion`.
+Three actions per conflict item: **keep mine**, **keep theirs**, **keep both**
+(creates a second task; offered for tasks only, since a setting key or a
+category has one value). The choice is per item — one task, settings key, or
+category — because the task merge is record-level. Each item shows a one-line
+summary of both sides and the differing fields. The UI never auto-resolves a
+genuine conflict. After resolution the file is written once, uploaded, and the
+baseline advances.
 
 ### Guards
 
@@ -110,9 +114,10 @@ After resolution the day file is written once, with a fresh `rowVersion`.
 | Combination | Tasks added on either side are unioned; unmanaged lines (extras) from both copies are kept |
 | Settings | `mergeSettingsFile`: per key, using the last synced `_settings.md` text as the base |
 | Categories | `mergeCategoriesFile`: per category id and field against the same kind of base; a deletion wins only when the other side did not edit the category |
-| Unresolved | A tie no rule can order returns a conflict and the engine writes neither side: the local file keeps its name, the remote text becomes a conflict copy |
+| Unresolved | A tie no rule can order returns a `SyncConflict`: the local file keeps its name, the remote text becomes a conflict copy, and every unordered item is listed with its differing fields |
 | Applied by | `syncWebDav` when both sides changed a file: it rewrites the local file, uploads the merged text and advances the baseline; `SyncResult.merged` counts it |
-| Still manual | The keep-mine / keep-theirs / keep-both UI; task deletion tombstones |
+| Resolution UI | `Settings → WebDAV` lists each conflict with **keep mine / keep theirs / keep both**. Applying calls `resolveConflict` (`webdav/resolve.ts`), which recomputes the merge with those answers against the current local file and the conflict copy, then writes both sides. A merged settings or categories file records its new base |
+| Still manual | Task deletion tombstones |
 
 Known limitations: task ordering is record-level, not field-level, so when both
 devices edit different fields of the same task the newer record wins and the
@@ -126,9 +131,10 @@ any differing value as a conflict, then records the base for next time.
 Manual WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
 a per-device baseline and merges day/backlog files task by task and
 `_settings.md` / `_categories.md` key by key before falling back to conflict
-copies. The conflict-resolution UI in §4 is not built. Background sync and the
-AI assistant are still roadmap items; see `19-roadmap.md` §3.8 and §4. CalDAV
-remains design-only (doc 07).
+copies. Unresolved items are answered in Settings (§4); the conflict copy stays
+on disk as a backup after resolution. Background sync and the AI assistant are
+still roadmap items; see `19-roadmap.md` §3.8 and §4. CalDAV remains
+design-only (doc 07).
 
 ## 6. Non-goals
 

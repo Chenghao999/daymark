@@ -138,7 +138,13 @@ describe("task-level merge", () => {
     expect(outcome.clean).toBe(false);
     expect(outcome.text).toBe(local);
     expect(outcome.conflicts).toEqual([
-      { id: "task-1", label: "Local title", fields: ["title"] },
+      {
+        id: "task-1",
+        label: "Local title",
+        fields: ["title"],
+        local: "Local title",
+        remote: "Remote title",
+      },
     ]);
   });
 
@@ -184,6 +190,62 @@ describe("task-level merge", () => {
 
     expect(outcome.clean).toBe(true);
     expect(taskIds(outcome.text)).toEqual(["a", "b"]);
+  });
+});
+
+describe("explicit decisions", () => {
+  const sameVersion = { rowVersion: 2, updatedAt: `${DAY}T10:00:00.000Z` };
+  const localText = () => dayText([entry(task({ title: "Local title", ...sameVersion }))]);
+  const remoteText = () => dayText([entry(task({ title: "Remote title", ...sameVersion }))]);
+
+  it("takes the remote copy when the user keeps theirs", () => {
+    const outcome = mergeTaskFile(localText(), remoteText(), {
+      ...options,
+      decisions: { "task-1": "remote" },
+    });
+
+    expect(outcome.clean).toBe(true);
+    expect(outcome.text).toContain("Remote title");
+    expect(outcome.text).not.toContain("Local title");
+  });
+
+  it("keeps the local copy when the user keeps mine", () => {
+    const outcome = mergeTaskFile(localText(), remoteText(), {
+      ...options,
+      decisions: { "task-1": "local" },
+    });
+
+    expect(outcome.clean).toBe(true);
+    expect(outcome.text).toContain("Local title");
+    expect(outcome.text).not.toContain("Remote title");
+  });
+
+  it("keeps both copies under different ids", () => {
+    const outcome = mergeTaskFile(localText(), remoteText(), {
+      ...options,
+      decisions: { "task-1": "both" },
+    });
+
+    expect(outcome.clean).toBe(true);
+    expect(outcome.text).toContain("Local title");
+    expect(outcome.text).toContain("Remote title");
+    const ids = taskIds(outcome.text);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).toContain("task-1");
+  });
+
+  it("does not override a newer version", () => {
+    const local = dayText([entry(task({ title: "Local edit", rowVersion: 5 }))]);
+    const remote = dayText([entry(task({ title: "Remote edit", rowVersion: 4 }))]);
+
+    const outcome = mergeTaskFile(local, remote, {
+      ...options,
+      decisions: { "task-1": "remote" },
+    });
+
+    expect(outcome.clean).toBe(true);
+    expect(outcome.text).toContain("Local edit");
   });
 });
 

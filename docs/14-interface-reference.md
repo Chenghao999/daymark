@@ -484,26 +484,37 @@ sha256(text: string): Promise<string>
 localManifest(root: string, io?: ManifestIo): Promise<{ hashes: Map<string,string>; texts: Map<string,string> }>
 planSync(local: Map<string,string>, remote: Map<string,string>, baseline: Baseline): SyncPlan
 syncWebDav(config: WebDavConfig, root: string, options?: SyncOptions): Promise<SyncResult>
+resolveConflict(config: WebDavConfig, root: string, conflict: SyncConflict, decisions: MergeDecisions, options?: ResolveOptions): Promise<ResolveResult>
 
 interface SyncResult {
   uploaded: number;
   downloaded: number;
   merged: number;                     // both sides changed, merge was clean
   unchanged: number;
-  conflictCopies: string[];
-  conflicts: string[];                // paths still needing a manual merge
+  conflicts: SyncConflict[];          // paths still needing a decision
   errors: string[];
 }
+
+interface SyncConflict {
+  path: string;                       // canonical path; its local copy is kept
+  copy: string | null;                // relative path holding the remote text
+  kind: "tasks" | "settings" | "categories";
+  items: MergeConflict[];             // unordered items with their differing fields
+}
+
+interface ResolveOptions { now?: Date; device?: string }
+interface ResolveResult { resolved: boolean; remaining: MergeConflict[]; written: boolean; error?: string }
 
 // src/sync/merge/
 mergeableDateKey(path: string): string | null | undefined
 mergeTaskFile(localText: string, remoteText: string, options: MergeOptions): MergeOutcome
-mergeSettingsFile(localText: string, remoteText: string, baseText: string | null): MergeOutcome
-mergeCategoriesFile(localText: string, remoteText: string, baseText: string | null): MergeOutcome
+mergeSettingsFile(localText: string, remoteText: string, baseText: string | null, decisions?: MergeDecisions): MergeOutcome
+mergeCategoriesFile(localText: string, remoteText: string, baseText: string | null, decisions?: MergeDecisions): MergeOutcome
 
-interface MergeOptions { dateKey: string | null; categories: Category[]; deviceId: string; updatedAt: string }
+interface MergeOptions { dateKey: string | null; categories: Category[]; deviceId: string; updatedAt: string; decisions?: MergeDecisions }
+interface MergeDecisions { [id: string]: "local" | "remote" | "both" }
 interface MergeOutcome { clean: boolean; text: string; conflicts: MergeConflict[]; itemCount: number }
-interface MergeConflict { id: string; label: string; fields: string[] }
+interface MergeConflict { id: string; label: string; fields: string[]; local: string; remote: string }
 
 loadWebDavSettings(): WebDavConfig
 saveWebDavSettings(config: WebDavConfig): void
@@ -528,12 +539,23 @@ Contract:
    reports a conflict, the local file keeps its path and the remote text is
    written as `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md`; the baseline
    entry is not advanced, so the next run reports the same conflict until it is
-   merged. Every merge function is pure and returns `clean: false` with the
-   local text untouched, so a caller can never write a partial merge.
-5. `putText` writes `<path>.daymark-tmp` then `MOVE`s it over the target, and
+   resolved. The `SyncConflict` returned for the path names the copy and lists
+   each item that no rule could order, each with a one-line summary of both
+   sides. Every merge function is pure and returns
+   `clean: false` with the local text untouched, so a caller can never write a
+   partial merge.
+5. `resolveConflict` re-reads the current local file and the conflict copy and
+   re-runs the matching merge with the user's `decisions` (the choice is per
+   item; `"both"` is honoured for tasks only). Only a clean result writes: the
+   local file is replaced, the same text is uploaded, and the baseline advances,
+   keeping `baseText` for settings and categories. The conflict copy is never
+   deleted. `written` says whether the local file changed even when the upload
+   failed, which is the caller's cue to reload the store.
+6. `putText` writes `<path>.daymark-tmp` then `MOVE`s it over the target, and
    falls back to a direct `PUT` when the server answers 405/501.
-6. `syncWebDav` does not touch React state; the caller reloads the store and
-   calls `scanner.touch()` (or `reloadFromDisk()` when files were downloaded).
+7. `syncWebDav` does not touch React state; the caller reloads the store and
+   calls `scanner.touch()` (or `reloadFromDisk()` when files were downloaded or
+   a conflict was resolved).
 
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 

@@ -44,7 +44,7 @@ describe("settings merge", () => {
     expect(outcome.clean).toBe(false);
     expect(outcome.text).toBe(local);
     expect(outcome.conflicts).toEqual([
-      { id: "numbering", label: "numbering", fields: ["value"] },
+      { id: "numbering", label: "numbering", fields: ["value"], local: "arabic", remote: "alpha" },
     ]);
   });
 
@@ -61,6 +61,29 @@ describe("settings merge", () => {
     const local = settingsText({ language: "zh-CN" });
 
     const outcome = mergeSettingsFile(local, BASE_SETTINGS, null);
+
+    expect(outcome.clean).toBe(false);
+    expect(outcome.conflicts).toHaveLength(1);
+  });
+
+  it("settles a conflicting key with the user's answer", () => {
+    const local = settingsText({ numbering: "arabic" });
+    const remote = settingsText({ numbering: "alpha" });
+
+    const mine = mergeSettingsFile(local, remote, BASE_SETTINGS, { numbering: "local" });
+    const theirs = mergeSettingsFile(local, remote, BASE_SETTINGS, { numbering: "remote" });
+
+    expect(mine.clean).toBe(true);
+    expect(parseSettingsMarkdown(mine.text).numbering).toBe("arabic");
+    expect(theirs.clean).toBe(true);
+    expect(parseSettingsMarkdown(theirs.text).numbering).toBe("alpha");
+  });
+
+  it("has no \"keep both\" for a single-valued key", () => {
+    const local = settingsText({ numbering: "arabic" });
+    const remote = settingsText({ numbering: "alpha" });
+
+    const outcome = mergeSettingsFile(local, remote, BASE_SETTINGS, { numbering: "both" });
 
     expect(outcome.clean).toBe(false);
     expect(outcome.conflicts).toHaveLength(1);
@@ -88,7 +111,13 @@ describe("categories merge", () => {
 
     expect(outcome.clean).toBe(false);
     expect(outcome.conflicts).toEqual([
-      { id: "a", label: "Work / 工作", fields: ["value"] },
+      {
+        id: "a",
+        label: "Work / 工作",
+        fields: ["color"],
+        local: "Work / 工作 · #aaaaaa",
+        remote: "Work / 工作 · #bbbbbb",
+      },
     ]);
     expect(outcome.text).toBe(local);
   });
@@ -120,5 +149,29 @@ describe("categories merge", () => {
     expect(outcome.clean).toBe(true);
     expect(outcome.text).toContain("Life / 生活");
     expect(outcome.text).toContain("#eeeeee");
+  });
+
+  it("reports one item for a category with several conflicting fields", () => {
+    const local = categoriesText([category("a", "Office", "工作", "#aaaaaa", 0)]);
+    const remote = categoriesText([category("a", "Job", "工作", "#bbbbbb", 0)]);
+
+    const outcome = mergeCategoriesFile(local, remote, categoriesText(BASE_CATEGORIES));
+
+    expect(outcome.conflicts).toHaveLength(1);
+    expect(outcome.conflicts[0]!.fields).toEqual(["nameEn", "color"]);
+  });
+
+  it("settles a conflicting field with the user's answer", () => {
+    const local = categoriesText([category("a", "Work", "工作", "#aaaaaa", 0)]);
+    const remote = categoriesText([category("a", "Work", "工作", "#bbbbbb", 0)]);
+    const base = categoriesText(BASE_CATEGORIES);
+
+    const mine = mergeCategoriesFile(local, remote, base, { a: "local" });
+    const theirs = mergeCategoriesFile(local, remote, base, { a: "remote" });
+
+    expect(mine.clean).toBe(true);
+    expect(mine.text).toContain("#aaaaaa");
+    expect(theirs.clean).toBe(true);
+    expect(theirs.text).toContain("#bbbbbb");
   });
 });

@@ -106,15 +106,16 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | File | Responsibility |
 |---|---|
 | `scanner.ts` | `startFolderScanner` polls `tree_signature(root)`; calls `onExternalChange` when the folder changed without Daymark writing it; `touch()` re-baselines after a local write. Detection only — no merge. |
-| `webdav/types.ts` | `WebDavConfig`, `RemoteEntry`, `Baseline`, `SyncPlan`, `SyncProgress`, `SyncResult`. Types only. |
-| `webdav/client.ts` | Pure URL/href/PROPFIND helpers plus `WebDavClient` (`test`, `list`, `listTree`, `getText`, `mkcol`, `putText`). The only module that knows WebDAV verbs; transport is the Rust `webdav_request` command. |
+| `webdav/types.ts` | `WebDavConfig`, `RemoteEntry`, `Baseline`, `SyncPlan`, `SyncProgress`, `SyncConflict`, `SyncResult`. Types only. |
+| `webdav/client.ts` | Pure URL/href/PROPFIND helpers plus `WebDavClient` (`test`, `list`, `listTree`, `getText`, `mkcol`, `putText`) and `ensureRemoteDirectory`. The only module that knows WebDAV verbs; transport is the Rust `webdav_request` command. |
 | `webdav/manifest.ts` | `sha256`, `localManifest(root, io?)` over `_settings.md`, `_categories.md`, `_backlog.md` and valid day files. `ManifestIo` lets tests inject a fake file system. |
 | `webdav/plan.ts` | Pure `planSync(local, remote, baseline)` → uploads, downloads, conflicts, unchanged. No deletions and no silent overwrite. |
 | `webdav/baseline.ts` | Device-local SHA-256 baseline (`daymark.webdav.baseline.v1`), keyed by URL + remote path. |
-| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic task-level merge for day/backlog conflicts, conflict copies for the rest, progress callback, per-file errors. |
-| `merge/types.ts` | `MergeConflict`, `MergeOutcome`. Types only. |
-| `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. |
-| `merge/files.ts` | Pure `mergeSettingsFile` and `mergeCategoriesFile`: three-way merge against the last synced text; per settings key, per category id and field; a category deletion wins only when the other side did not edit it. |
+| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic merge for day/backlog/settings/categories conflicts; anything still unordered becomes a `SyncConflict` with its copy path and items; progress callback, per-file errors. |
+| `webdav/resolve.ts` | `resolveConflict(config, root, conflict, decisions)`: re-read the local file and conflict copy, re-run the matching merge with the user's answers, write both sides and advance the baseline only when the result is clean. |
+| `merge/types.ts` | `MergeConflict`, `MergeOutcome`, `MergeDecision(s)`. Types only. |
+| `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. Optional `decisions` settle a tie, including "keep both" as a new task. |
+| `merge/files.ts` | Pure `mergeSettingsFile` and `mergeCategoriesFile`: three-way merge against the last synced text; per settings key, per category id and field; a category deletion wins only when the other side did not edit it. Optional `decisions` settle a key or category id ("both" is not valid here). |
 | `merge/index.ts` | Public entry: `mergeableDateKey(path)` (day file → date, `_backlog.md` → null, anything else → undefined) plus the merge exports. |
 
 ### AI assistant (`src/ai/`)
