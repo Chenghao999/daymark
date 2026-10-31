@@ -12,6 +12,7 @@ import { deviceId } from "./device";
 import { removeFile, writeTextFile } from "./fs";
 import { serializeCategoriesMarkdown, serializeMarkdown } from "./markdown";
 import { backlogPath, categoriesPath, dateKeyOf, dayFilePath, extrasKey } from "./paths";
+import { parseTombstone, tombstoneLine } from "./tombstone";
 import type { StoredTask } from "./types";
 
 /**
@@ -81,6 +82,21 @@ export async function softDeleteTask(id: string): Promise<void> {
   const existing = state.tasks.get(id);
   if (!existing) return;
   state.tasks.delete(id);
+  // Leave a marker so a merge on another device does not re-add the task
+  // (tombstone.ts). A hand-written line has no stable id to name, so its
+  // removal is the whole record.
+  if (!existing.handWritten) {
+    const key = extrasKey(existing.dateKey);
+    const marker = tombstoneLine({
+      id,
+      deletedAt: new Date().toISOString(),
+      deviceId: deviceId(),
+    });
+    const extras = (state.extrasByDate.get(key) ?? []).filter(
+      (line) => parseTombstone(line)?.id !== id,
+    );
+    state.extrasByDate.set(key, [...extras, marker]);
+  }
   await persistDate(existing.dateKey);
 }
 

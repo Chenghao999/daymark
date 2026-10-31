@@ -345,7 +345,7 @@ archiveCategory(id: string): Promise<void>
 | `listCategories` | none | Archived hidden unless `includeArchived`; sorted by `sortOrder`. |
 | `createTask` | writes the file for `dateKeyOf(task)` | Generates UUID and timestamps; status derived from dates; `rowVersion = 1`. |
 | `updateTask` | writes the new file and, if the date changed, the old one | Increments `rowVersion`; preserves the existing completion. |
-| `softDeleteTask` | rewrites the task's file | **Hard delete**: the task and its completion are removed. The name is kept for call-site compatibility. |
+| `softDeleteTask` | rewrites the task's file | **Hard delete** of the task and its completion, plus one `<!-- daymark deleted … -->` marker in that file's extras so a merge does not re-add it. Hand-written lines get no marker. The name is kept for call-site compatibility. |
 | `completeTask` | rewrites the task's file | Sets `status = done`; writes `completedAt` + `completionId` into the metadata. |
 | `reopenTask` | rewrites the task's file | Clears `completedAt` and `completionId`; status returns to scheduled/backlog. |
 | `listCompletions` | none | Filters the in-memory completions by ISO range, inclusive. |
@@ -357,8 +357,30 @@ REPL, the editor and the repository share one shape. Task transitions
 (`completeTask`, `reopenTask`, status normalisation) are delegated to
 `domain/tasks.ts`; the repository only persists their result.
 
-File lifecycle: a day file with no tasks and no extras is deleted on save;
-`_backlog.md` is always written and never deleted.
+File lifecycle: a day file with no tasks and no extras is deleted on save; a
+file holding a deletion marker counts as non-empty and stays. `_backlog.md` is
+always written and never deleted.
+
+### Deletion markers (`src/storage/tombstone.ts`)
+
+```ts
+interface Tombstone { id: string; deletedAt: string; deviceId: string }
+
+tombstoneLine(tombstone: Tombstone): string
+parseTombstone(line: string): Tombstone | null
+tombstonesFromExtras(extras: string[]): Tombstone[]
+tombstoneMap(tombstones: Tombstone[]): Map<string, Tombstone>
+isTombstoned(updatedAt: string, tombstones: Map<string, Tombstone>, id: string): boolean
+withoutTombstoned(tasks: StoredTask[], tombstones: Map<string, Tombstone>): StoredTask[]
+```
+
+- The marker is a comment line that `parseMarkdown` puts in `extras`, so it is
+  preserved and serialized with the rest of the file.
+- `tombstoneMap` keeps the later `deletedAt` per id.
+- `isTombstoned` returns `true` when `updatedAt <= deletedAt`; an edit made
+  after the deletion therefore survives a merge.
+- `openStore` builds one map from every file before indexing tasks, so a marker
+  in one file also hides a task line left in another.
 
 ## 9. Settings (`src/settings/store.ts`, `src/storage/settingsFile.ts`)
 
@@ -543,7 +565,10 @@ Contract:
    each item that no rule could order, each with a one-line summary of both
    sides. Every merge function is pure and returns
    `clean: false` with the local text untouched, so a caller can never write a
-   partial merge.
+   partial merge. `mergeTaskFile` also applies the deletion markers found in
+   either copy's extras: a task survives only when its `updatedAt` is later than
+   the marker's `deletedAt`, one marker per id is kept, and a marker overruled
+   by a newer edit is dropped.
 5. `resolveConflict` re-reads the current local file and the conflict copy and
    re-runs the matching merge with the user's `decisions` (the choice is per
    item; `"both"` is honoured for tasks only). Only a clean result writes: the

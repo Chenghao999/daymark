@@ -124,8 +124,10 @@ built-in WebDAV sync has merged day/backlog files task by task and
 `_settings.md` / `_categories.md` key by key since 2026-10-29 (doc 06 §4);
 settings and categories need the last synced text as a merge base, so the first
 sync after upgrading without one still produces a conflict copy. Unresolved
-items are answered in `Settings → WebDAV sync`; task-deletion tombstones remain
-planned.
+items are answered in `Settings → WebDAV sync`. A task deletion is written as a
+`<!-- daymark deleted … -->` marker in the task's file, so the merge on another
+device removes the task instead of re-adding it; an edit made after the deletion
+wins.
 
 **中文要点：** 最大风险是两台机器同时编辑同一天导致“后写者胜”。迁移后生成的
 `daymark.db.migrated-*` 不要留在同步目录里，否则会同步到所有设备。
@@ -236,11 +238,12 @@ The first version of the merge (doc 06 §4, 2026-10-29) lives in
 - `_settings.md` and `_categories.md` merge per key/field against the last
   synced text, so different settings or categories combine;
 - an edit the merge cannot order still produces a conflict copy, and appears in
-  `Settings → WebDAV sync` with keep mine / keep theirs / keep both.
+  `Settings → WebDAV sync` with keep mine / keep theirs / keep both;
+- a task delete writes a marker into the file's extras, so the merge on the
+  other device deletes it unless that side edited the task afterwards.
 
 Still planned:
 
-- deletion tombstones for tasks, so a deletion is not re-added by a merge;
 - applying the merge to files a desktop sync client delivered, which are still
   last-writer-wins.
 

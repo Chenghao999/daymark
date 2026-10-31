@@ -81,9 +81,27 @@ Per field, not per line:
 | Only one side changed the field | Take that value |
 | Both changed, equal | No conflict |
 | Both changed, different | Keep both in a conflict record and ask the UI |
-| Task present on one side only | Keep it (added), unless deleted after the other side's last read |
-| Delete vs edit | Keep the edit; surface "deleted elsewhere" |
+| Task present on one side only | Keep it (added), unless the other side's deletion marker is at least as new as the task's `updatedAt` |
+| Delete vs edit | An edit newer than the deletion wins; otherwise the task stays deleted. A deletion is a `<!-- daymark deleted … -->` marker in the file's extras |
 | Complete vs reopen | Completion wins until the user resolves |
+
+### Deletion markers
+
+A deletion has to be recorded somewhere, or a merge cannot tell "deleted on the
+other device" from "added here and not seen there". A task delete therefore
+appends one comment to the same file's extras:
+
+```
+<!-- daymark deleted {"id":"…","deletedAt":"…","deviceId":"…"} -->
+```
+
+The marker rides with the file through upload, download and merge, and costs
+nothing when the folder is not synced. `mergeTaskFile` compares the surviving
+task's `updatedAt` with `deletedAt`: a newer edit wins and the marker is dropped,
+otherwise the task stays deleted and the marker is kept. Two markers for one id
+collapse to the later deletion. On load, markers from every file apply to every
+task, which covers a task that was deleted on one device while another device
+moved it to a different day.
 
 ### UI
 
@@ -117,14 +135,15 @@ baseline advances.
 | Unresolved | A tie no rule can order returns a `SyncConflict`: the local file keeps its name, the remote text becomes a conflict copy, and every unordered item is listed with its differing fields |
 | Applied by | `syncWebDav` when both sides changed a file: it rewrites the local file, uploads the merged text and advances the baseline; `SyncResult.merged` counts it |
 | Resolution UI | `Settings → WebDAV` lists each conflict with **keep mine / keep theirs / keep both**. Applying calls `resolveConflict` (`webdav/resolve.ts`), which recomputes the merge with those answers against the current local file and the conflict copy, then writes both sides. A merged settings or categories file records its new base |
-| Still manual | Task deletion tombstones |
+| Deletions | `softDeleteTask` appends a marker to the file's extras. The merge keeps the task deleted unless the other side's `updatedAt` is later than `deletedAt`, keeps one marker per id, and drops markers that lost to an edit. Loading a folder also hides a tombstoned task found in another file, so a task moved on one device cannot be resurrected by a deletion on the other |
 
 Known limitations: task ordering is record-level, not field-level, so when both
 devices edit different fields of the same task the newer record wins and the
-older field edit is dropped. Deletions of tasks are not represented in the file
-format, so a task removed on one side is re-added by the merge. Settings and
-categories need a stored base: the first sync after upgrading without one treats
-any differing value as a conflict, then records the base for next time.
+older field edit is dropped. Deletion markers accumulate in the Markdown and
+there is no UI to purge them; they are one comment line per deleted task and do
+not affect the rendered file. Settings and categories need a stored base: the
+first sync after upgrading without one treats any differing value as a conflict,
+then records the base for next time.
 
 ## 5. Roadmap
 

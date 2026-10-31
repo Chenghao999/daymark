@@ -224,10 +224,15 @@ How a sync decides:
   a task) **Keep both**, then press **Apply**; the choice is written to both
   sides and the conflict leaves the list. The copy stays on disk as a backup,
   and you can delete it whenever you like.
+- Deleting a task leaves a one-line `<!-- daymark deleted … -->` comment in its
+  file, so the other device removes the task instead of re-adding it. If the
+  other side edited the task after the deletion, the edit wins and the task
+  comes back.
 - A file that exists on both sides with different content on the very first
   sync is also a conflict; Daymark never guesses which side is newer.
-- **Nothing is ever deleted** by a sync. Deleting a file on one side does not
-  delete it on the other.
+- **Nothing is ever deleted** by a sync. Deleting a whole file on one side does
+  not delete it on the other; only an individual task deletion travels, as that
+  marker.
 
 The password is stored in this device's local app data only. It is never
 written to `_settings.md` or the data folder, so it does not travel to other
@@ -241,8 +246,10 @@ one.
 不会冲突。能干净合并时两份文件都会被合并结果替换。无法判定先后的改动（同版本
 同时间的不同改动、同一键被两边改成不同值）仍另存为 `(conflict …)` 副本，并在
 设置页列出两边内容：选择“保留我的 / 保留对方的 / 两者都保留（仅任务）”后点
-“应用”，两边同时写入，冲突从列表消失；副本保留在磁盘上作为备份。同步不会删除
-任何文件。密码只存在本机，不会写进 `_settings.md`。
+“应用”，两边同时写入，冲突从列表消失；副本保留在磁盘上作为备份。删除任务会在
+文件里留一行 `<!-- daymark deleted … -->` 注释，让另一台设备也删掉它；若对方在
+删除之后改过该任务，则以修改为准、任务保留。同步本身不会删除任何文件。密码只
+存在本机，不会写进 `_settings.md`。
 
 ### AI assistant
 
@@ -370,19 +377,20 @@ choose the copied folder on first launch.
 
 | Limitation | Consequence |
 |---|---|
-| Automatic merge is task-level only | A clean merge re-serialises the whole file. Edits to the same task with equal versions, or to the same settings key / category field changed differently on both sides, stay unresolved until you choose keep mine / keep theirs / keep both in Settings. Task deletions are not merged. |
+| Automatic merge is task-level only | A clean merge re-serialises the whole file. Edits to the same task with equal versions, or to the same settings key / category field changed differently on both sides, stay unresolved until you choose keep mine / keep theirs / keep both in Settings. A task deleted on one side stays deleted unless the other side edited it afterwards. |
 | Reopening clears completion metadata | The task's earlier completion date is lost. |
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
 | CalDAV is not implemented | `source` and `externalUid` are reserved fields only. |
-| WebDAV sync is manual and first-version | No background sync and no deletions; unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
+| WebDAV sync is manual and first-version | No background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
 | AI assistant is first-version and online | Requires an Anthropic API key and a network connection; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
-**中文要点：** 0.1.0 的 WebDAV 只支持手动同步、不删除文件；无法自动排序的冲突在
-设置页选择“保留我的 / 保留对方的 / 两者都保留”。没有 CalDAV、AI 助手、提醒和
-搜索；重新打开任务会清除其完成时间；归档分类需要在文件里手工恢复。
+**中文要点：** 0.1.0 的 WebDAV 只支持手动同步，同步不删除文件（任务删除以标记
+注释的形式同步）；无法自动排序的冲突在设置页选择“保留我的 / 保留对方的 / 两者
+都保留”。没有 CalDAV、AI 助手、提醒和搜索；重新打开任务会清除其完成时间；归档
+分类需要在文件里手工恢复。
 
 ## 12. Quick reference
 

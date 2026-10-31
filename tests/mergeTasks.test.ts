@@ -3,6 +3,7 @@ import type { Category, Completion, Task } from "../src/domain/types";
 import { mergeTaskFile } from "../src/sync/merge";
 import { mergeableDateKey } from "../src/sync/merge";
 import { parseMarkdown, serializeMarkdown } from "../src/storage/markdown";
+import { isTombstoneLine, tombstoneLine } from "../src/storage/tombstone";
 import type { StoredTask } from "../src/storage/types";
 
 const DAY = "2026-10-22";
@@ -246,6 +247,80 @@ describe("explicit decisions", () => {
 
     expect(outcome.clean).toBe(true);
     expect(outcome.text).toContain("Local edit");
+  });
+});
+
+describe("deletion tombstones", () => {
+  const marker = (deletedAt: string, deviceId = "device-a") =>
+    tombstoneLine({ id: "task-1", deletedAt, deviceId });
+
+  function markersIn(text: string): string[] {
+    return parseMarkdown(text, DAY, categories).extras.filter((line) => isTombstoneLine(line));
+  }
+
+  it("keeps a task deleted on the other side deleted", () => {
+    const local = dayText([], [marker(`${DAY}T12:00:00.000Z`)]);
+    const remote = dayText([entry(task({ updatedAt: `${DAY}T08:00:00.000Z` }))]);
+
+    const outcome = mergeTaskFile(local, remote, options);
+
+    expect(outcome.clean).toBe(true);
+    expect(taskIds(outcome.text)).toEqual([]);
+    expect(markersIn(outcome.text)).toHaveLength(1);
+    expect(outcome.itemCount).toBe(0);
+  });
+
+  it("lets an edit made after the deletion win and clears the marker", () => {
+    const local = dayText([], [marker(`${DAY}T12:00:00.000Z`)]);
+    const remote = dayText([
+      entry(
+        task({ title: "Edited after", rowVersion: 2, updatedAt: `${DAY}T13:00:00.000Z` }),
+      ),
+    ]);
+
+    const outcome = mergeTaskFile(local, remote, options);
+
+    expect(outcome.clean).toBe(true);
+    expect(outcome.text).toContain("Edited after");
+    expect(markersIn(outcome.text)).toEqual([]);
+  });
+
+  it("keeps one marker when both sides deleted the same task", () => {
+    const local = dayText([], [marker(`${DAY}T12:00:00.000Z`)]);
+    const remote = dayText([], [marker(`${DAY}T11:00:00.000Z`, "device-b")]);
+
+    const outcome = mergeTaskFile(local, remote, options);
+
+    expect(outcome.clean).toBe(true);
+    expect(markersIn(outcome.text)).toEqual([marker(`${DAY}T12:00:00.000Z`)]);
+  });
+
+  it("removes the task line from the side that still had it", () => {
+    const local = dayText(
+      [entry(task({ id: "a", title: "Kept task" }))],
+      [marker(`${DAY}T12:00:00.000Z`)],
+    );
+    const remote = dayText([
+      entry(task({ id: "a", title: "Kept task" })),
+      entry(task({ updatedAt: `${DAY}T08:00:00.000Z` })),
+    ]);
+
+    const outcome = mergeTaskFile(local, remote, options);
+
+    expect(outcome.clean).toBe(true);
+    expect(taskIds(outcome.text)).toEqual(["a"]);
+    expect(outcome.text).not.toContain("Write report");
+    expect(markersIn(outcome.text)).toHaveLength(1);
+  });
+
+  it("leaves unrelated extras untouched", () => {
+    const local = dayText([], [marker(`${DAY}T12:00:00.000Z`), "A hand-written note"]);
+    const remote = dayText([entry(task())], ["Another note"]);
+
+    const outcome = mergeTaskFile(local, remote, options);
+
+    expect(outcome.text).toContain("A hand-written note");
+    expect(outcome.text).toContain("Another note");
   });
 });
 

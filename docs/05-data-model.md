@@ -162,8 +162,20 @@ exists, even when empty.
   Moving a task between days rewrites both files.
 - **Extras:** unrecognised non-empty lines are preserved per file and re-emitted
   at the end of that file on save. Blank lines are dropped.
-- **Removal:** a day file with no tasks and no extras is deleted on save.
-  `_backlog.md` is never deleted.
+- **Deletion markers:** deleting a task appends one extra line to its file:
+
+  ```markdown
+  <!-- daymark deleted {"id":"…","deletedAt":"2026-10-22T12:00:00.000Z","deviceId":"…"} -->
+  ```
+
+  The marker is what lets another device tell "deleted here" from "not yet
+  seen". On load, a task whose `updatedAt` is not later than a marker's
+  `deletedAt` is hidden, even if its line survives in another file (tasks moved
+  between days). Hand-written lines without metadata get no marker: their id is
+  generated at parse time and cannot be referred to later.
+- **Removal:** a day file with no tasks and no extras is deleted on save. A file
+  that keeps a deletion marker therefore stays on disk, possibly with no tasks
+  left in it. `_backlog.md` is never deleted.
 - **Duplicates:** if the same task id appears in two files, the copy with the
   later `updatedAt` wins; the other is left in place until that file is written.
 - **Ordering:** tasks are grouped by category (`sortOrder`, uncategorized last)

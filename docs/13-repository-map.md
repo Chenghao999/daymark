@@ -94,8 +94,9 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `paths.ts` | File names (`_settings.md`, `_categories.md`, `_backlog.md`, `daymark.db`) and `dateKeyOf`, `monthKey`, `monthDir`, `dayFilePath`, `backlogPath`, `categoriesPath`, `settingsPath`, `legacyDbPath`, `extrasKey`, `isMonthFolder`, `isDayFile`, `dateKeyOfFile`. |
 | `fs.ts` | Typed `invoke` wrappers for the Rust file commands plus `DirEntry` and `TreeSignature`. |
 | `markdown.ts` | `parseCategoriesMarkdown`, `serializeCategoriesMarkdown`, `parseMarkdown`, `serializeMarkdown`. The only place that knows the file grammar. |
-| `client.ts` | `openStore(root)`, `closeStore()`, `getStoreState()`, `getStoreRoot()`. Loads every file into memory and seeds defaults on an empty folder. |
-| `repository.ts` | All store mutations used by the UI: task CRUD, completion, category management. Writes the affected day file atomically. |
+| `tombstone.ts` | Deletion markers: `Tombstone`, `tombstoneLine`, `parseTombstone`, `tombstonesFromExtras`, `tombstoneMap`, `isTombstoned`, `withoutTombstoned`. Markers live in the file's extras, so they travel with the Markdown. |
+| `client.ts` | `openStore(root)`, `closeStore()`, `getStoreState()`, `getStoreRoot()`. Loads every file into memory, applies every file's deletion markers to every task, and seeds defaults on an empty folder. |
+| `repository.ts` | All store mutations used by the UI: task CRUD, completion, category management. Writes the affected day file atomically; a task delete also writes a marker into that file's extras. |
 | `migrate.ts` | `migrateLegacyDatabase(root)` — one-time SQLite → Markdown conversion. |
 | `settingsFile.ts` | `_settings.md` serializer/parser and `loadSyncedSettings` / `saveSyncedSettings`. |
 | `device.ts` | `deviceId()` from `localStorage["daymark.deviceId"]`. |
@@ -114,7 +115,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic merge for day/backlog/settings/categories conflicts; anything still unordered becomes a `SyncConflict` with its copy path and items; progress callback, per-file errors. |
 | `webdav/resolve.ts` | `resolveConflict(config, root, conflict, decisions)`: re-read the local file and conflict copy, re-run the matching merge with the user's answers, write both sides and advance the baseline only when the result is clean. |
 | `merge/types.ts` | `MergeConflict`, `MergeOutcome`, `MergeDecision(s)`. Types only. |
-| `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. Optional `decisions` settle a tie, including "keep both" as a new task. |
+| `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. Deletion markers in the extras drop a task unless the other side's edit is newer, and are kept one per id. Optional `decisions` settle a tie, including "keep both" as a new task. |
 | `merge/files.ts` | Pure `mergeSettingsFile` and `mergeCategoriesFile`: three-way merge against the last synced text; per settings key, per category id and field; a category deletion wins only when the other side did not edit it. Optional `decisions` settle a key or category id ("both" is not valid here). |
 | `merge/index.ts` | Public entry: `mergeableDateKey(path)` (day file → date, `_backlog.md` → null, anything else → undefined) plus the merge exports. |
 
@@ -171,16 +172,18 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `periods.test.ts` | Week start, assessment month and assessment year boundaries. |
 | `markdown.test.ts` | Category parsing/serialization, day-file round-trip, extras, hand-checked boxes. |
 | `settingsFile.test.ts` | `_settings.md` JSON comment vs bullet list, fallback and clamping. |
+| `tombstone.test.ts` | Marker round-trip, malformed markers, dedupe by id, delete-vs-edit comparison, filtering stored tasks. |
 | `webdavPlan.test.ts` | Upload/download/unchanged/conflict decisions, first sync, stale baseline, no deletions. |
 | `webdavClient.test.ts` | Remote path normalisation, URL encoding, href resolution, PROPFIND parsing with and without namespaces. |
 | `webdavManifest.test.ts` | File whitelist, content hashing, files that disappear mid-scan. |
-| `mergeTasks.test.ts` | Task-level merge: added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, extras from both sides, hand-written lines, backlog, path classification. |
+| `mergeTasks.test.ts` | Task-level merge: added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, extras from both sides, hand-written lines, deletion markers, backlog, path classification. |
 | `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
 
 Tests import only `src/domain/*` and `src/storage/markdown.ts` /
-`src/storage/settingsFile.ts`; no Tauri mocks are needed for those modules. The
+`src/storage/settingsFile.ts` / `src/storage/tombstone.ts`; no Tauri mocks are
+needed for those modules. The
 test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 `src/` only. Vitest transpiles the tests itself.
 

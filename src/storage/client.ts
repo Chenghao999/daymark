@@ -13,6 +13,7 @@ import {
   extrasKey,
 } from "./paths";
 import { parseCategoriesMarkdown, parseMarkdown, serializeCategoriesMarkdown } from "./markdown";
+import { tombstoneMap, tombstonesFromExtras, withoutTombstoned } from "./tombstone";
 import type { StoreState, StoredTask } from "./types";
 
 let current: StoreState | null = null;
@@ -39,20 +40,27 @@ export async function openStore(rawRoot: string): Promise<void> {
   const tasks = new Map<string, StoredTask>();
   const extrasByDate = new Map<string, string[]>();
 
-  const backlog = await loadFile(root, null, categories, extrasByDate);
-  for (const stored of backlog) addTask(tasks, stored);
-
+  // Load first, index second: a tombstone in one file must be able to suppress
+  // the same task's line in another file (a task deleted on one device and
+  // moved by another).
+  const files: LoadedFile[] = [await loadFile(root, null, categories)];
   const rootEntries = await listDir(root).catch(() => []);
   for (const entry of rootEntries) {
     if (!entry.isDirectory || !isMonthFolder(entry.name)) continue;
     const monthPath = `${root}/${entry.name}`;
-    const files = await listDir(monthPath).catch(() => []);
-    for (const file of files) {
+    const filesInMonth = await listDir(monthPath).catch(() => []);
+    for (const file of filesInMonth) {
       if (file.isDirectory || !isDayFile(file.name)) continue;
-      const dateKey = dateKeyOfFile(file.name);
-      const storedTasks = await loadFile(root, dateKey, categories, extrasByDate);
-      for (const stored of storedTasks) addTask(tasks, stored);
+      files.push(await loadFile(root, dateKeyOfFile(file.name), categories));
     }
+  }
+
+  const tombstones = tombstoneMap(
+    files.flatMap((file) => tombstonesFromExtras(file.extras)),
+  );
+  for (const file of files) {
+    extrasByDate.set(extrasKey(file.dateKey), file.extras);
+    for (const stored of withoutTombstoned(file.tasks, tombstones)) addTask(tasks, stored);
   }
 
   current = { root, categories, tasks, extrasByDate };
@@ -75,17 +83,18 @@ async function loadFile(
   root: string,
   dateKey: string | null,
   categories: Category[],
-  extrasByDate: Map<string, string[]>,
-): Promise<StoredTask[]> {
+): Promise<LoadedFile> {
   const path = dateKey ? dayFilePath(root, dateKey) : backlogPath(root);
   const text = await readTextFile(path);
-  if (text === null) {
-    extrasByDate.set(extrasKey(dateKey), []);
-    return [];
-  }
+  if (text === null) return { dateKey, tasks: [], extras: [] };
   const parsed = parseMarkdown(text, dateKey, categories);
-  extrasByDate.set(extrasKey(dateKey), parsed.extras);
-  return parsed.tasks;
+  return { dateKey, tasks: parsed.tasks, extras: parsed.extras };
+}
+
+interface LoadedFile {
+  dateKey: string | null;
+  tasks: StoredTask[];
+  extras: string[];
 }
 
 function addTask(tasks: Map<string, StoredTask>, stored: StoredTask): void {

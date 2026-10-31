@@ -118,17 +118,18 @@ Settings shows only "configured / not configured" and never echoes the password.
      `<name> (conflict <device8> <yyyyMMdd-HHmmss>).md` and listed in Settings.
      The baseline does not advance, so the same conflict keeps being reported
      until it is merged and synced again.
-5. **No deletes:** sync never deletes files on either side; a deletion on one
-   side does not propagate to the other.
+5. **No deletes:** sync never deletes files on either side; deleting a whole
+   file on one side does not propagate to the other. An individual task delete
+   travels as a `<!-- daymark deleted … -->` marker in the file's extras.
 6. **Commit and refresh:** successful paths update the baseline; failed paths
    keep the old baseline and retry next time. If anything was downloaded, call
    `reloadFromDisk()`; otherwise call `scanner.touch()`, so sync writes are not
    mistaken for external modifications.
 
 v1 does no background scheduling and no `If-Match` conditional requests; the
-user presses "Sync now" once per sync. M6 (§3.9) added automatic merge and a
-conflict-resolution UI; v2 adds scheduled sync, ETag conditional requests and
-task deletion tombstones.
+user presses "Sync now" once per sync. M6 (§3.9) added automatic merge, a
+conflict-resolution UI and task deletion tombstones; v2 adds scheduled sync and
+ETag conditional requests.
 
 ### 3.5 Module layout · 模块划分
 
@@ -209,8 +210,9 @@ sync, integration tests against a local `rclone serve webdav`.
 ### 3.9 Automatic merge (M6, first version) · 自动合并
 
 Shipped (2026-10-29): `src/sync/merge/{types,tasks,files,index}.ts` and
-`src/sync/webdav/resolve.ts`, covered by 27 unit tests in
-`tests/mergeTasks.test.ts` and `tests/mergeFiles.test.ts`.
+`src/sync/webdav/resolve.ts`, covered by 32 merge unit tests in
+`tests/mergeTasks.test.ts` and `tests/mergeFiles.test.ts`, plus 7 marker tests in
+`tests/tombstone.test.ts`.
 
 | Item | Result |
 |---|---|
@@ -222,7 +224,8 @@ Shipped (2026-10-29): `src/sync/merge/{types,tasks,files,index}.ts` and
 | Clean merge | Local file rewritten, remote `PUT` with the same text, baseline advanced, counted as `merged` in `SyncResult` |
 | Unresolved | Neither side is written; the remote text becomes a conflict copy, and `SyncConflict.items` lists each unordered item with its differing fields |
 | Resolution UI | Settings lists every conflict; each item gets keep mine / keep theirs / keep both (tasks only). Apply re-merges against the current local file and the copy, writes both sides and advances the baseline |
-| Not done | Deletion tombstones for tasks, field-level merging of task records |
+| Deletions | A task delete appends a marker to the file's extras; the merge keeps the task deleted unless the other side's edit is newer than the deletion, keeps one marker per id, and drops markers that lost. Loading hides a tombstoned task found in another file |
+| Not done | Field-level merging of task records |
 
 Boundary: without a per-task base, task ordering is record-level. Two devices
 editing different fields of the same task get the newer record, not a merge of

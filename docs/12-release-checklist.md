@@ -68,7 +68,8 @@
 - [ ] Release notes list format changes, features and known limitations.
 - [ ] Known limitation documented: the built-in WebDAV sync merges day/backlog
       tasks and per-key settings/categories, offers keep mine / keep theirs /
-      keep both for what it cannot order, but files delivered by a desktop sync
-      client are still file-level last-writer-wins and task deletions are not
-      merged.
+      keep both for what it cannot order, and propagates a task deletion as a
+      marker comment unless the other side edited the task afterwards; files
+      delivered by a desktop sync client are still file-level
+      last-writer-wins.
 - [ ] License and third-party notices included.

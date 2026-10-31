@@ -84,10 +84,13 @@ When both sides changed the same file, it merges the two copies first — tasks 
 id and version, `_settings.md` and `_categories.md` key by key against the text
 both sides had after the last sync. Only a change it cannot order is saved as a
 `(conflict …)` file, listed in Settings so you can choose keep mine, keep theirs
-or keep both. WebDAV 同步为手动、保守实现：不删除文件；两边都改过时先自动合并
-——任务按 id 与版本合并，设置和分类按上一次同步的共同文本逐键合并；无法判定
+or keep both. A deleted task leaves a one-line `daymark deleted` marker in its
+file, so the other device drops it instead of re-adding it; an edit made after
+the deletion wins. WebDAV 同步为手动、保守实现：不删除文件；两边都改过时先自动
+合并——任务按 id 与版本合并，设置和分类按上一次同步的共同文本逐键合并；无法判定
 先后的改动才生成冲突副本，并在设置页提供“保留我的 / 保留对方的 / 两者都保留”
-的选择。尚未针对所有 WebDAV 服务端做验证。
+的选择。删除任务会在文件里留下一行 `daymark deleted` 标记，另一台设备据此删除
+该任务；若对方在删除后修改过它，则以修改为准。尚未针对所有 WebDAV 服务端做验证。
 
 The AI assistant is opt-in and off by default. It can talk to an
 Anthropic-compatible endpoint (including relays) or an OpenAI-compatible one;

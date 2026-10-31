@@ -1,5 +1,12 @@
 import type { Category, Task } from "../../domain/types";
 import { parseMarkdown, serializeMarkdown } from "../../storage/markdown";
+import {
+  isTombstoned,
+  parseTombstone,
+  tombstoneLine,
+  tombstoneMap,
+  tombstonesFromExtras,
+} from "../../storage/tombstone";
 import type { StoredTask } from "../../storage/types";
 import type { MergeConflict, MergeDecisions, MergeOutcome } from "./types";
 
@@ -22,7 +29,9 @@ export interface MergeOptions {
  * both copies of the same task differ, the higher `rowVersion` wins, then the
  * later `updatedAt`; a completion beats a reopen. A tie that no rule can order
  * is reported as a conflict, and the caller keeps both copies untouched rather
- * than writing a half-merged file.
+ * than writing a half-merged file. Deletion markers in the extras resolve a
+ * task that exists on one side only: deletion wins unless the other side's edit
+ * is newer than the deletion.
  */
 export function mergeTaskFile(
   localText: string,
@@ -62,15 +71,38 @@ export function mergeTaskFile(
     return { clean: false, text: localText, conflicts, itemCount: 0 };
   }
 
-  const extras = [...new Set([...local.extras, ...remote.extras])];
+  // A task deleted on either side carries a marker in that file's extras. The
+  // task stays deleted unless the other side edited it after the deletion, in
+  // which case the edit wins and the marker is dropped (doc 06 §4). Markers
+  // are deduplicated by id and kept out of the plain extras union, so a merge
+  // never stacks two markers for the same task.
+  const tombstones = tombstoneMap([
+    ...tombstonesFromExtras(local.extras),
+    ...tombstonesFromExtras(remote.extras),
+  ]);
+  const kept = [...merged.values()].filter(
+    (entry) => !isTombstoned(entry.task.updatedAt, tombstones, entry.task.id),
+  );
+
+  const keptIds = new Set(kept.map((entry) => entry.task.id));
+  const extras = [
+    ...new Set(
+      [...local.extras, ...remote.extras].filter((line) => parseTombstone(line) === null),
+    ),
+  ];
+  const survivors = [...tombstones.values()]
+    .filter((tombstone) => !keptIds.has(tombstone.id))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const tombstone of survivors) extras.push(tombstoneLine(tombstone));
+
   const text = serializeMarkdown(
     options.dateKey,
-    [...merged.values()],
+    kept,
     options.categories,
     extras,
     { updatedAt: options.updatedAt, deviceId: options.deviceId },
   );
-  return { clean: true, text, conflicts: [], itemCount: merged.size };
+  return { clean: true, text, conflicts: [], itemCount: kept.length };
 }
 
 interface PairResult {

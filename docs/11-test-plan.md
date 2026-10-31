@@ -13,9 +13,12 @@
 | `domain/tasks` | backlog ↔ scheduled ↔ done, reopen with and without dates, delete |
 | `storage/markdown` | day-file round-trip, categories round-trip, extras preserved, hand-checked box gets noon, time range parsing |
 | `storage/settingsFile` | JSON comment wins over bullets, bullet fallback, malformed JSON tolerated, clamping |
+| `storage/tombstone` | marker round-trip, malformed markers ignored, dedupe by id, delete-vs-edit comparison, filtering stored tasks |
 | `sync/webdav/plan` | upload/download only, unchanged, one-sided change wins, both-sided conflict, first sync, stale baseline, no deletions, deterministic order |
 | `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities |
 | `sync/webdav/manifest` | file whitelist, content hash changes with content, files disappearing mid-scan |
+| `sync/merge/tasks` | added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, explicit decisions, extras, deletion markers, backlog |
+| `sync/merge/files` | settings per-key and categories per-field three-way merge, with and without a base, deletions, explicit decisions |
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
 | `ai/settings` | defaults, round-trip, custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths |
 | `ai/tasks` | local-time prompt context and weekday, category id → name list, unknown category dropped, impossible dates and out-of-range times rejected, end before start dropped, all-day date-only, priority coercion, multiple tasks, 10-item cap, malformed JSON and wrong shape |
@@ -38,9 +41,11 @@ npm run verify          # typecheck + tests + production build
 ```
 
 Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
-`markdown.test.ts`, `settingsFile.test.ts`, `webdavPlan.test.ts`,
-`webdavClient.test.ts`, `webdavManifest.test.ts`, `aiPrompt.test.ts`,
-`aiSettings.test.ts`.
+`markdown.test.ts`, `settingsFile.test.ts`, `tombstone.test.ts`,
+`webdavPlan.test.ts`, `webdavClient.test.ts`, `webdavManifest.test.ts`,
+`mergeTasks.test.ts`, `mergeFiles.test.ts`, `aiPrompt.test.ts`,
+`aiSettings.test.ts`, `aiTasks.test.ts`, `aiUsage.test.ts`,
+`openaiProvider.test.ts`, `theme.test.ts`.
 
 AI provider calls are also **not** covered: tests cover prompt construction,
 settings parsing and output paths. Verifying the SDK/API path requires a real
@@ -64,8 +69,10 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
    task survives.
 3. Edit the day file by hand, adding an unknown line; confirm it is preserved
    after the app rewrites the file.
-4. Delete every task in a day; confirm the day file is removed while
-   `_backlog.md` remains.
+4. Delete every task in a day; the tasks disappear from the app, and the day
+   file either is removed (only hand-written lines were deleted) or keeps a
+   single `<!-- daymark deleted … -->` marker per deleted task. `_backlog.md`
+   remains.
 5. Point the app at a folder containing only `daymark.db`; confirm migration
    runs once and the database is renamed to `daymark.db.migrated-*`.
 6. Touch any `.md` file externally; confirm the banner appears within one
@@ -92,6 +99,11 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
       the conflict disappears from the list.
 - [ ] Create a same-version task tie on both devices; resolve it with keep both
       and verify the day shows two tasks with different ids.
+- [ ] Delete a task on A and, without syncing, edit an unrelated task on the
+      same day on B; sync both. The deleted task is gone on both sides and the
+      day file holds one `daymark deleted` marker.
+- [ ] Delete a task on A and edit that same task on B afterwards; sync both.
+      The edit wins, the task remains, and the marker is gone.
 
 ### Sync-folder latency
 

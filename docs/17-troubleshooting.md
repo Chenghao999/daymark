@@ -74,6 +74,7 @@ comments and is useful in every sync report.
 | Two copies of a day file (`2026-10-22 (1).md`, “conflict copy”) | The sync client preserved both versions | Compare the two files, keep the newer content under the canonical name, archive the other outside the synced folder. |
 | The same day shows different tasks on two devices | Both edited that day offline; one file replaced the other | Choose the version to keep, copy in the missing task lines, then reload. |
 | A whole day disappeared | The day file was deleted on another device | Restore it from backup or the sync client's version history. |
+| A deleted task comes back after a sync | The other device edited it after the deletion, or the file holding its `<!-- daymark deleted … -->` marker was removed | Check the task's `updatedAt` against the marker's `deletedAt`; delete it again; restore a removed marker file from backup if needed. |
 | `daymark.db.migrated-*` appears on every device | The legacy file was left in the synced folder after migration | Move it out of the synced folder; keep one copy as a backup. |
 | `*.tmp` files appear briefly | Atomic writes in progress | Harmless; they are renamed immediately. |
 | Last edits from one device are gone | Two devices edited the same day (last-writer-wins) | Restore from backup or the sync client's version history; follow doc 16 §4 afterwards. |
