@@ -36,6 +36,17 @@ export interface BaselineEntry {
 
 export type Baseline = Record<string, BaselineEntry>;
 
+/**
+ * The WebDAV operations the sync engine needs. `WebDavClient` is the real
+ * implementation; tests provide an in-memory one.
+ */
+export interface RemoteClient {
+  listTree(): Promise<RemoteEntry[]>;
+  getText(path: string): Promise<string>;
+  putText(path: string, contents: string): Promise<void>;
+  mkcol(path?: string): Promise<void>;
+}
+
 export type SyncOperationKind = "upload" | "download";
 
 export interface SyncOperation {
@@ -56,6 +67,20 @@ export interface SyncProgress {
   done: number;
   total: number;
   path?: string;
+}
+
+/** Local file access the sync needs; tests replace it with a memory folder. */
+export interface SyncIo {
+  listDir(path: string): Promise<{ name: string; isDirectory: boolean }[]>;
+  readTextFile(path: string): Promise<string | null>;
+  writeTextFile(path: string, text: string): Promise<void>;
+  pathExists(path: string): Promise<boolean>;
+}
+
+/** Device-local record of the last successful sync. */
+export interface BaselineStore {
+  load(): Baseline;
+  save(baseline: Baseline): void;
 }
 
 export type ConflictKind = "tasks" | "settings" | "categories";

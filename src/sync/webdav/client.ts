@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { RemoteEntry, WebDavConfig } from "./types";
+import type { RemoteClient, RemoteEntry, WebDavConfig } from "./types";
 
 interface WebDavResponse {
   status: number;
@@ -281,7 +281,10 @@ export class WebDavClient {
 }
 
 /** Creates the parent folder of `path`; a folder that already exists is fine. */
-export async function ensureRemoteDirectory(client: WebDavClient, path: string): Promise<void> {
+export async function ensureRemoteDirectory(
+  client: Pick<RemoteClient, "mkcol">,
+  path: string,
+): Promise<void> {
   const slash = path.lastIndexOf("/");
   if (slash < 0) return;
   try {

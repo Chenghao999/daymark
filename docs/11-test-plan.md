@@ -17,6 +17,7 @@
 | `sync/webdav/plan` | upload/download only, unchanged, one-sided change wins, both-sided conflict, first sync, stale baseline, no deletions, deterministic order |
 | `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities |
 | `sync/webdav/manifest` | file whitelist, content hash changes with content, files disappearing mid-scan |
+| `sync/webdav/engine` | whole `syncWebDav` / `resolveConflict` against in-memory IO, client and baseline: first sync, download, task and settings merges, conflict copy, deletion marker, abort when a remote read fails, decisions and baseline advancement |
 | `sync/merge/tasks` | added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, explicit decisions, extras, deletion markers, backlog |
 | `sync/merge/files` | settings per-key and categories per-field three-way merge, with and without a base, deletions, explicit decisions |
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
@@ -29,7 +30,9 @@
 
 WebDAV network behaviour is **not** covered by unit tests: `webdav_request` and
 real servers must be exercised by hand (or by a future `rclone serve webdav`
-integration suite). The plan/URL/XML logic is pure and covered above.
+smoke test). Everything above the transport is: the plan/URL/XML logic has unit
+tests, and `webdavEngine.test.ts` runs the whole sync and conflict-resolution
+flow against an in-memory folder, client and baseline.
 
 Run:
 
@@ -43,8 +46,8 @@ npm run verify          # typecheck + tests + production build
 Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `markdown.test.ts`, `settingsFile.test.ts`, `tombstone.test.ts`,
 `webdavPlan.test.ts`, `webdavClient.test.ts`, `webdavManifest.test.ts`,
-`mergeTasks.test.ts`, `mergeFiles.test.ts`, `aiPrompt.test.ts`,
-`aiSettings.test.ts`, `aiTasks.test.ts`, `aiUsage.test.ts`,
+`webdavEngine.test.ts`, `mergeTasks.test.ts`, `mergeFiles.test.ts`,
+`aiPrompt.test.ts`, `aiSettings.test.ts`, `aiTasks.test.ts`, `aiUsage.test.ts`,
 `openaiProvider.test.ts`, `theme.test.ts`.
 
 AI provider calls are also **not** covered: tests cover prompt construction,

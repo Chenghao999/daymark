@@ -199,20 +199,23 @@ First-version boundaries (deliberate, not defects):
 - Conflict copies stay as the last fallback; since M6 (§3.9) unresolved items are
   answered in Settings rather than by editing copies.
 - Not yet validated end to end against a real WebDAV service (the §3.7
-  checklist still needs a manual run against Nutstore / Nextcloud); unit tests
-  cover the pure logic, not the network or differences in each server's
-  `PROPFIND` behaviour.
+  checklist still needs a manual run against Nutstore / Nextcloud). The sync
+  engine and conflict resolution are covered end to end against in-memory ports
+  (`tests/webdavEngine.test.ts`), but that cannot catch differences in each
+  server's `PROPFIND` behaviour.
 - The password lives in localStorage, not yet in the system keychain.
 
 Next (M3 v2): keychain storage, `If-Match`/ETag overwrite protection, scheduled
-sync, integration tests against a local `rclone serve webdav`.
+sync, and a manual smoke run against a real server (the in-memory engine suite
+already covers first sync, merge, conflict and resolution).
 
 ### 3.9 Automatic merge (M6, first version) · 自动合并
 
 Shipped (2026-10-29): `src/sync/merge/{types,tasks,files,index}.ts` and
 `src/sync/webdav/resolve.ts`, covered by 32 merge unit tests in
-`tests/mergeTasks.test.ts` and `tests/mergeFiles.test.ts`, plus 7 marker tests in
-`tests/tombstone.test.ts`.
+`tests/mergeTasks.test.ts` and `tests/mergeFiles.test.ts`, 7 marker tests in
+`tests/tombstone.test.ts`, and 8 end-to-end engine tests in
+`tests/webdavEngine.test.ts`.
 
 | Item | Result |
 |---|---|
@@ -515,9 +518,11 @@ Before each milestone merges:
 5. Docs are updated in the same batch: 05 (format), 06 (sync), 14 (interfaces),
    15 (usage) and 17 (troubleshooting).
 
-WebDAV integration tests use a local `rclone serve webdav` or Docker's
-`bytemark/webdav`, never a real cloud drive; test accounts and passwords exist
-only in test environment variables.
+Engine tests (`tests/webdavEngine.test.ts`) inject an in-memory folder, WebDAV
+client and baseline, so they run in CI without a server. A local
+`rclone serve webdav` or Docker's `bytemark/webdav` remains for a manual
+real-transport smoke test; test accounts and passwords exist only in test
+environment variables.
 
 AI tests never call the real API: `AiProvider` uses a fake returning fixed
 text/JSON to verify context assembly, the preview flow and failure branches.

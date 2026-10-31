@@ -1,6 +1,5 @@
 import type { Category } from "../../domain/types";
 import { deviceId } from "../../storage/device";
-import { pathExists, readTextFile, writeTextFile } from "../../storage/fs";
 import { parseCategoriesMarkdown } from "../../storage/markdown";
 import { CATEGORIES_FILE, SETTINGS_FILE, categoriesPath } from "../../storage/paths";
 import {
@@ -10,15 +9,18 @@ import {
   mergeableDateKey,
   type MergeConflict,
 } from "../merge";
-import { loadBaseline, saveBaseline } from "./baseline";
 import { WebDavClient, WebDavError, ensureRemoteDirectory } from "./client";
+import { REAL_SYNC_IO, baselineStore } from "./io";
 import { localManifest, sha256 } from "./manifest";
 import { planSync } from "./plan";
 import type {
   Baseline,
   BaselineEntry,
+  BaselineStore,
   ConflictKind,
+  RemoteClient,
   SyncConflict,
+  SyncIo,
   SyncProgress,
   SyncResult,
   WebDavConfig,
@@ -29,6 +31,12 @@ export interface SyncOptions {
   /** Injectable clock, used to name conflict copies in tests. */
   now?: Date;
   device?: string;
+  /** In-memory WebDAV transport for tests; otherwise built from `config`. */
+  client?: RemoteClient;
+  /** Local file access for tests; defaults to the Tauri commands. */
+  io?: SyncIo;
+  /** Baseline storage for tests; defaults to `localStorage`. */
+  baseline?: BaselineStore;
 }
 
 /**
@@ -44,10 +52,12 @@ export async function syncWebDav(
   options: SyncOptions = {},
 ): Promise<SyncResult> {
   const progress = options.onProgress ?? (() => undefined);
-  const local = await localManifest(root);
+  const io = options.io ?? REAL_SYNC_IO;
+  const store = options.baseline ?? baselineStore(config);
+  const local = await localManifest(root, io);
   progress({ phase: "local", done: local.hashes.size, total: local.hashes.size });
 
-  const client = new WebDavClient(config);
+  const client = options.client ?? new WebDavClient(config);
   const remoteEntries = await listRemote(client);
   progress({ phase: "remote", done: 0, total: remoteEntries.length });
 
@@ -73,7 +83,7 @@ export async function syncWebDav(
     progress({ phase: "remote", done: index + 1, total: remoteEntries.length, path: entry.path });
   }
 
-  const baseline = loadBaseline(config);
+  const baseline = store.load();
   const plan = planSync(local.hashes, remoteHashes, baseline);
   const nextBaseline: Baseline = { ...baseline };
   const errors: string[] = [];
@@ -85,7 +95,7 @@ export async function syncWebDav(
 
   const loadCategories = async (): Promise<Category[]> => {
     if (categories === null) {
-      const text = await readTextFile(categoriesPath(root));
+      const text = await io.readTextFile(categoriesPath(root));
       categories = text ? parseCategoriesMarkdown(text) : [];
     }
     return categories;
@@ -102,7 +112,7 @@ export async function syncWebDav(
   });
 
   const applyMerge = async (path: string, text: string): Promise<void> => {
-    await writeTextFile(`${root}/${path}`, text);
+    await io.writeTextFile(`${root}/${path}`, text);
     // The local file now holds the merge. Count it even if the upload fails
     // below: the caller reloads the store, and the next run sees "local
     // changed" and uploads the merged text. Leaving the in-memory store stale
@@ -147,7 +157,7 @@ export async function syncWebDav(
     const text = remoteTexts.get(operation.path);
     if (text === undefined) continue;
     try {
-      await writeTextFile(`${root}/${operation.path}`, text);
+      await io.writeTextFile(`${root}/${operation.path}`, text);
       const hash = remoteHashes.get(operation.path) as string;
       nextBaseline[operation.path] = entryFor(operation.path, text, hash);
       downloaded += 1;
@@ -199,8 +209,8 @@ export async function syncWebDav(
     let copy: string | null = null;
     if (remoteText !== undefined) {
       try {
-        const target = await conflictPath(root, path, options);
-        await writeTextFile(target, remoteText);
+        const target = await conflictPath(root, path, options, io);
+        await io.writeTextFile(target, remoteText);
         copy = target.slice(root.length + 1);
       } catch (error) {
         errors.push(`${path}: ${message(error)}`);
@@ -212,7 +222,7 @@ export async function syncWebDav(
     progress({ phase: "apply", done: ++done, total, path });
   }
 
-  saveBaseline(config, nextBaseline);
+  store.save(nextBaseline);
 
   return {
     uploaded,
@@ -224,7 +234,7 @@ export async function syncWebDav(
   };
 }
 
-async function listRemote(client: WebDavClient) {
+async function listRemote(client: RemoteClient) {
   try {
     return await client.listTree();
   } catch (error) {
@@ -237,7 +247,12 @@ async function listRemote(client: WebDavClient) {
   }
 }
 
-async function conflictPath(root: string, path: string, options: SyncOptions): Promise<string> {
+async function conflictPath(
+  root: string,
+  path: string,
+  options: SyncOptions,
+  io: SyncIo,
+): Promise<string> {
   const slash = path.lastIndexOf("/");
   const directory = slash >= 0 ? path.slice(0, slash) : "";
   const name = slash >= 0 ? path.slice(slash + 1) : path;
@@ -250,7 +265,7 @@ async function conflictPath(root: string, path: string, options: SyncOptions): P
 
   let candidate = build(` (conflict ${device} ${stamp}).md`);
   let counter = 2;
-  while (await pathExists(candidate)) {
+  while (await io.pathExists(candidate)) {
     candidate = build(` (conflict ${device} ${stamp}-${counter}).md`);
     counter += 1;
   }

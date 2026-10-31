@@ -112,8 +112,9 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdav/manifest.ts` | `sha256`, `localManifest(root, io?)` over `_settings.md`, `_categories.md`, `_backlog.md` and valid day files. `ManifestIo` lets tests inject a fake file system. |
 | `webdav/plan.ts` | Pure `planSync(local, remote, baseline)` → uploads, downloads, conflicts, unchanged. No deletions and no silent overwrite. |
 | `webdav/baseline.ts` | Device-local SHA-256 baseline (`daymark.webdav.baseline.v1`), keyed by URL + remote path. |
-| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic merge for day/backlog/settings/categories conflicts; anything still unordered becomes a `SyncConflict` with its copy path and items; progress callback, per-file errors. |
-| `webdav/resolve.ts` | `resolveConflict(config, root, conflict, decisions)`: re-read the local file and conflict copy, re-run the matching merge with the user's answers, write both sides and advance the baseline only when the result is clean. |
+| `webdav/io.ts` | `REAL_SYNC_IO` (Tauri file commands) and `baselineStore(config)`; the defaults `syncWebDav` / `resolveConflict` use when no test ports are injected. |
+| `webdav/engine.ts` | `syncWebDav(config, root, options)`: read both sides, plan once, then write; automatic merge for day/backlog/settings/categories conflicts; anything still unordered becomes a `SyncConflict` with its copy path and items; progress callback, per-file errors. Optional `client` / `io` / `baseline` ports make it runnable in Node. |
+| `webdav/resolve.ts` | `resolveConflict(config, root, conflict, decisions)`: re-read the local file and conflict copy, re-run the matching merge with the user's answers, write both sides and advance the baseline only when the result is clean. Same optional ports. |
 | `merge/types.ts` | `MergeConflict`, `MergeOutcome`, `MergeDecision(s)`. Types only. |
 | `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. Deletion markers in the extras drop a task unless the other side's edit is newer, and are kept one per id. Optional `decisions` settle a tie, including "keep both" as a new task. |
 | `merge/files.ts` | Pure `mergeSettingsFile` and `mergeCategoriesFile`: three-way merge against the last synced text; per settings key, per category id and field; a category deletion wins only when the other side did not edit it. Optional `decisions` settle a key or category id ("both" is not valid here). |
@@ -176,14 +177,15 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `webdavPlan.test.ts` | Upload/download/unchanged/conflict decisions, first sync, stale baseline, no deletions. |
 | `webdavClient.test.ts` | Remote path normalisation, URL encoding, href resolution, PROPFIND parsing with and without namespaces. |
 | `webdavManifest.test.ts` | File whitelist, content hashing, files that disappear mid-scan. |
+| `webdavEngine.test.ts` | Whole engine against in-memory ports: first sync, download, task merge, settings merge, conflict copy, deletion marker, abort on an unreadable remote, `resolveConflict` with and without complete answers, baseline advancement. |
 | `mergeTasks.test.ts` | Task-level merge: added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, extras from both sides, hand-written lines, deletion markers, backlog, path classification. |
 | `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
 
-Tests import only `src/domain/*` and `src/storage/markdown.ts` /
-`src/storage/settingsFile.ts` / `src/storage/tombstone.ts`; no Tauri mocks are
-needed for those modules. The
+Tests import only `src/domain/*`, `src/storage/*` and `src/sync/webdav/*` modules;
+the engine suite injects in-memory implementations of `SyncIo` / `RemoteClient` /
+`BaselineStore`, so no Tauri mocks or network are needed. The
 test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 `src/` only. Vitest transpiles the tests itself.
 

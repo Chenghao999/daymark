@@ -1,6 +1,5 @@
 import type { Category } from "../../domain/types";
 import { deviceId } from "../../storage/device";
-import { readTextFile, writeTextFile } from "../../storage/fs";
 import { parseCategoriesMarkdown } from "../../storage/markdown";
 import { categoriesPath } from "../../storage/paths";
 import {
@@ -12,15 +11,27 @@ import {
   type MergeDecisions,
   type MergeOutcome,
 } from "../merge";
-import { loadBaseline, saveBaseline } from "./baseline";
 import { WebDavClient, ensureRemoteDirectory } from "./client";
+import { REAL_SYNC_IO, baselineStore } from "./io";
 import { sha256 } from "./manifest";
-import type { SyncConflict, WebDavConfig } from "./types";
+import type {
+  BaselineStore,
+  RemoteClient,
+  SyncConflict,
+  SyncIo,
+  WebDavConfig,
+} from "./types";
 
 export interface ResolveOptions {
   /** Injectable clock, used for the merged file header and new task metadata. */
   now?: Date;
   device?: string;
+  /** In-memory WebDAV transport for tests; otherwise built from `config`. */
+  client?: RemoteClient;
+  /** Local file access for tests; defaults to the Tauri commands. */
+  io?: SyncIo;
+  /** Baseline storage for tests; defaults to `localStorage`. */
+  baseline?: BaselineStore;
 }
 
 export interface ResolveResult {
@@ -53,7 +64,9 @@ export async function resolveConflict(
   decisions: MergeDecisions,
   options: ResolveOptions = {},
 ): Promise<ResolveResult> {
-  const localText = await readTextFile(`${root}/${conflict.path}`);
+  const io = options.io ?? REAL_SYNC_IO;
+  const store = options.baseline ?? baselineStore(config);
+  const localText = await io.readTextFile(`${root}/${conflict.path}`);
   if (localText === null) {
     return {
       resolved: false,
@@ -63,10 +76,10 @@ export async function resolveConflict(
     };
   }
 
-  const client = new WebDavClient(config);
+  const client = options.client ?? new WebDavClient(config);
   const remoteText =
     conflict.copy !== null
-      ? await readTextFile(`${root}/${conflict.copy}`)
+      ? await io.readTextFile(`${root}/${conflict.copy}`)
       : await client.getText(conflict.path);
   if (remoteText === null) {
     return {
@@ -77,7 +90,7 @@ export async function resolveConflict(
     };
   }
 
-  const baseline = loadBaseline(config);
+  const baseline = store.load();
   const baseText = baseline[conflict.path]?.baseText ?? null;
   const now = options.now ?? new Date();
 
@@ -98,7 +111,7 @@ export async function resolveConflict(
     }
     outcome = mergeTaskFile(localText, remoteText, {
       dateKey,
-      categories: await loadCategories(root),
+      categories: await loadCategories(root, io),
       deviceId: options.device ?? deviceId(),
       updatedAt: now.toISOString(),
       decisions,
@@ -116,7 +129,7 @@ export async function resolveConflict(
     // on disk and the next sync sees "local changed" and uploads it. The
     // baseline stays where it was, so that retry still compares against the
     // same base.
-    await writeTextFile(`${root}/${conflict.path}`, text);
+    await io.writeTextFile(`${root}/${conflict.path}`, text);
     written = true;
     await ensureRemoteDirectory(client, conflict.path);
     await client.putText(conflict.path, text);
@@ -126,7 +139,7 @@ export async function resolveConflict(
   }
 
   const hash = await sha256(text);
-  saveBaseline(config, {
+  store.save({
     ...baseline,
     [conflict.path]: {
       local: hash,
@@ -138,8 +151,8 @@ export async function resolveConflict(
   return { resolved: true, remaining: [], written: true };
 }
 
-async function loadCategories(root: string): Promise<Category[]> {
-  const text = await readTextFile(categoriesPath(root));
+async function loadCategories(root: string, io: SyncIo): Promise<Category[]> {
+  const text = await io.readTextFile(categoriesPath(root));
   return text ? parseCategoriesMarkdown(text) : [];
 }
 

@@ -524,7 +524,26 @@ interface SyncConflict {
   items: MergeConflict[];             // unordered items with their differing fields
 }
 
-interface ResolveOptions { now?: Date; device?: string }
+interface SyncOptions {
+  onProgress?: (progress: SyncProgress) => void;
+  now?: Date;
+  device?: string;
+  client?: RemoteClient;              // default: new WebDavClient(config)
+  io?: SyncIo;                        // default: REAL_SYNC_IO (Tauri commands)
+  baseline?: BaselineStore;           // default: localStorage entry for this config
+}
+
+interface ResolveOptions {
+  now?: Date;
+  device?: string;
+  client?: RemoteClient;
+  io?: SyncIo;
+  baseline?: BaselineStore;
+}
+
+interface RemoteClient { listTree(): Promise<RemoteEntry[]>; getText(path: string): Promise<string>; putText(path: string, contents: string): Promise<void>; mkcol(path?: string): Promise<void> }
+interface SyncIo { listDir(path: string): Promise<{ name: string; isDirectory: boolean }[]>; readTextFile(path: string): Promise<string | null>; writeTextFile(path: string, text: string): Promise<void>; pathExists(path: string): Promise<boolean> }
+interface BaselineStore { load(): Baseline; save(baseline: Baseline): void }
 interface ResolveResult { resolved: boolean; remaining: MergeConflict[]; written: boolean; error?: string }
 
 // src/sync/merge/
@@ -581,6 +600,10 @@ Contract:
 7. `syncWebDav` does not touch React state; the caller reloads the store and
    calls `scanner.touch()` (or `reloadFromDisk()` when files were downloaded or
    a conflict was resolved).
+8. `SyncOptions.client` / `io` / `baseline` and the matching `ResolveOptions`
+   exist so tests can run the whole engine against in-memory ports. The app
+   passes none of them; the defaults are the real client, the Tauri file
+   commands and `localStorage`.
 
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 
