@@ -49,16 +49,20 @@ presets and numbering, daily/weekly/monthly/yearly reports with configurable
 assessment month/year and DOCX export, English-first UI with a full Chinese
 translation (zh-CN / en), custom data
 folder, synced settings file, external-change scanner, manual WebDAV sync
-(first version), an opt-in AI assistant for report polish, retrospectives and
-one-sentence task entry (Anthropic- or OpenAI-compatible endpoints, including
-relays such as Oppo AI), light/dark/system appearance, and a one-time migration
-from the old `daymark.db`.
+(first version), read-only CalDAV import, an opt-in AI assistant for report
+polish, retrospectives and
+one-sentence task entry (built-in presets for Anthropic, OpenAI, DeepSeek, Qwen,
+Moonshot, Zhipu, Gemini and OpenRouter, plus custom Anthropic- or
+OpenAI-compatible relays), light/dark/system appearance, and a one-time
+migration from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
 导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
-外部变更检测、手动 WebDAV 同步（第一版）、可选的 AI 报告润色、周期回顾与
-一句话建任务（支持 Anthropic/OpenAI 兼容接口与中转）、浅色/深色/跟随系统外观，
+外部变更检测、手动 WebDAV 同步（第一版）、CalDAV 只读导入、可选的 AI 报告润色、
+周期回顾与
+一句话建任务（内置 Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱、Gemini、
+OpenRouter 预设，也可自定义 Anthropic/OpenAI 兼容中转）、浅色/深色/跟随系统外观，
 以及从旧 `daymark.db` 的一次性迁移。
 
 ## Try it · 如何体验
@@ -92,22 +96,42 @@ the deletion wins. WebDAV 同步为手动、保守实现：不删除文件；两
 的选择。删除任务会在文件里留下一行 `daymark deleted` 标记，另一台设备据此删除
 该任务；若对方在删除后修改过它，则以修改为准。尚未针对所有 WebDAV 服务端做验证。
 
-The AI assistant is opt-in and off by default. It can talk to an
-Anthropic-compatible endpoint (including relays) or an OpenAI-compatible one;
-the protocol, base URL and model name are all configurable, and the key stays
-on this device. It sends only the selected report's title, period, categories
+CalDAV import is read-only and manual. Enter a server URL and an app-specific
+password in Settings, find and tick calendars, then press Import now. Events
+appear in the day/week/month views as read-only tasks with a ◆ marker; they
+cannot be completed or edited, are excluded from reports and AI, and are
+re-imported by `getctag` when the calendar changes. Opening one offers **Turn
+into local task**, which copies it into an ordinary task and remembers the
+series so it is not imported again. Recurring events are expanded for the past
+year and the next two years. Nothing is ever written back to the calendar
+server, and the credentials stay on this device. CalDAV 为手动只读导入：设置页
+填入服务器地址与专用密码，查找并勾选日历后点“立即导入”。事件在日/周/月视图中
+以带 ◆ 的只读任务显示，不能完成或编辑，也不进入报告和 AI；日历变化时按 ctag
+重新导入。打开事件可“转为本地任务”，之后按普通任务处理，并记住该系列不再重复
+导入。重复事件展开过去一年与未来两年。永远不会写回日历服务器，账号密码只存本机。
+
+The AI assistant is opt-in and off by default. It ships with provider presets
+for Anthropic, OpenAI, DeepSeek, Alibaba Qwen, Moonshot/Kimi, Zhipu GLM, Google
+Gemini and OpenRouter; any other Anthropic- or OpenAI-compatible relay works
+through the custom endpoint. The endpoint and model name stay editable, and the
+key stays on this device. OpenAI-compatible requests go through the app's native
+HTTP client, so vendors that do not send CORS headers work inside the app. It sends only the selected report's title, period, categories
 and task titles to the endpoint, shows the exact text before sending, and
 writes nothing until you press Save (into a new file under `_ai/`). The same
 assistant can also turn one sentence into a task — or several tasks at once:
 the editor fills its fields (or you press “Create all”) and the save is still
-yours. AI 助手默认关闭，接口协议、地址和模型都可配置（支持 Anthropic/OpenAI
-兼容中转，如 Oppo AI），密钥只存本机。只发送所选报告的分类与任务标题，发送前可
+yours. AI 助手默认关闭，内置 Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱、
+Gemini、OpenRouter 服务商预设，其他 Anthropic/OpenAI 兼容中转可用自定义接口；
+接口地址与模型均可改，密钥只存本机；OpenAI 兼容请求走应用内置的 Rust HTTP
+客户端，未开 CORS 的服务商也能正常使用。只发送所选报告的分类与任务标题，发送前可
 预览，确认后才写入 `_ai/`；也可用一句话填好任务表单或一次创建多个任务，仍由你
 确认保存。
 
-Not implemented yet / 尚未实现：background WebDAV sync and CalDAV. Both are
-planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV remains
-design-only in doc 07. 后台同步与 CalDAV 仍在路线图中，CalDAV 设计见 07 号文档。
+Not implemented yet / 尚未实现：background WebDAV sync, CalDAV write-back (VEVENT/
+VTODO) and `RECURRENCE-ID` overrides. They are planned in
+[`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV's design and limitations are
+in [`docs/07-caldav.md`](docs/07-caldav.md). 后台 WebDAV 同步、CalDAV 写回与
+单次重复事件调整仍在路线图中，CalDAV 设计见 07 号文档。
 
 ## Data folder · 数据目录
 
@@ -158,7 +182,7 @@ headings, checkboxes, blockquote notes. Unrecognised lines are preserved.
 ```bash
 npm install
 npm run app            # desktop app (alias: npm run tauri dev)
-npm test               # unit tests (domain, storage, WebDAV, AI)
+npm test               # unit tests (domain, storage, WebDAV, CalDAV, AI)
 npm run typecheck      # TypeScript check
 npm run build          # frontend production build
 npm run app:build      # packaged installer (alias: npm run tauri build)
@@ -179,13 +203,13 @@ Markdown，再把数据库改名为 `daymark.db.migrated-<时间戳>`，不会�
 src/
   domain/       pure logic: task state, report periods, report derivation, numbering
   storage/      Markdown parser/serializer, paths, repository, migration, settings file
-  sync/         external-change scanner and manual WebDAV sync (scanner.ts, webdav/)
+  sync/         external-change scanner, manual WebDAV sync and CalDAV import (scanner.ts, webdav/, caldav/)
   settings/     device-local settings plus the synced subset written to _settings.md
   ai/           provider interface, prompt/context builders, Anthropic + OpenAI providers, _ai/ output
   features/     calendar views, reports, settings
   components/   task editor
   i18n/         zh-CN and en resources
-src-tauri/      Tauri shell, filesystem and WebDAV commands, dialog/opener/sql plugins
+src-tauri/      Tauri shell, filesystem and WebDAV/CalDAV commands, dialog/opener/sql plugins
 docs/           product, engineering, usage, operations and roadmap documents
 tests/          Vitest unit tests
 ```

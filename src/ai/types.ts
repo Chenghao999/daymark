@@ -6,11 +6,19 @@ import type { AppLanguage, ReportDocument } from "../domain/types";
  */
 export interface AiConfig {
   enabled: boolean;
+  /**
+   * Vendor preset chosen in Settings. It fills the protocol, endpoint and
+   * model suggestions; `custom` keeps whatever the user typed.
+   */
+  provider: AiProviderId;
   /** Wire protocol the endpoint speaks. */
   protocol: AiProtocol;
   apiKey: string;
   model: string;
-  /** Empty means the provider's official endpoint; otherwise a relay/proxy. */
+  /**
+   * Empty means the provider's official endpoint; otherwise a relay/proxy.
+   * A non-empty value always wins over the preset default.
+   */
   baseUrl: string;
 }
 
@@ -19,6 +27,22 @@ export interface AiConfig {
  * `openai` is `/v1/chat/completions` (OpenAI and most compatible vendors).
  */
 export type AiProtocol = "anthropic" | "openai";
+
+/**
+ * Vendors offered in Settings. Every preset except Anthropic speaks the
+ * OpenAI-compatible wire format; `custom` lets the user point at a relay or an
+ * enterprise gateway.
+ */
+export type AiProviderId =
+  | "anthropic"
+  | "openai"
+  | "deepseek"
+  | "qwen"
+  | "moonshot"
+  | "zhipu"
+  | "gemini"
+  | "openrouter"
+  | "custom";
 
 /** What the assistant is asked to produce. */
 export type AiFeature = "polish" | "review";

@@ -1,4 +1,5 @@
 import type { AiJsonSchema, AiPrompt, AiProvider, AiResult, AiUsage } from "../types";
+import { defaultTransport, type HttpTransport } from "../transport";
 
 export interface OpenAiProviderOptions {
   apiKey: string;
@@ -6,6 +7,8 @@ export interface OpenAiProviderOptions {
   /** Empty uses the official endpoint; otherwise `/chat/completions` is appended. */
   baseUrl?: string;
   maxTokens?: number;
+  /** Overrides the Tauri/fetch choice; tests inject a fake. */
+  transport?: HttpTransport;
 }
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
@@ -14,14 +17,18 @@ const DEFAULT_BASE_URL = "https://api.openai.com/v1";
  * OpenAI-compatible provider (`POST {baseUrl}/chat/completions`).
  *
  * Used for relays and vendors that expose the OpenAI wire format (DeepSeek,
- * Kimi, GLM, OpenRouter, most enterprise gateways). No SDK: one endpoint and
- * one response shape are all this app needs, and `fetch` keeps the startup
- * bundle small.
+ * Qwen, Kimi, GLM, Gemini, OpenRouter, most enterprise gateways). No SDK: one
+ * endpoint and one response shape are all this app needs. In the app the
+ * request goes through the Rust `ai_request` command, because those vendors do
+ * not send CORS headers a WebView `fetch` requires.
  */
 export class OpenAiProvider implements AiProvider {
   readonly id = "openai";
+  private readonly transport: HttpTransport;
 
-  constructor(private readonly options: OpenAiProviderOptions) {}
+  constructor(private readonly options: OpenAiProviderOptions) {
+    this.transport = options.transport ?? defaultTransport();
+  }
 
   async complete(prompt: AiPrompt): Promise<AiResult> {
     return this.request(prompt, null);
@@ -70,10 +77,38 @@ export class OpenAiProvider implements AiProvider {
     };
     if (format) body.response_format = format;
 
-    let response: Response;
+    let response = await this.post(body);
+    if (!isOk(response.status)) {
+      const detail = errorText(response.body);
+      // Newer OpenAI reasoning models reject `max_tokens` and want
+      // `max_completion_tokens`. Every other compatible vendor still accepts
+      // `max_tokens`, so the field is only swapped when the server says so.
+      if (response.status === 400 && /max_tokens|max_completion_tokens/i.test(detail)) {
+        const retryBody: Record<string, unknown> = {
+          ...body,
+          max_completion_tokens: body.max_tokens,
+        };
+        delete retryBody.max_tokens;
+        response = await this.post(retryBody);
+        if (!isOk(response.status)) throw new AiHttpError(response.status, errorText(response.body));
+      } else {
+        throw new AiHttpError(response.status, detail);
+      }
+    }
+
+    const data = parseResponse(response.body);
+    const text = textOf(data);
+    return {
+      text,
+      model: typeof data.model === "string" ? data.model : this.options.model,
+      usage: usageOf(data.usage),
+    };
+  }
+
+  private async post(body: Record<string, unknown>): Promise<{ status: number; body: string }> {
     try {
-      response = await fetch(`${trimBase(this.options.baseUrl)}/chat/completions`, {
-        method: "POST",
+      return await this.transport({
+        url: `${trimBase(this.options.baseUrl)}/chat/completions`,
         headers: {
           Authorization: `Bearer ${this.options.apiKey}`,
           "Content-Type": "application/json",
@@ -85,16 +120,6 @@ export class OpenAiProvider implements AiProvider {
         `Could not reach the AI endpoint. Check the base URL and your connection. (${messageOf(cause)})`,
       );
     }
-
-    if (!response.ok) throw new AiHttpError(response.status, await errorText(response));
-
-    const data = (await response.json()) as OpenAiResponse;
-    const text = textOf(data);
-    return {
-      text,
-      model: typeof data.model === "string" ? data.model : this.options.model,
-      usage: usageOf(data.usage),
-    };
   }
 }
 
@@ -129,21 +154,29 @@ function usageOf(usage: OpenAiResponse["usage"]): AiUsage | null {
   return { inputTokens: usage.prompt_tokens, outputTokens: usage.completion_tokens };
 }
 
-async function errorText(response: Response): Promise<string> {
+function isOk(status: number): boolean {
+  return status >= 200 && status < 300;
+}
+
+function parseResponse(body: string): OpenAiResponse {
   try {
-    const text = (await response.text()).trim();
-    if (!text) return "";
-    try {
-      const parsed = JSON.parse(text) as { error?: { message?: unknown } };
-      const message = parsed.error?.message;
-      if (typeof message === "string") return message.slice(0, 300);
-    } catch {
-      // Not JSON; the raw body is still useful.
-    }
-    return text.slice(0, 300);
+    return JSON.parse(body) as OpenAiResponse;
   } catch {
-    return "";
+    throw new Error("The AI endpoint returned a response that is not JSON.");
   }
+}
+
+function errorText(body: string): string {
+  const text = body.trim();
+  if (!text) return "";
+  try {
+    const parsed = JSON.parse(text) as { error?: { message?: unknown } };
+    const message = parsed.error?.message;
+    if (typeof message === "string") return message.slice(0, 300);
+  } catch {
+    // Not JSON; the raw body is still useful.
+  }
+  return text.slice(0, 300);
 }
 
 function trimBase(baseUrl: string | undefined): string {

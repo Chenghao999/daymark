@@ -1,20 +1,20 @@
-# 19 · Roadmap: WebDAV sync, AI assistant and the modular plan
+# 19 · Roadmap: WebDAV sync, CalDAV import, AI assistant and the modular plan
 
 > **Status:** partly implemented. M0–M5 have shipped (WebDAV v1 in §3.8, AI v1 in
-> §4.9, natural-language entry v1 in §4.10); custom AI endpoints, dark mode and
-> automated packaging are also complete (M7, M8). M6 v1 — automatic merge of
+> §4.9, natural-language entry v1 in §4.10); provider presets, custom AI
+> endpoints, dark mode and automated packaging are also complete (M7, M8). M6 v1 — automatic merge of
 > tasks, settings and categories, plus the in-app conflict-resolution UI — has
-> shipped (§3.9); CalDAV remains planned. Documents 01–18 are the source of truth
-> for what exists; this document records only the plan and its trade-offs. Date:
-> 2026-10-29. Baseline version `0.1.0`; storage has moved from SQLite to
-> Markdown text.
+> shipped (§3.9); CalDAV read-only import has also shipped (§3.10). Documents
+> 01–18 are the source of truth for what exists; this document records only the
+> plan and its trade-offs. Date: 2026-11-01. Baseline version `0.1.0`; storage
+> has moved from SQLite to Markdown text.
 >
 > **中文摘要：** Daymark（日迹）的路线图。M0–M5 已落地（WebDAV 第一版见 §3.8，
 > AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自定义 AI 接口、暗色模式与
 > 自动打包也已完成（M7、M8）；M6 第一版（任务、设置与分类的自动合并，以及
-> 冲突解决界面）已落地（§3.9），CalDAV 仍是计划。已实现的模块以 01–18 号文档为准，
-> 本文只记录路线与取舍。日期：2026-10-29，基线版本 `0.1.0`，存储已从 SQLite
-> 切换为 Markdown 文本。
+> 冲突解决界面）已落地（§3.9），CalDAV 只读导入也已完成（§3.10）。已实现的
+> 模块以 01–18 号文档为准，本文只记录路线与取舍。日期：2026-11-01，基线版本
+> `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
 ---
 
@@ -45,8 +45,8 @@
 | M3 | WebDAV sync | M0, M2 | v1 done: `src/sync/webdav/*`, "WebDAV sync" card in Settings (see §3.8) |
 | M4 | AI assistant (report polishing / period review) | M0, M1 | v1 done: `src/ai/*`, "AI assistant" on the Reports page (see §4.9) |
 | M5 | AI natural-language entry | M4 | v1 done: `src/ai/tasks.ts`, "Fill fields" one-sentence entry in the task editor (see §4.10) |
-| M6 | Automatic merge and CalDAV | M3 | v1 done: automatic merge in `src/sync/merge/*`, applied by `syncWebDav`, and the keep-mine / keep-theirs / keep-both conflict UI in Settings (`src/sync/webdav/resolve.ts`); see §3.9. CalDAV still planned |
-| M7 | Custom AI endpoints + dark mode | M4 | Done: protocol / base URL / custom model (§4.11); appearance follows the system or switches manually |
+| M6 | Automatic merge and CalDAV | M3 | v1 done: automatic merge in `src/sync/merge/*`, applied by `syncWebDav`, and the keep-mine / keep-theirs / keep-both conflict UI in Settings (`src/sync/webdav/resolve.ts`); see §3.9. CalDAV read-only import in `src/sync/caldav/*`, see §3.10 |
+| M7 | AI providers + dark mode | M4 | Done: Anthropic, OpenAI, DeepSeek, Qwen, Moonshot, Zhipu, Gemini, OpenRouter and custom endpoints (§4.11); appearance follows the system or switches manually |
 | M8 | Automated packaging and release | M0 | Done: `.github/workflows/release.yml`, `npm run release` (doc 10 §7–8); first packaged `v0.1.0` on 2026-10-24, all four platforms succeeded, installers attached to the draft release |
 
 Ordering note: M3 and M4 are independent and can proceed in parallel; both
@@ -159,10 +159,11 @@ merge modules are pure and can be covered by Vitest without a real server.
 - Option B: `tauri-plugin-http` + front-end `fetch`. Fast to build, but every
   domain needs a capability entry, and credentials end up in front-end memory.
 
-**Recommendation: A.** Add `webdav.rs` under `src-tauri` exposing the minimal
-command surface: `webdav_propfind`, `webdav_get`, `webdav_put`, `webdav_move`.
-Credentials come from the system keychain (`keyring` crate) or one-off command
-parameters; never log them.
+**Recommendation: A.** Add a transport module under `src-tauri` exposing the
+minimal command surface: `webdav_propfind`, `webdav_get`, `webdav_put`,
+`webdav_move` (the shipped version is one generic `webdav_request` in
+`http.rs`). Credentials come from the system keychain (`keyring` crate) or
+one-off command parameters; never log them.
 
 ### 3.7 Acceptance criteria · 验收标准
 
@@ -184,7 +185,7 @@ Shipped (2026-10-23):
 
 | Item | Result |
 |---|---|
-| Transport | `src-tauri/src/webdav.rs`, a single command `webdav_request`, `reqwest` + rustls, 45 s timeout; HTTP errors returned as data |
+| Transport | `src-tauri/src/http.rs`, a single command `webdav_request` (later joined by `ai_request`), `reqwest` + rustls, 45 s timeout; HTTP errors returned as data |
 | Front-end modules | `src/sync/webdav/{types,client,manifest,plan,baseline,engine}.ts`; settings in `src/settings/webdav.ts` |
 | UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, progress, result, conflict list |
 | Decision | Three-way comparison (local / remote / baseline), pure function `planSync`; **never deletes, never silently overwrites** |
@@ -235,6 +236,41 @@ editing different fields of the same task get the newer record, not a merge of
 both fields. Settings and categories store a small `baseText` in the baseline;
 the first sync after upgrading without one treats any difference as a conflict
 and records it for next time.
+
+### 3.10 CalDAV read-only import (M6, first version) · CalDAV 只读导入
+
+Shipped (2026-11-01): `src/sync/caldav/{types,client,ics,import,engine}.ts`,
+`src/settings/caldav.ts`, the Settings CalDAV card and read-only rendering in
+the day/week/month views. Covered by 33 unit tests across `caldavIcs`,
+`caldavClient`, `caldavImport` and `caldavSettings`; typecheck, the full test
+suite and the production build pass.
+
+| Item | Result |
+|---|---|
+| Discovery | PROPFIND `current-user-principal` → `calendar-home-set` → depth-1 collections, with `/.well-known/caldav` as fallback; system collections filtered out |
+| Transport | Reuses the Rust `webdav_request` command; no new IPC command or capability |
+| Incremental sync | `getctag` per calendar; unchanged ctag skips the REPORT, a server without ctag does a full fetch |
+| Parsing | Hand-written iCalendar parser: line unfolding, DATE/UTC/TZID/floating time → local wall clock, `DURATION`, `RRULE` (daily/weekly/monthly/yearly with interval, count, until, by-day, by-month-day), `EXDATE`, nested `VALARM` skipped |
+| Recurrence window | Past 366 days / future 731 days; occurrences keyed `uid#occ=<start>`; `RECURRENCE-ID` overrides skipped; a cancelled series deletes its occurrences |
+| Mapping | Title, notes, start/end, all-day, category by English/Chinese name; `source = "caldav"`, `externalUid` set |
+| Import engine | Pure plan → `applyExternalImport`; creates/updates/deletes per `externalUid`; deterministic ids so two devices merge to one task |
+| Read-only UI | No checkbox/complete/delete; the editor is disabled and offers **Turn into local task**, which sets `source = "local"` and records the series in device-local `ignoredUids` |
+| Reports/AI | Calendar events are filtered out of report generation and AI context |
+| Credentials | URL, password, calendar selection and cursor in `localStorage["daymark.caldav.v1"]`; never in `_settings.md` or the data folder; nothing is written back to the server |
+| Tests | 33 new unit tests: parsing, discovery/REPORT, import planning, settings sanitisation |
+
+First-version boundaries (deliberate, not defects):
+
+- No write-back, no VTODO, no event editing, no background sync or push.
+- `RECURRENCE-ID` overrides (one moved/edited occurrence) are skipped, not shown.
+- Detaching is per device: `ignoredUids` is not synced, so another device that
+  imports the same calendar still creates its read-only copy; a detached local
+  task is not removed by a later calendar deletion.
+- Not yet validated against a live iCloud/Nextcloud/Fastmail account; the test
+  suite uses canned multistatus and `.ics` documents.
+
+Next (CalDAV v2): OS keychain, background refresh, `RECURRENCE-ID` overrides,
+and optionally write-back as VEVENT/VTODO (F-20).
 
 ---
 
@@ -443,19 +479,35 @@ stored on this device only:
 
 | Field | Purpose |
 |---|---|
-| `protocol` | `anthropic` (`/v1/messages`) or `openai` (`/v1/chat/completions`) |
-| `baseUrl` | Empty uses the official endpoint; fill in a relay/gateway base address and the app appends the path |
-| `model` | Any non-empty model name; the presets are only dropdown suggestions |
+| `provider` | Vendor preset: Anthropic, OpenAI, DeepSeek, Qwen (DashScope), Moonshot/Kimi, Zhipu GLM, Google Gemini, OpenRouter, or `custom` |
+| `protocol` | `anthropic` (`/v1/messages`) or `openai` (`/v1/chat/completions`); a preset fixes it, `custom` chooses it |
+| `baseUrl` | Empty uses the preset's endpoint; a typed relay/gateway address wins and the app appends the path |
+| `model` | Any non-empty model name; the preset list is only dropdown suggestions |
+
+Provider presets (M7 v2, shipped 2026-11-01): choosing a vendor in Settings fills
+its endpoint (except Anthropic, which uses the official SDK default) and model
+suggestions. DeepSeek, Qwen, Moonshot, Zhipu, Gemini and OpenRouter all speak the
+OpenAI-compatible protocol, so they reuse `OpenAiProvider`; Gemini uses its
+OpenAI-compatibility endpoint. A config saved before presets existed is mapped
+to the closest vendor by its protocol and base URL, so existing users do not
+reconfigure anything. The endpoint and model remain editable, so a relay of a
+preset vendor still works. Newer OpenAI reasoning models that reject
+`max_tokens` get one retry with `max_completion_tokens`.
 
 Implementation notes:
 
 - `createAiProvider` is the only branch point: `AnthropicProvider` passes
-  `baseUrl` to the official SDK's `baseURL`; `OpenAiProvider` uses `fetch`
-  directly and adds no second SDK.
+  `baseUrl` to the official SDK's `baseURL`; `OpenAiProvider` adds no second SDK
+  and sends through an `HttpTransport`. In the app that transport invokes the
+  Rust `ai_request` command, because DeepSeek, Qwen and similar vendors do not
+  send CORS headers; a longer 120 s timeout also covers reasoning models. Unit
+  tests inject a fake transport or stub `fetch`. `baseUrlFor(config)` resolves a
+  typed URL first, then the preset default.
 - The OpenAI-compatible path first requests `response_format: json_schema`; when
   the server rejects it (4xx), it retries once with `json_object` and appends
   the schema to the system prompt; `parseTaskResponse` also strips Markdown code
-  fences for weaker implementations.
+  fences for weaker implementations. A 400 that names `max_tokens` is retried
+  once with `max_completion_tokens`.
 - `baseUrl` accepts only absolute `http(s)` addresses; trailing slashes are
   stripped; invalid values fall back to the official endpoint.
 - The panel still shows the token estimate and actual usage; the button is
@@ -493,7 +545,7 @@ separately and do not mix it with WebDAV:
 |---|---|---|
 | `src/domain/` | Pure computation: task state, periods, reports, numbering | File IO, React, network |
 | `src/storage/` | Markdown parse/serialise, paths, repository, migration | UI state, network |
-| `src/sync/` | Change detection; WebDAV transport and planning | Directly mutating React state |
+| `src/sync/` | Change detection; WebDAV transport and planning; CalDAV discovery, parsing and import | Directly mutating React state |
 | `src/ai/` | Context assembly, providers, prompts, actions | Writing files directly |
 | `src/features/` | Pages and interaction | Protocol details, file-format details |
 | `src/settings/` | Setting types, validation, local persistence | Business rules |
@@ -515,8 +567,8 @@ Before each milestone merges:
 3. `cargo check` passes; new Rust commands are registered in doc 14.
 4. Manual acceptance covers: first launch, migration, power/network loss,
    conflicts and Chinese paths.
-5. Docs are updated in the same batch: 05 (format), 06 (sync), 14 (interfaces),
-   15 (usage) and 17 (troubleshooting).
+5. Docs are updated in the same batch: 05 (format), 06 (sync), 07 (CalDAV),
+   14 (interfaces), 15 (usage) and 17 (troubleshooting).
 
 Engine tests (`tests/webdavEngine.test.ts`) inject an in-memory folder, WebDAV
 client and baseline, so they run in CI without a server. A local

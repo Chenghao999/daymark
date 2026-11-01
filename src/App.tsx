@@ -11,6 +11,7 @@ import {
   completeTask,
   createCategory,
   createTask,
+  detachExternalTask,
   listCategories,
   listTasks,
   reopenTask,
@@ -32,6 +33,20 @@ import { syncWebDav } from "./sync/webdav/engine";
 import { resolveConflict } from "./sync/webdav/resolve";
 import type { SyncConflict, WebDavConfig } from "./sync/webdav/types";
 import type { MergeDecisions } from "./sync/merge";
+import {
+  isCalDavConfigured,
+  isCalDavReady,
+  loadCalDavSettings,
+  saveCalDavSettings,
+} from "./settings/caldav";
+import { CalDavClient } from "./sync/caldav/client";
+import { syncCalDav } from "./sync/caldav/engine";
+import { seriesUidOf } from "./sync/caldav/import";
+import type {
+  CalDavCalendar,
+  CalDavConfig,
+  CalDavSettings,
+} from "./sync/caldav/types";
 import TaskEditor, { type TaskDraft } from "./components/TaskEditor";
 import WeekView from "./features/calendar/WeekView";
 import DayView from "./features/calendar/DayView";
@@ -59,6 +74,10 @@ export default function App() {
   const [webdavStatus, setWebdavStatus] = useState<string | null>(null);
   const [webdavConflicts, setWebdavConflicts] = useState<SyncConflict[]>([]);
   const [ai, setAi] = useState<AiConfig>(() => loadAiSettings());
+  const [caldav, setCaldav] = useState<CalDavSettings>(() => loadCalDavSettings());
+  const [caldavBusy, setCaldavBusy] = useState(false);
+  const [caldavStatus, setCaldavStatus] = useState<string | null>(null);
+  const [caldavFound, setCaldavFound] = useState<CalDavCalendar[] | null>(null);
   const bootedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
 
@@ -227,6 +246,8 @@ export default function App() {
   }
 
   async function toggleTask(task: Task) {
+    // Calendar events are read-only until the user turns them into a local task.
+    if (task.source === "caldav") return;
     if (task.status === "done") await reopenTask(task);
     else await completeTask(task);
     await refresh();
@@ -235,6 +256,23 @@ export default function App() {
 
   async function deleteTask(task: Task) {
     await softDeleteTask(task.id);
+    setEditorOpen(false);
+    setEditing(null);
+    await refresh();
+    await touchScanner();
+  }
+
+  async function detachTask(task: Task) {
+    const series = seriesUidOf(task.externalUid);
+    await detachExternalTask(task.id);
+    if (series) {
+      setCaldav((current) => {
+        if (current.ignoredUids.includes(series)) return current;
+        const next = { ...current, ignoredUids: [...current.ignoredUids, series] };
+        saveCalDavSettings(next);
+        return next;
+      });
+    }
     setEditorOpen(false);
     setEditing(null);
     await refresh();
@@ -269,6 +307,102 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const patchCalDav = useCallback((patch: Partial<CalDavConfig>) => {
+    // Calendars belong to a server; a new URL invalidates the old selection
+    // and the discovery list, so they are not synced by mistake.
+    if ("serverUrl" in patch) setCaldavFound(null);
+    setCaldav((current) => {
+      const config = { ...current.config, ...patch };
+      if ("serverUrl" in patch && patch.serverUrl !== current.config.serverUrl) {
+        config.calendars = [];
+      }
+      const next = { ...current, config };
+      saveCalDavSettings(next);
+      return next;
+    });
+  }, []);
+
+  const toggleCalDavCalendar = useCallback((calendar: CalDavCalendar, selected: boolean) => {
+    setCaldav((current) => {
+      const others = current.config.calendars.filter((item) => item.href !== calendar.href);
+      const calendars = selected
+        ? [...others, { href: calendar.href, name: calendar.name }]
+        : others;
+      const next = { ...current, config: { ...current.config, calendars } };
+      saveCalDavSettings(next);
+      return next;
+    });
+  }, []);
+
+  async function discoverCalDavCalendars() {
+    if (!isCalDavConfigured(caldav.config)) {
+      setCaldavStatus(t("settings.caldavNotConfigured"));
+      return;
+    }
+    setCaldavBusy(true);
+    setCaldavStatus(t("settings.caldavDiscovering"));
+    try {
+      const found = await new CalDavClient(caldav.config).discover();
+      setCaldavFound(found);
+      setCaldavStatus(
+        found.length > 0 ? t("settings.caldavDiscovered") : t("settings.caldavNoCalendars"),
+      );
+    } catch (cause) {
+      setCaldavStatus(
+        `${t("settings.caldavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    } finally {
+      setCaldavBusy(false);
+    }
+  }
+
+  async function runCalDavSync() {
+    if (!isCalDavReady(caldav.config)) {
+      setCaldavStatus(
+        isCalDavConfigured(caldav.config)
+          ? t("settings.caldavNoCalendarSelected")
+          : t("settings.caldavNotConfigured"),
+      );
+      return;
+    }
+    setCaldavBusy(true);
+    setCaldavStatus(t("settings.caldavSyncing"));
+    try {
+      const result = await syncCalDav(caldav, {
+        onProgress: (done, total, calendar) => {
+          if (calendar) {
+            setCaldavStatus(t("settings.caldavProgress", { done, total, calendar }));
+          }
+        },
+      });
+      setCaldav((current) => {
+        const next = { ...current, state: result.nextState };
+        saveCalDavSettings(next);
+        return next;
+      });
+      setCaldavStatus(
+        result.errors.length > 0
+          ? `${t("settings.caldavError")}: ${result.errors.slice(0, 3).join("; ")}`
+          : t("settings.caldavResult", {
+              created: result.created,
+              updated: result.updated,
+              deleted: result.deleted,
+              unchanged: result.unchanged,
+            }),
+      );
+      if (result.created + result.updated + result.deleted > 0) {
+        await refresh();
+        await touchScanner();
+      }
+    } catch (cause) {
+      setCaldavStatus(
+        `${t("settings.caldavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    } finally {
+      setCaldavBusy(false);
+    }
+  }
 
   async function testWebdav() {
     if (!isWebDavConfigured(webdav)) {
@@ -536,10 +670,19 @@ export default function App() {
               webdavStatus={webdavStatus}
               webdavConflicts={webdavConflicts}
               ai={ai}
+              caldav={caldav.config}
+              caldavState={caldav.state}
+              caldavFound={caldavFound}
+              caldavBusy={caldavBusy}
+              caldavStatus={caldavStatus}
               onWebdavPatch={patchWebdav}
               onWebdavTest={testWebdav}
               onWebdavSync={runWebdavSync}
               onWebdavResolve={resolveWebdavConflict}
+              onCalDavPatch={patchCalDav}
+              onCalDavDiscover={discoverCalDavCalendars}
+              onCalDavToggle={toggleCalDavCalendar}
+              onCalDavSync={runCalDavSync}
               onAiPatch={patchAi}
               onLanguage={changeLanguage}
               onChangeFolder={chooseFolder}
@@ -566,9 +709,11 @@ export default function App() {
           categories={categories}
           language={language}
           ai={ai}
+          readOnly={editing?.source === "caldav"}
           onSave={saveDraft}
           onCreateMany={createDrafts}
-          onDelete={editing ? () => deleteTask(editing) : undefined}
+          onDelete={editing && editing.source !== "caldav" ? () => deleteTask(editing) : undefined}
+          onDetach={editing?.source === "caldav" ? () => detachTask(editing) : undefined}
           onClose={() => {
             setEditorOpen(false);
             setEditing(null);

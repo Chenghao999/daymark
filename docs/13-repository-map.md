@@ -43,9 +43,9 @@ dependencies (`node_modules/`) and generated Tauri schemas
 |---|---|---|---|
 | Domain | `src/domain/` | types, task state machine, period math, report derivation, numbering | filesystem calls, DOM, Tauri APIs, localStorage |
 | Storage | `src/storage/` | Markdown parse/serialize, paths, in-memory store, repository, migration | report rules, UI state |
-| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync, merge of two copies (tasks, settings, categories) | React state, store mutation |
+| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync, CalDAV read-only import, merge of two copies (tasks, settings, categories) | React state, store mutation |
 | AI | `src/ai/` | provider interface, prompt/context builders, `_ai/` output | React state, store writes |
-| Device settings | `src/settings/` | device-local preferences (WebDAV, AI) and the synced settings model | shared task data |
+| Device settings | `src/settings/` | device-local preferences (WebDAV, AI, CalDAV) and the synced settings model | shared task data |
 | Presentation | `src/components/`, `src/features/`, `src/App.tsx` | view state, interaction, layout | Markdown parsing, direct `invoke` calls |
 | i18n | `src/i18n/` | UI resources and i18next setup | product logic |
 | Desktop shell | `src-tauri/` | plugins, IPC commands, window and bundle config | product rules |
@@ -90,13 +90,13 @@ when debugging. Keeping the surface small is what makes a module replaceable
 
 | File | Responsibility |
 |---|---|
-| `types.ts` | `StoredTask {task, completion, dateKey}`, `StoreState {root, categories, tasks, extrasByDate}`, `BACKLOG_KEY`. |
+| `types.ts` | `StoredTask {task, completion, dateKey}`, `StoreState {root, categories, tasks, extrasByDate}`, `BACKLOG_KEY`, `ExternalTaskDraft`, `ExternalImportPlan` (the shape an importer produces). |
 | `paths.ts` | File names (`_settings.md`, `_categories.md`, `_backlog.md`, `daymark.db`) and `dateKeyOf`, `monthKey`, `monthDir`, `dayFilePath`, `backlogPath`, `categoriesPath`, `settingsPath`, `legacyDbPath`, `extrasKey`, `isMonthFolder`, `isDayFile`, `dateKeyOfFile`. |
 | `fs.ts` | Typed `invoke` wrappers for the Rust file commands plus `DirEntry` and `TreeSignature`. |
 | `markdown.ts` | `parseCategoriesMarkdown`, `serializeCategoriesMarkdown`, `parseMarkdown`, `serializeMarkdown`. The only place that knows the file grammar. |
 | `tombstone.ts` | Deletion markers: `Tombstone`, `tombstoneLine`, `parseTombstone`, `tombstonesFromExtras`, `tombstoneMap`, `isTombstoned`, `withoutTombstoned`. Markers live in the file's extras, so they travel with the Markdown. |
 | `client.ts` | `openStore(root)`, `closeStore()`, `getStoreState()`, `getStoreRoot()`. Loads every file into memory, applies every file's deletion markers to every task, and seeds defaults on an empty folder. |
-| `repository.ts` | All store mutations used by the UI: task CRUD, completion, category management. Writes the affected day file atomically; a task delete also writes a marker into that file's extras. |
+| `repository.ts` | All store mutations used by the UI: task CRUD, completion, category management. Also `applyExternalImport(plan)` (batched, deterministic ids) and `detachExternalTask(id)`. Writes the affected day file atomically; a task delete also writes a marker into that file's extras. |
 | `migrate.ts` | `migrateLegacyDatabase(root)` — one-time SQLite → Markdown conversion. |
 | `settingsFile.ts` | `_settings.md` serializer/parser and `loadSyncedSettings` / `saveSyncedSettings`. |
 | `device.ts` | `deviceId()` from `localStorage["daymark.deviceId"]`. |
@@ -119,20 +119,27 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `merge/tasks.ts` | Pure `mergeTaskFile(localText, remoteText, options)`: parse both copies, union tasks by id, order the same task by `rowVersion`/`updatedAt`, let a completion beat a reopen, report an unresolvable tie as a conflict and leave the local text untouched. Deletion markers in the extras drop a task unless the other side's edit is newer, and are kept one per id. Optional `decisions` settle a tie, including "keep both" as a new task. |
 | `merge/files.ts` | Pure `mergeSettingsFile` and `mergeCategoriesFile`: three-way merge against the last synced text; per settings key, per category id and field; a category deletion wins only when the other side did not edit it. Optional `decisions` settle a key or category id ("both" is not valid here). |
 | `merge/index.ts` | Public entry: `mergeableDateKey(path)` (day file → date, `_backlog.md` → null, anything else → undefined) plus the merge exports. |
+| `caldav/types.ts` | `CalDavConfig`, `CalDavState`, `CalDavSettings`, `CalDavEvent`, `CalDavRequest`/`CalDavHttpResponse`, `CalDavTransport`, `CalDavSyncResult`. Types only. |
+| `caldav/client.ts` | `CalDavClient` (`discover`, `ctag`, `events`) plus URL/href/multistatus helpers. The only module that knows CalDAV verbs; transport is the Rust `webdav_request` command (`TAURI_CALDAV_TRANSPORT`). |
+| `caldav/ics.ts` | `parseCalendarData(text, options?)`: unfolds iCalendar, reads `VEVENT` (skipping nested `VALARM`), converts DATE/UTC/TZID/floating times to local wall clock, applies `DURATION`, expands `RRULE`/`EXDATE` within a window, keys occurrences as `uid#occ=<start>`. Pure, no I/O. |
+| `caldav/import.ts` | Pure `planCalendarImport({events, tasks, categories, previousUids, ignoredUids?})` and `seriesUidOf(externalUid)`: create/update/delete diff by `externalUid`, category match by name, series-level deletion, detached-series skip. |
+| `caldav/engine.ts` | `syncCalDav(settings, options)`: per calendar, skip on unchanged ctag, REPORT, parse, plan, `applyExternalImport`, then return counters and the next `CalDavState`. Per-calendar errors are collected, not thrown. |
 
 ### AI assistant (`src/ai/`)
 
 | File | Responsibility |
 |---|---|
-| `types.ts` | `AiConfig`, `AiFeature`, `AiRequest`, `AiPrompt`, `AiResult`, `AiJsonSchema` and the `AiProvider` interface. Types only. |
+| `types.ts` | `AiConfig`, `AiProviderId`, `AiProtocol`, `AiFeature`, `AiRequest`, `AiPrompt`, `AiResult`, `AiJsonSchema` and the `AiProvider` interface. Types only. |
+| `presets.ts` | Vendor presets (Anthropic, OpenAI, DeepSeek, Qwen, Moonshot, Zhipu, Gemini, OpenRouter, custom): protocol, default endpoint, model suggestions, plus `baseUrlFor`, `inferProvider` and the normalization helpers. Pure. |
 | `context.ts` | `reportOutline(report)` (the exact text that is sent) and `aiContextSummary(report)` (counts shown before sending). Pure. |
 | `prompts.ts` | `buildPrompt(request)` → provider-agnostic `{system,user}` for the polish and retrospective features. Pure. |
 | `tasks.ts` | `buildTaskPrompt(input)`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse(text, ids)`: one sentence → validated `TaskSuggestion[]`. Never writes a task. Pure. |
 | `providers/anthropic.ts` | `AnthropicProvider`: official SDK, adaptive thinking, streaming, `finalMessage()`, optional `baseURL` for relays. The SDK is imported on first use. |
-| `providers/openai.ts` | `OpenAiProvider`: `fetch` against `{baseUrl}/chat/completions`, `json_schema` with a `json_object` fallback, usage mapping. |
+| `providers/openai.ts` | `OpenAiProvider`: `POST {baseUrl}/chat/completions` through an injectable `HttpTransport`, `json_schema` with a `json_object` fallback, `max_tokens` fallback, usage mapping. |
+| `transport.ts` | `HttpTransport`, `fetchTransport`, `tauriTransport` (`invoke("ai_request")`) and `defaultTransport()`. Keeps CORS and the long timeout out of the provider. |
 | `output.ts` | `aiOutputPath`, `saveAiOutput`: writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md` in the data folder. |
 | `usage.ts` | `estimateTokens(text)`, `estimatePrompt(prompt)`: rough Latin/CJK character-based estimate shown before a request. Pure. |
-| `index.ts` | The public entry: `createAiProvider(config)` picks the provider, plus re-exports of the pure helpers and types. |
+| `index.ts` | The public entry: `createAiProvider(config)` picks the provider and resolves the endpoint (`baseUrlFor`), plus re-exports of the pure helpers and types. |
 
 ### 3.5 Device settings (`src/settings/`)
 
@@ -140,20 +147,21 @@ when debugging. Keeping the surface small is what makes a module replaceable
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
 | `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
-| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): protocol, base URL, any model name and `isAiConfigured`. The API key never enters `_settings.md`. |
+| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset; the API key never enters `_settings.md`. |
+| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID cursor and detached series UIDs. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
 | File | Responsibility |
 |---|---|
-| `components/TaskEditor.tsx` | Modal form for creating/editing a task; validates the title; emits a `TaskDraft`. When AI is configured it also shows the one-sentence quick fill (M5). |
+| `components/TaskEditor.tsx` | Modal form for creating/editing a task; validates the title; emits a `TaskDraft`. When AI is configured it also shows the one-sentence quick fill (M5). A CalDAV task opens it read-only, with "turn into local task" instead of save/delete. |
 | `features/calendar/WeekView.tsx` | Week grid that honours `weekStartsOn`. Exports `taskDateKey` and `tasksForDay`, reused by the other views. |
 | `features/calendar/DayView.tsx` | Single-day list grouped by status, plus the backlog. |
 | `features/calendar/MonthView.tsx` | Month grid with per-day task counts; honours `weekStartsOn`; clicking a day opens the day view. |
 | `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export, AI entry point. |
 | `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, generate, editable result, copy and save to `_ai/`. |
 | `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, asks for a path, writes via `write_file_bytes`. |
-| `features/settings/SettingsView.tsx` | Language, appearance (system/light/dark), week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync, status, conflict list), AI card (protocol, base URL, key, model, privacy), category add/archive, device ID display. |
+| `features/settings/SettingsView.tsx` | Language, appearance (system/light/dark), week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync, status, conflict list), AI card (provider preset, protocol for custom endpoints, base URL, key, model, privacy), CalDAV card (URL, credentials, discover/select calendars, import now, last sync, status, privacy), category add/archive, device ID display. |
 | `hooks/useOnline.ts` | `useOnline()`: `navigator.onLine` plus online/offline events; disables AI buttons while offline. |
 
 ### 3.7 Internationalisation (`src/i18n/`)
@@ -182,8 +190,13 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
+| `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` skip, unknown TZID, missing `UID`/`DTSTART`. |
+| `caldavClient.test.ts` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT body/content-type/depth, typed 401. |
+| `caldavImport.test.ts` | Create/update/unchanged/delete planning, category match by name, recurring occurrence retention, series deletion, cancelled, detached series, `seriesUidOf`. |
+| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip, malformed-entry sanitisation, unreadable JSON. |
 
-Tests import only `src/domain/*`, `src/storage/*` and `src/sync/webdav/*` modules;
+Tests import only `src/domain/*`, `src/storage/*`, `src/sync/webdav/*`,
+`src/sync/caldav/*` and `src/settings/*` modules;
 the engine suite injects in-memory implementations of `SyncIo` / `RemoteClient` /
 `BaselineStore`, so no Tauri mocks or network are needed. The
 test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
@@ -197,8 +210,8 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `Cargo.lock` | Committed so desktop builds are reproducible. |
 | `build.rs` | Standard `tauri_build::build()`. |
 | `src/main.rs` | Calls `daymark_lib::run()`. |
-| `src/lib.rs` | Plugin registration, the file IPC commands (`file_mtime_ms`, `read_text_file`, `write_text_file`, `write_file_bytes`, `create_dir_all`, `list_dir`, `path_exists`, `remove_file`, `rename_path`, `tree_signature`) and `webdav_request`. Keep this file small. |
-| `src/webdav.rs` | Minimal WebDAV transport with `reqwest`: one `webdav_request(method, url, …)` command, 45 s timeout, optional Basic auth, HTTP errors returned to the caller. No sync logic. |
+| `src/lib.rs` | Plugin registration, the file IPC commands (`file_mtime_ms`, `read_text_file`, `write_text_file`, `write_file_bytes`, `create_dir_all`, `list_dir`, `path_exists`, `remove_file`, `rename_path`, `tree_signature`) and the HTTP commands. Keep this file small. |
+| `src/http.rs` | Shared `reqwest` transport: `webdav_request(method, url, …)` with a 45 s timeout and optional Basic auth, and `ai_request(url, headers, body)` with a 120 s POST. HTTP errors are returned to the caller. No sync or AI logic. |
 | `tauri.conf.json` | Product name, identifier, window size, dev URL, bundle targets and icons. |
 | `capabilities/default.json` | The permission allow-list for the main window. `sql:*` remains only for the one-time migration. |
 | `icons/` | Bundle icons referenced by `tauri.conf.json`. |
@@ -216,7 +229,7 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `04-architecture.md` | Technical architecture. |
 | `05-data-model.md` | Markdown folder format, fields, migration. |
 | `06-sync-conflict.md` | Sync and conflict design (0.1 detection + P1 merge plan). |
-| `07-caldav.md` | CalDAV design (not implemented). |
+| `07-caldav.md` | CalDAV design and implemented v1 (read-only import, limitations). |
 | `08-report-templates.md` | Report template and DOCX specification. |
 | `09-i18n.md` | Internationalisation rules. |
 | `10-build-distribution.md` | Build and distribution. |
@@ -228,7 +241,7 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `16-data-sync-operations.md` | Multi-device setup, conflict handling, backup/restore. |
 | `17-troubleshooting.md` | Symptom → cause → action. |
 | `18-development-guide.md` | Environment, workflow, change playbooks, conventions. |
-| `19-roadmap.md` | Milestones, WebDAV status (§3.8), AI status (§4.9), CalDAV and M5 plan. |
+| `19-roadmap.md` | Milestones, WebDAV status (§3.8), AI status (§4.9), CalDAV status, M5 plan. |
 
 ## 4. Generated files — do not edit
 
@@ -258,7 +271,7 @@ Never hand-edit a generated file. Change its source (`package.json`,
 | Add a numbering style | `domain/types.ts`, `domain/numbering.ts`, both locale files, settings UI | docs 08, 09, 14 |
 | Add a screen | `features/<name>/`, then wire it in `App.tsx` (`View` union + nav) | docs 13, 14, both locale files |
 | Add a native capability | `src-tauri/src/lib.rs`, `generate_handler!`, `capabilities/default.json`, `storage/fs.ts` wrapper | docs 14, 17 |
-| Add a sync behaviour | `sync/scanner.ts` (detection), `sync/webdav/` (transport and planning) or `sync/merge/` (combining two copies) | docs 06, 14, 16 |
+| Add a sync behaviour | `sync/scanner.ts` (detection), `sync/webdav/` (transport and planning), `sync/merge/` (combining two copies) or `sync/caldav/` (calendar import) | docs 06, 07, 14, 16 |
 | Add a device preference | `settings/store.ts`, `storage/settingsFile.ts`, `SettingsView.tsx` | docs 14, 15 |
 | Add a user-visible string | both `en.json` and `zh-CN.json` | doc 09 |
 | Change the migration | `storage/migrate.ts` + `storage/client.ts` | docs 05, 12, 16 |

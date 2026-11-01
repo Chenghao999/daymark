@@ -151,9 +151,11 @@ Manual WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
 a per-device baseline and merges day/backlog files task by task and
 `_settings.md` / `_categories.md` key by key before falling back to conflict
 copies. Unresolved items are answered in Settings (§4); the conflict copy stays
-on disk as a backup after resolution. Background sync and the AI assistant are
-still roadmap items; see `19-roadmap.md` §3.8 and §4. CalDAV remains
-design-only (doc 07).
+on disk as a backup after resolution. CalDAV read-only import is implemented in
+`src/sync/caldav/` with a manual `getctag`-based fetch (doc 07); it never writes
+back and its credentials are device-local. Background sync is still a roadmap
+item; the AI assistant is implemented separately in `src/ai/`. See
+`19-roadmap.md` §3.8, §3.10 and §4.
 
 ## 6. Non-goals
 

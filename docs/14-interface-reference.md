@@ -24,7 +24,7 @@ the debugging rule are in doc 18 §4.1.
 |---|---|---|
 | **Stable** | Changing it requires a migration or a coordinated update of all callers. | Markdown file format, IPC command names, `Task` fields |
 | **Internal** | Free to change if all call sites and tests are updated. | layout components, CSS class names |
-| **Reserved** | Present in the format or settings but not used yet. Do not rely on it. | `source`, `externalUid`, `userName` |
+| **Reserved** | Present in the format or settings but not used yet. Do not rely on it. | `userName` |
 
 ## 2. Domain types (`src/domain/types.ts`)
 
@@ -33,7 +33,7 @@ the debugging rule are in doc 18 §4.1.
 | Type | Values | Meaning |
 |---|---|---|
 | `TaskStatus` | `"backlog"` \| `"scheduled"` \| `"done"` | Derived from dates, except `done` which is explicit. |
-| `TaskSource` | `"local"` \| `"caldav"` | Reserved for CalDAV import. Everything created today is `local`. |
+| `TaskSource` | `"local"` \| `"caldav"` | Who owns the task. `local` is created in the app; `caldav` is imported and read-only until detached. |
 | `NumberingStyle` | `"chinese"` \| `"arabic"` \| `"alpha"` | Report section prefix. |
 | `ReportKind` | `"daily"` \| `"weekly"` \| `"monthly"` \| `"yearly"` | Report period. |
 | `AppLanguage` | `"en"` \| `"zh-CN"` | UI language. |
@@ -68,8 +68,8 @@ the debugging rule are in doc 18 §4.1.
 | `deviceId` | `string` | Identity of the writer, from localStorage. |
 | `rowVersion` | `number` | Starts at 1, incremented by the repository on every write. |
 | `deleted` | `boolean` | Always `false` in the store; kept for type compatibility with the migration. |
-| `source` | `TaskSource` | Reserved. |
-| `externalUid` | `string \| null` | Reserved for CalDAV. |
+| `source` | `TaskSource` | `local` for app-created tasks, `caldav` for imported events. |
+| `externalUid` | `string \| null` | CalDAV identity: the event `UID`, or `UID#occ=<start>` for one occurrence. `null` for local tasks (including detached ones). |
 
 ### `Completion`
 
@@ -218,6 +218,23 @@ interface StoreState {
 }
 
 const BACKLOG_KEY = "backlog";
+
+interface ExternalTaskDraft {
+  externalUid: string;
+  title: string;
+  notes: string;
+  categoryId: string | null;
+  startAt: string;
+  endAt: string | null;
+  allDay: boolean;
+}
+
+interface ExternalImportPlan {
+  creates: ExternalTaskDraft[];
+  updates: Array<ExternalTaskDraft & { id: string }>;
+  deletes: string[];
+  unchanged: number;
+}
 ```
 
 ```ts
@@ -337,6 +354,8 @@ reopenTask(task: Task): Promise<void>
 listCompletions(fromIso: string, toIso: string): Promise<Completion[]>
 createCategory(nameEn: string, nameZh: string, color: string): Promise<void>
 archiveCategory(id: string): Promise<void>
+applyExternalImport(plan: ExternalImportPlan): Promise<void>
+detachExternalTask(id: string): Promise<void>
 ```
 
 | Function | File effect | Notes |
@@ -351,6 +370,8 @@ archiveCategory(id: string): Promise<void>
 | `listCompletions` | none | Filters the in-memory completions by ISO range, inclusive. |
 | `createCategory` | rewrites `_categories.md` | `sortOrder = current count`. |
 | `archiveCategory` | rewrites `_categories.md` | `archived = true`; tasks keep their `categoryId`. |
+| `applyExternalImport` | rewrites each affected day file once | Creates with the deterministic id `caldav-<two FNV-1a hex>`, `source = "caldav"`; updates preserve id and completion; deletes leave tombstones. A stale tombstone for a re-created id is removed first. |
+| `detachExternalTask` | rewrites the task's file | `source = "local"`, `externalUid = null`, `rowVersion + 1`. The caller records the series UID in `ignoredUids`. |
 
 `NewTaskInput` is defined once in `domain/tasks.ts` and re-exported here, so the
 REPL, the editor and the repository share one shape. Task transitions
@@ -605,17 +626,108 @@ Contract:
    passes none of them; the defaults are the real client, the Tauri file
    commands and `localStorage`.
 
+### CalDAV import (`src/sync/caldav/`, `src/settings/caldav.ts`)
+
+```ts
+interface CalDavConfig {
+  serverUrl: string;
+  username: string;
+  password: string;                    // device-local only, never in _settings.md
+  calendars: CalDavCalendarRef[];      // selected collections
+}
+
+interface CalDavCalendarRef { href: string; name: string }
+interface CalDavCalendarState { ctag: string | null; uids: string[]; syncedAt: string }
+interface CalDavState { calendars: Record<string, CalDavCalendarState> }
+
+interface CalDavSettings {
+  config: CalDavConfig;
+  state: CalDavState;
+  ignoredUids: string[];               // detached series, never re-imported
+}
+
+interface CalDavEvent {
+  uid: string;                         // VEVENT UID, shared by all occurrences
+  key: string;                         // uid, or uid#occ=<start>
+  title: string; notes: string; categories: string[];
+  startAt: string; endAt: string | null; allDay: boolean; cancelled: boolean;
+}
+
+interface CalDavSyncResult {
+  created: number; updated: number; deleted: number; unchanged: number;
+  calendars: number; errors: string[];
+  nextState: CalDavState;
+}
+
+normalizeServerUrl(url: string): string
+resolveHref(base: string, href: string): string
+parseMultiStatus(xml: string): MultiStatusEntry[]
+parseCalendarData(text: string, options?: { now?; pastDays?; futureDays? }): CalDavEvent[]
+
+class CalDavClient {
+  constructor(config: CalDavConfig, transport?: CalDavTransport);
+  discover(): Promise<CalDavCalendar[]>;
+  ctag(href: string): Promise<string | null>;
+  events(href: string): Promise<CalendarObject[]>;   // { href, etag, data }
+}
+
+class CalDavError extends Error { status: number }
+
+planCalendarImport(input: {
+  events: CalDavEvent[]; tasks: Task[]; categories: Category[];
+  previousUids: string[]; ignoredUids?: string[];
+}): ExternalImportPlan
+seriesUidOf(externalUid: string | null): string | null
+
+syncCalDav(settings: CalDavSettings, options?: {
+  client?: Pick<CalDavClient, "ctag" | "events">;
+  now?: Date;
+  onProgress?: (done: number, total: number, calendar: string) => void;
+}): Promise<CalDavSyncResult>
+
+DEFAULT_CALDAV_SETTINGS: CalDavSettings
+loadCalDavSettings(): CalDavSettings          // localStorage "daymark.caldav.v1"
+saveCalDavSettings(settings: CalDavSettings): void
+isCalDavConfigured(config: CalDavConfig): boolean   // URL + username + password
+isCalDavReady(config: CalDavConfig): boolean        // at least one calendar selected
+```
+
+Rules:
+
+1. `discover` walks `current-user-principal` → `calendar-home-set` → depth-1
+   listing, with `/.well-known/caldav` as the fallback for the first step. A
+   non-207 discovery answer throws `CalDavError`.
+2. `ctag` returns `null` on a non-207 response (server without `getctag`) and
+   throws on 401/403.
+3. `events` sends `REPORT` `calendar-query` for `VEVENT` with `calendar-data`
+   at depth 1; a non-207 answer throws.
+4. `parseCalendarData` converts every time to the device's local wall clock,
+   expands recurrences within the window, and never throws for one bad object.
+   Nested `VALARM` blocks are skipped.
+5. `planCalendarImport` is pure: it matches categories case-insensitively
+   against `nameEn`/`nameZh`, compares title/notes/category/start/end/all-day,
+   deletes by series UID, and never re-imports `ignoredUids`.
+6. `syncCalDav` is read-only against the server and does not touch React state;
+   the caller saves `nextState` and reloads the store when anything changed.
+   Per-calendar errors are collected in `errors`, not thrown.
+7. The deterministic task id (`caldav-<two FNV-1a hex>` of `externalUid`) is
+   what lets two devices importing the same event merge into one task.
+
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 
 ```ts
 type AiProtocol = "anthropic" | "openai";
+type AiProviderId =
+  | "anthropic" | "openai" | "deepseek" | "qwen" | "moonshot"
+  | "zhipu" | "gemini" | "openrouter" | "custom";
 
 interface AiConfig {
   enabled: boolean;                   // opt-in; default false
+  provider: AiProviderId;             // vendor preset; "custom" = relay
   protocol: AiProtocol;               // /v1/messages or /v1/chat/completions
   apiKey: string;                     // device-local only
   model: string;                      // any non-empty name
-  baseUrl: string;                    // "" = official endpoint
+  baseUrl: string;                    // "" = the provider preset's default
 }
 
 type AiFeature = "polish" | "review";
@@ -657,15 +769,38 @@ buildTaskPrompt(input: { text; now; language; categories }): AiPrompt
 parseTaskResponse(text: string, knownCategoryIds: Iterable<string>): TaskSuggestion[]
 TASK_SUGGESTION_SCHEMA: AiJsonSchema
 
-AI_MODELS: readonly string[]
+// Provider presets (`src/ai/presets.ts`)
+interface AiProviderPreset {
+  id: Exclude<AiProviderId, "custom">;
+  protocol: AiProtocol;
+  baseUrl: string;                    // preset endpoint; "" = official
+  models: readonly string[];          // suggestions only
+  defaultModel: string;
+}
+AI_PROVIDER_PRESETS: readonly AiProviderPreset[]
+isProviderId(value: unknown): value is AiProviderId
+findPreset(id: AiProviderId): AiProviderPreset | null
+inferProvider(protocol: AiProtocol, baseUrl: string): AiProviderId
+normalizeProvider(value: unknown, protocol: AiProtocol, baseUrl: string): AiProviderId
+protocolFor(provider: AiProviderId, fallback: AiProtocol): AiProtocol
+baseUrlFor(config: Pick<AiConfig, "provider" | "baseUrl">): string
+modelsFor(provider: AiProviderId): readonly string[]
+defaultModelFor(provider: AiProviderId): string
+
 DEFAULT_AI: AiConfig
 loadAiSettings(): AiConfig
 saveAiSettings(config: AiConfig): void
 isAiConfigured(config: AiConfig): boolean
 normalizeProtocol(value: unknown): AiProtocol
-normalizeModel(value: unknown): string
+normalizeModel(value: unknown, fallback?: string): string
 normalizeBaseUrl(value: unknown): string
 ```
+
+Presets: Anthropic (`/v1/messages`, official endpoint when empty), and the
+OpenAI-compatible OpenAI, DeepSeek, Qwen (DashScope), Moonshot/Kimi, Zhipu GLM,
+Google Gemini and OpenRouter endpoints. `custom` keeps the user's protocol,
+base URL and model unchanged. The presets are shortcuts, not a whitelist: any
+model name is accepted and a typed base URL wins over the preset default.
 
 Contract:
 
@@ -676,38 +811,48 @@ Contract:
 3. Providers implement `AiProvider` only. `createAiProvider` is the single
    branch point: `protocol: "anthropic"` → `AnthropicProvider` (`/v1/messages`,
    optional `baseURL`), `protocol: "openai"` → `OpenAiProvider`
-   (`{baseUrl}/chat/completions`). Adding another vendor means adding a provider
-   file and a branch there. The UI never imports a provider directly.
+   (`{baseUrl}/chat/completions`). The base URL is `baseUrlFor(config)`: a typed
+   value wins, otherwise the preset's endpoint. Adding another vendor means
+   adding a preset (or a provider file and a branch for a new wire format). The
+   UI never imports a provider directly.
 4. The Anthropic provider uses `claude-opus-5-5` by default, adaptive thinking
    and streaming (`messages.stream(...).finalMessage()`); the SDK is a dynamic
    import, so it is not in the startup bundle. `baseUrl` is passed through as
    the SDK's `baseURL`, so an Anthropic-compatible relay works unchanged;
    `maxRetries` is 2.
-   The OpenAI-compatible provider uses `fetch`, requests `json_schema` first and
-   retries once with `json_object` on a 4xx, because many relays reject the
-   former field.
-5. Nothing is written until the user presses **Save**. Output goes to
+   The OpenAI-compatible provider sends its request through an `HttpTransport`
+   (`ai/transport.ts`): inside Tauri that is `invoke("ai_request")`, because
+   DeepSeek, Qwen and similar vendors send no CORS headers; outside Tauri it is
+   `fetch`, which the tests exercise with a stub. It requests `json_schema` first
+   and retries once with `json_object` on a 4xx, because many relays reject the
+   former field. If a 400 says `max_tokens` is unsupported (newer OpenAI
+   reasoning models), it retries once with `max_completion_tokens`.
+5. `loadAiSettings` maps a config saved before presets existed to the vendor its
+   protocol and base URL identify (`inferProvider`), and keeps the stored
+   protocol in step with a stored preset (`protocolFor`). A preset's model
+   fallback is its `defaultModel`, not Anthropic's.
+6. Nothing is written until the user presses **Save**. Output goes to
    `_ai/YYYY-MM-DD-<kind>-HHmmss.md`; the timestamp keeps every answer.
-6. `_ai/` is **not** part of the WebDAV manifest, so AI notes are not uploaded
+7. `_ai/` is **not** part of the WebDAV manifest, so AI notes are not uploaded
    by the sync button.
-7. The API key lives in `localStorage` on this device, never in
+8. The API key lives in `localStorage` on this device, never in
    `_settings.md`. `isAiConfigured` is true only when the assistant is enabled
    and a non-empty key exists.
-8. `completeJson` is used only for structured answers; the schema is sent with
+9. `completeJson` is used only for structured answers; the schema is sent with
    the request (`output_config.format`), so no "reply with JSON only" prompt
    text is needed.
-9. `parseTaskResponse` is the trust boundary for natural-language entry: it
+10. `parseTaskResponse` is the trust boundary for natural-language entry: it
    rejects impossible dates, out-of-range times, unknown category ids and
    reversed ranges, caps the list at 10, and returns suggestions only. The
    editor fills its own state; `createTask` is still called by the user's Save.
-10. `estimatePrompt` is a deliberately rough pre-send estimate (Latin ≈ 4
+11. `estimatePrompt` is a deliberately rough pre-send estimate (Latin ≈ 4
     characters/token, CJK ≈ 1.5); the panel labels it as an estimate. After a
     request, `result.usage` carries the provider's exact token counts and the
     panel shows them. No price is shown, because model pricing changes.
 
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 
-All eleven commands are registered in one `generate_handler!` list. Rust structs
+All twelve commands are registered in one `generate_handler!` list. Rust structs
 are serialised with `#[serde(rename_all = "camelCase")]`, so the TypeScript side
 sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. Each has a typed wrapper in
 `src/storage/fs.ts` (§5).
@@ -724,7 +869,8 @@ sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. Each has a type
 | `remove_file` | `{ path: string }` | `null` | A missing file is also success; used when a day file becomes empty. |
 | `rename_path` | `{ from: string, to: string }` | `null` | Used to retire the legacy database. |
 | `file_mtime_ms` | `{ path: string }` | `number \| null` | Kept for compatibility; never errors. New code uses `tree_signature`. |
-| `webdav_request` | `{ method: string, url: string, username?: string, password?: string, body?: string, depth?: string, headers?: Record<string,string> }` | `{ status: number, body: string, etag: string \| null, lastModified: string \| null }` | Raw WebDAV transport in `src-tauri/src/webdav.rs`; 45 s timeout, Basic auth only when a username is given. Non-2xx statuses are returned as data, not errors. Called by `sync/webdav/client.ts`. |
+| `webdav_request` | `{ method: string, url: string, username?: string, password?: string, body?: string, depth?: string, headers?: Record<string,string> }` | `{ status: number, body: string, etag: string \| null, lastModified: string \| null }` | WebDAV **and CalDAV** transport in `src-tauri/src/http.rs`; 45 s timeout, Basic auth only when a username is given. Non-2xx statuses are returned as data, not errors. Called by `sync/webdav/client.ts` and `sync/caldav/client.ts`. |
+| `ai_request` | `{ url: string, headers?: Record<string,string>, body?: string }` | `{ status: number, body: string, etag: string \| null, lastModified: string \| null }` | OpenAI-compatible AI transport in `src-tauri/src/http.rs`; always `POST`, 120 s timeout, Bearer key passed through `headers`. Exists because DeepSeek, Qwen and similar vendors do not send CORS headers a WebView `fetch` needs. Non-2xx statuses are data, not errors. Called by `ai/transport.ts`. |
 
 Error convention: `Result<T, String>` — a rejection carries the OS message. A
 missing file is not an error for `read_text_file`, `remove_file` or
@@ -761,7 +907,8 @@ Rules:
 | `invoke("tree_signature")` | `sync/scanner.ts` | Folder change polling. |
 | `invoke("read_text_file" / "write_text_file")` | `storage/fs.ts` | Text reads and atomic writes. |
 | `invoke("list_dir" / "path_exists" / "create_dir_all" / "remove_file" / "rename_path")` | `storage/fs.ts` | Store loading and cleanup. |
-| `invoke("webdav_request")` | `sync/webdav/client.ts` | WebDAV `PROPFIND`/`GET`/`PUT`/`MOVE`/`MKCOL` transport. |
+| `invoke("webdav_request")` | `sync/webdav/client.ts`, `sync/caldav/client.ts` | WebDAV `PROPFIND`/`GET`/`PUT`/`MOVE`/`MKCOL` and CalDAV `PROPFIND`/`REPORT` transport. |
+| `invoke("ai_request")` | `ai/transport.ts` | OpenAI-compatible AI `POST`; bypasses WebView CORS and allows 120 s. |
 | `Database.load/select/close` | `storage/migrate.ts` | One-time legacy migration only. |
 
 ## 16. Browser storage keys
@@ -772,7 +919,8 @@ Rules:
 | `daymark.deviceId` | `storage/device.ts` | UUID string | No — device-local |
 | `daymark.webdav.v1` | `settings/webdav.ts` | JSON `WebDavConfig`, including the password | No — device-local, never in `_settings.md` |
 | `daymark.webdav.baseline.v1` | `sync/webdav/baseline.ts` | JSON `Baseline` keyed by URL + remote path; entries may carry `baseText` for `_settings.md` / `_categories.md` | No — per-device merge state |
-| `daymark.ai.v1` | `settings/ai.ts` | JSON `AiConfig`, including the API key | No — device-local, never in `_settings.md` |
+| `daymark.ai.v1` | `settings/ai.ts` | JSON `AiConfig`, including the provider preset, base URL and API key | No — device-local, never in `_settings.md` |
+| `daymark.caldav.v1` | `settings/caldav.ts` | JSON `CalDavSettings`: URL, credentials, selected calendars, per-calendar ctag/UID cursor and detached series UIDs | No — device-local, never in `_settings.md` |
 
 Clearing site data resets the device ID and the chosen folder. The data folder
 itself is unaffected.
@@ -804,6 +952,10 @@ completedAt present           → done      (dates retained)
 `done` is the only sticky state. Reopening returns to `scheduled` or `backlog`
 based on dates. The parser and the repository must derive status the same way;
 if one changes, change both and add a test.
+
+Imported CalDAV tasks are always `scheduled` (`source = "caldav"`) and cannot be
+completed or reopened until detached; detaching makes the task local and leaves
+its status derived from the dates as usual.
 
 ### Completion history
 

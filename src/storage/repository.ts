@@ -13,7 +13,7 @@ import { removeFile, writeTextFile } from "./fs";
 import { serializeCategoriesMarkdown, serializeMarkdown } from "./markdown";
 import { backlogPath, categoriesPath, dateKeyOf, dayFilePath, extrasKey } from "./paths";
 import { parseTombstone, tombstoneLine } from "./tombstone";
-import type { StoredTask } from "./types";
+import { BACKLOG_KEY, type ExternalImportPlan, type StoreState, type StoredTask } from "./types";
 
 /**
  * The storage layer owns file I/O and the in-memory index. All task state
@@ -158,6 +158,145 @@ export async function archiveCategory(id: string): Promise<void> {
   if (!category) return;
   category.archived = true;
   await writeCategories();
+}
+
+/**
+ * Applies a plan produced by an importer (currently CalDAV). Files are written
+ * once per affected day rather than once per task, so a first import of a
+ * full calendar is a handful of writes instead of hundreds.
+ *
+ * Imported tasks keep their id and completion record on update; only the
+ * remote-owned fields change. A deleted remote event leaves the usual
+ * tombstone, so another device using WebDAV sync removes it too.
+ */
+export async function applyExternalImport(plan: ExternalImportPlan): Promise<void> {
+  const state = getStoreState();
+  const now = new Date().toISOString();
+  const dates = new Set<string | null>();
+
+  for (const draft of plan.creates) {
+    // A stable id means two devices importing the same event produce the same
+    // task instead of two copies once WebDAV sync merges the day files.
+    const id = externalTaskId(draft.externalUid);
+    for (const key of removeTombstone(state, id)) {
+      dates.add(key === BACKLOG_KEY ? null : key);
+    }
+    const task: Task = {
+      id,
+      title: draft.title,
+      notes: draft.notes,
+      categoryId: draft.categoryId,
+      status: "scheduled",
+      startAt: draft.startAt,
+      endAt: draft.endAt,
+      dueAt: null,
+      priority: 0,
+      allDay: draft.allDay,
+      createdAt: now,
+      updatedAt: now,
+      deviceId: deviceId(),
+      rowVersion: 1,
+      deleted: false,
+      source: "caldav",
+      externalUid: draft.externalUid,
+    };
+    const dateKey = dateKeyOf(task);
+    state.tasks.set(task.id, { task, completion: null, dateKey });
+    dates.add(dateKey);
+  }
+
+  for (const update of plan.updates) {
+    const existing = state.tasks.get(update.id);
+    if (!existing || existing.task.source !== "caldav") continue;
+    const task: Task = {
+      ...existing.task,
+      title: update.title,
+      notes: update.notes,
+      categoryId: update.categoryId,
+      startAt: update.startAt,
+      endAt: update.endAt,
+      allDay: update.allDay,
+      status: existing.completion ? "done" : "scheduled",
+      updatedAt: now,
+      rowVersion: existing.task.rowVersion + 1,
+    };
+    const nextDateKey = dateKeyOf(task);
+    state.tasks.set(update.id, { task, completion: existing.completion, dateKey: nextDateKey });
+    dates.add(existing.dateKey);
+    dates.add(nextDateKey);
+  }
+
+  for (const id of plan.deletes) {
+    const existing = state.tasks.get(id);
+    if (!existing) continue;
+    state.tasks.delete(id);
+    dates.add(existing.dateKey);
+    if (!existing.handWritten) {
+      const key = extrasKey(existing.dateKey);
+      const marker = tombstoneLine({ id, deletedAt: now, deviceId: deviceId() });
+      const extras = (state.extrasByDate.get(key) ?? []).filter(
+        (line) => parseTombstone(line)?.id !== id,
+      );
+      state.extrasByDate.set(key, [...extras, marker]);
+    }
+  }
+
+  for (const dateKey of dates) await persistDate(dateKey);
+}
+
+/**
+ * Turns an imported event into an ordinary local task. The caller records the
+ * series UID as ignored, so the next calendar sync does not re-import it.
+ */
+export async function detachExternalTask(id: string): Promise<void> {
+  const state = getStoreState();
+  const existing = state.tasks.get(id);
+  if (!existing || existing.task.source !== "caldav") return;
+  const task: Task = {
+    ...existing.task,
+    source: "local",
+    externalUid: null,
+    updatedAt: new Date().toISOString(),
+    rowVersion: existing.task.rowVersion + 1,
+  };
+  state.tasks.set(id, { task, completion: existing.completion, dateKey: existing.dateKey });
+  await persistDate(existing.dateKey);
+}
+
+/**
+ * Stable task id for an imported item. Two devices importing the same event
+ * must produce the same id, or WebDAV sync would keep two copies. The value is
+ * not a security hash — two 32-bit FNV-1a passes only make a collision with a
+ * local UUID or another UID practically impossible.
+ */
+function externalTaskId(externalUid: string): string {
+  return `caldav-${fnv1a(externalUid, 0x811c9dc5)}${fnv1a(externalUid, 0x5bd1e995)}`;
+}
+
+function fnv1a(value: string, seed: number): string {
+  let hash = seed;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * Removes a stale deletion marker before a task with that id is created
+ * again. Without this, `openStore` would filter the re-added event out.
+ * Returns the extras keys that changed so their files are rewritten.
+ */
+function removeTombstone(state: StoreState, id: string): string[] {
+  const changed: string[] = [];
+  for (const [key, lines] of state.extrasByDate) {
+    const filtered = lines.filter((line) => parseTombstone(line)?.id !== id);
+    if (filtered.length !== lines.length) {
+      state.extrasByDate.set(key, filtered);
+      changed.push(key);
+    }
+  }
+  return changed;
 }
 
 async function writeEntry(stored: StoredTask, previousDateKey?: string | null): Promise<void> {

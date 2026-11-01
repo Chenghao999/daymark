@@ -135,8 +135,8 @@ Meetings / 会议沟通, Administration / 行政事务, Learning / 学习成长.
 | `updatedAt` | string | UTC ISO 8601; the winner when the same id appears twice. |
 | `deviceId` | string | Identity of the writer. |
 | `rowVersion` | number | Starts at 1, incremented on every write. |
-| `source` | string | `local`; `caldav` reserved for the future CalDAV import. |
-| `externalUid` | string \| null | Reserved for CalDAV. |
+| `source` | string | `local`, or `caldav` for a read-only imported event. |
+| `externalUid` | string \| null | CalDAV `UID`, or `UID#occ=<start>` for one occurrence; `null` for local tasks. |
 | `completedAt` | string \| null | UTC ISO; presence means done. |
 | `completionId` | string \| null | UUID of the completion record. |
 

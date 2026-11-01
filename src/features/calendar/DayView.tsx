@@ -38,14 +38,28 @@ export default function DayView({ anchor, tasks, categories, language, onToggle,
           {scheduled.map((task) => {
             const category = task.categoryId ? categoryById.get(task.categoryId) : undefined;
             return (
-              <li key={task.id} className={task.status === "done" ? "done" : ""}>
-                <button
-                  className="check"
-                  onClick={() => onToggle(task)}
-                  aria-label={task.status === "done" ? t("actions.reopen") : t("actions.complete")}
-                >
-                  {task.status === "done" ? "✓" : ""}
-                </button>
+              <li
+                key={task.id}
+                className={[
+                  task.status === "done" ? "done" : "",
+                  task.source === "caldav" ? "external" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {task.source === "caldav" ? (
+                  <span className="check external-mark" title={t("task.calendarEvent")} aria-hidden="true">
+                    ◆
+                  </span>
+                ) : (
+                  <button
+                    className="check"
+                    onClick={() => onToggle(task)}
+                    aria-label={task.status === "done" ? t("actions.reopen") : t("actions.complete")}
+                  >
+                    {task.status === "done" ? "✓" : ""}
+                  </button>
+                )}
                 <button className="task-title" onClick={() => onEdit(task)}>
                   {task.title}
                 </button>
