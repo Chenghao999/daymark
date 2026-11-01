@@ -1,4 +1,4 @@
-mod webdav;
+mod http;
 
 use serde::Serialize;
 use std::collections::hash_map::DefaultHasher;
@@ -208,7 +208,8 @@ pub fn run() {
             remove_file,
             rename_path,
             tree_signature,
-            webdav::webdav_request
+            http::webdav_request,
+            http::ai_request
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

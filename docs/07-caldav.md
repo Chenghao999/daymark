@@ -1,69 +1,127 @@
-# 07 · CalDAV Integration (design)
+# 07 · CalDAV Integration
 
-> 中文摘要：CalDAV 是一期之后的模块。本文定义服务器发现、认证、增量同步与错误
-> 降级。1.0 尚未实现，代码中保留模块边界。
+> 中文摘要：CalDAV v1 已实现只读导入：发现日历、按 ctag 增量拉取 VEVENT、把事件
+> 映射为 `source = "caldav"` 的只读任务，可"转为本地任务"；凭据只存在设备本地，
+> 永不写回服务器。VTODO 与写回（F-20）仍未实现。
 
 ## 1. Scope
 
-- F-18 bind an account (iCloud, Nextcloud, Fastmail, generic CalDAV).
-- F-19 pull events read-only into the calendar.
-- F-20 (P2) write tasks back as VTODO or VEVENT.
-- F-21 incremental sync via `getctag` / `etag`.
+| ID | Requirement | Status |
+|---|---|---|
+| F-18 | Bind an account (iCloud, Nextcloud, Fastmail, generic CalDAV) | Implemented (manual discovery) |
+| F-19 | Pull events read-only into the calendar | Implemented |
+| F-20 | Write tasks back as VTODO or VEVENT | Not implemented (P2) |
+| F-21 | Incremental sync via `getctag` / `etag` | Implemented (ctag + full REPORT) |
+
+The module lives in `src/sync/caldav/` — the design originally proposed
+`src/features/caldav/`, but this is a sync concern, not a screen. It imports
+`domain/` and `storage/` but never the other way round.
 
 ## 2. Discovery and auth
 
-1. Ask for the server base URL and credentials (app-specific password where the
-   provider requires it).
-2. `PROPFIND` on the principal URL to find `calendar-home-set`.
-3. `PROPFIND` the home set for calendars, `displayname`, `supported-calendar-component-set`.
-4. Store credentials in the OS keychain — never in a Markdown file, the synced
-   `_settings.md`, or device settings.
+1. The settings card asks for the server base URL and credentials (an
+   app-specific password where the provider requires one).
+2. `PROPFIND` depth 0 on the base URL for `current-user-principal`; on failure,
+   fall back to `/.well-known/caldav`.
+3. `PROPFIND` the principal for `calendar-home-set`.
+4. `PROPFIND` depth 1 on the home set for collections; keep only
+   `calendar` resources, drop system collections (inbox, outbox,
+   notification, trash), and read `displayname`.
+5. The user ticks the calendars to import. The selection, the server URL and
+   the credentials are stored device-locally.
+
+`CalDavClient` (`client.ts`) knows the verbs and the multistatus grammar; the
+HTTP transport stays in Rust. `PROPFIND` and `REPORT` go through the same
+`webdav_request` command the WebDAV sync already used, so no new capability was
+needed.
 
 ## 3. Sync state machine
 
 ```
-idle → fetching(ctag) → unchanged → idle
-                      └→ changed → list(etag) → fetch new/changed → apply → idle
+idle → PROPFIND getctag → unchanged → idle
+                       └→ changed → REPORT calendar-query (VEVENT) → parse
+                                  → plan diff → apply → idle
 ```
 
-- `getctag` unchanged: stop.
-- Changed: `REPORT calendar-query` for `VEVENT` (and `VTODO` if enabled).
-- Apply events idempotently keyed by `(calendar_id, uid)`.
-- Store `etag` per event; skip unchanged.
-- Deletions: an event missing from the full listing is marked `deleted`.
+- `getctag` unchanged: the calendar is skipped entirely.
+- A server without `getctag` returns no ctag and every sync fetches the
+  calendar; there is no throttle other than the user pressing "Import now".
+- The REPORT is a full `calendar-query` for `VEVENT` with `calendar-data`; it
+  is not an `etag`-based delta. The ctag check is what avoids the fetch when
+  nothing changed.
+- Sync is manual. There is no background scheduler, no retry and no backoff.
+- Per-calendar UID sets are the deletion basis: a series UID present last time
+  and absent now means its tasks are deleted.
+- A malformed object is skipped and surfaced as a per-calendar error; the rest
+  of the calendar still imports.
 
 ## 4. Mapping to local tasks
 
 | CalDAV | Daymark |
 |---|---|
-| uid | `external_uid` |
-| summary | title |
-| dtstart / dtend | start_at / end_at |
-| due (VTODO) | due_at |
-| categories | matched by name to a local category, else uncategorized |
-| description | notes |
+| `uid` | `externalUid` (occurrences add `#occ=<start>`) |
+| `summary` | `title` |
+| `dtstart` / `dtend` | `startAt` / `endAt` (device-local wall clock) |
+| `duration` | `endAt` when `dtend` is absent |
+| `categories` | matched case-insensitively to `nameEn` / `nameZh`, else `null` |
+| `description` | `notes` |
+| `all-day DTSTART` | `allDay = true`, `endAt = null` |
 
-Imported rows: `source = 'caldav'`, read-only in the UI unless the user
-"detaches" them into a local task.
+- Imported rows are `source = "caldav"` and read-only: the checkbox, completion
+  and editor fields are disabled; there is no delete.
+- "Turn into local task" (`detachExternalTask`) sets `source = "local"` and
+  `externalUid = null` and records the series UID in `ignoredUids`, so a later
+  sync never re-imports it. `ignoredUids` is device-local.
+- Recurring series are expanded within the window (past 366 days, future 731
+  days). Supported: `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` with `INTERVAL`,
+  `COUNT`, `UNTIL`, `BYDAY`, `BYMONTHDAY`, `WKST`, plus `EXDATE`.
+  `RECURRENCE-ID` overrides are skipped; a cancelled series deletes all of its
+  imported occurrences.
+- Calendar events are excluded from reports and AI context. They become
+  ordinary report data only after the user detaches them.
 
 ## 5. Error handling
 
 | Error | Behaviour |
 |---|---|
-| Network error | mark account offline, keep cache, retry with backoff |
-| 401/403 | stop syncing, prompt re-auth, keep local data |
-| 404 on calendar | mark calendar missing, keep previously imported events |
-| Invalid iCalendar | skip entry, log UID, continue |
-| Server without ctag | full sync, minimum interval 15 minutes |
+| Network error | the error is shown in the settings card; imported tasks stay |
+| 401/403 | a typed `CalDavError` with the status; sync stops, local data stays |
+| Non-207 response | treated as an error for the calendar; skipped, others continue |
+| 404 on calendar | the error is reported; previously imported events stay |
+| Invalid iCalendar object | skipped; the error is collected per calendar |
+| Server without ctag | full sync on every manual run |
+| Timeout | 45 s per request, from the Rust transport |
 
-## 6. Library options
+## 6. Storage and privacy
 
-- `ts-caldav` (TypeScript) covers discovery, event/VTODO CRUD and ctag/etag.
-- If implemented in Rust: `caldav` crate, or direct HTTP + `ical` parsing.
-- Decision deferred until the core is stable; the module boundary is
-  `src/features/caldav/` and it must not leak into `domain/`.
+| Data | Where | Synced? |
+|---|---|---|
+| Server URL, username, password | `localStorage["daymark.caldav.v1"]` | No |
+| Selected calendars, selection names | same key | No |
+| Per-calendar ctag, last UID set, `syncedAt` | same key | No |
+| Detached (ignored) series UIDs | same key | No |
+| Imported tasks | Markdown day files | Yes, via the data folder |
 
-## 7. Privacy
+The credentials are device-local rather than in the OS keychain: the app has no
+keychain dependency today, and `localStorage` is no weaker than the WebDAV and
+AI credentials already stored there. They never enter `_settings.md`, a day
+file or the synced data folder.
 
-CalDAV credentials and event data stay on the device. Calendar content is never
-included in exported reports unless the user explicitly schedules it.
+## 7. Known limitations
+
+- No write-back, no VTODO, no event editing.
+- No background sync and no push; the user runs "Import now".
+- `RECURRENCE-ID` overrides (a single moved or edited occurrence) are skipped
+  rather than applied.
+- Detaching is per device: `ignoredUids` is not synced, so another device that
+  imports the same series will still create its read-only tasks. The detached
+  copy is a local task and is not removed by a later calendar deletion.
+- Tasks are matched by `externalUid`; changing an event's UID on the server
+  looks like a deletion plus a creation.
+
+## 8. Not in scope
+
+- `ts-caldav` and the Rust `caldav` crate: the client is a small hand-written
+  PROPFIND/REPORT parser over the existing transport.
+- Scheduling, free/busy, attendees, attachments, reminders and alarms. Nested
+  `VALARM` blocks are skipped.

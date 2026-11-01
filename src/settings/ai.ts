@@ -1,20 +1,17 @@
+import {
+  defaultModelFor,
+  normalizeProvider,
+  protocolFor,
+} from "../ai/presets";
 import type { AiConfig, AiProtocol } from "../ai/types";
 
 const STORAGE_KEY = "daymark.ai.v1";
 
 export const AI_PROTOCOLS: readonly AiProtocol[] = ["anthropic", "openai"];
 
-/** Presets shown in the model datalist; any other non-empty name is accepted. */
-export const AI_MODELS = [
-  "claude-opus-5-5",
-  "claude-sonnet-5-5",
-  "claude-haiku-5-5",
-  "gpt-4.1-mini",
-  "deepseek-chat",
-] as const;
-
 export const DEFAULT_AI: AiConfig = {
   enabled: false,
+  provider: "anthropic",
   protocol: "anthropic",
   apiKey: "",
   model: "claude-opus-5-5",
@@ -32,12 +29,19 @@ export function loadAiSettings(): AiConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_AI };
     const parsed = JSON.parse(raw) as Partial<AiConfig>;
+    const storedProtocol = normalizeProtocol(parsed.protocol);
+    const baseUrl = normalizeBaseUrl(parsed.baseUrl);
+    // A config saved before provider presets existed is mapped to the vendor
+    // its protocol and endpoint point at, so Settings shows the right preset.
+    const provider = normalizeProvider(parsed.provider, storedProtocol, baseUrl);
+    const protocol = protocolFor(provider, storedProtocol);
     return {
       enabled: parsed.enabled === true,
-      protocol: normalizeProtocol(parsed.protocol),
+      provider,
+      protocol,
       apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey : "",
-      model: normalizeModel(parsed.model),
-      baseUrl: normalizeBaseUrl(parsed.baseUrl),
+      model: normalizeModel(parsed.model, defaultModelFor(provider) || DEFAULT_AI.model),
+      baseUrl,
     };
   } catch {
     return { ...DEFAULT_AI };
@@ -62,15 +66,15 @@ export function normalizeProtocol(value: unknown): AiProtocol {
 }
 
 /** A free-form model name is required for relays that rename models. */
-export function normalizeModel(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_AI.model;
+export function normalizeModel(value: unknown, fallback = DEFAULT_AI.model): string {
+  if (typeof value !== "string") return fallback;
   const model = value.trim().slice(0, 200);
-  return model || DEFAULT_AI.model;
+  return model || fallback;
 }
 
 /**
  * Only absolute http(s) URLs are kept. A typo would otherwise fail later as an
- * opaque network error, so anything else falls back to the official endpoint.
+ * opaque network error, so anything else falls back to the provider default.
  */
 export function normalizeBaseUrl(value: unknown): string {
   if (typeof value !== "string") return "";

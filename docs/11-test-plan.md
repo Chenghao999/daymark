@@ -20,11 +20,15 @@
 | `sync/webdav/engine` | whole `syncWebDav` / `resolveConflict` against in-memory IO, client and baseline: first sync, download, task and settings merges, conflict copy, deletion marker, abort when a remote read fails, decisions and baseline advancement |
 | `sync/merge/tasks` | added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, explicit decisions, extras, deletion markers, backlog |
 | `sync/merge/files` | settings per-key and categories per-field three-way merge, with and without a base, deletions, explicit decisions |
+| `sync/caldav/ics` | all-day/UTC/`TZID`/floating time, folded lines, weekly `BYDAY` + `EXDATE` + `COUNT`, daily `UNTIL`, cancelled, `RECURRENCE-ID` skip, unknown TZID fallback, missing `UID`/`DTSTART` |
+| `sync/caldav/client` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT content-type/depth, typed 401 |
+| `sync/caldav/import` | create/update/unchanged/delete planning, category match by Chinese name, recurring occurrence retention, series deletion, cancelled, detached series, `seriesUidOf` |
+| `settings/caldav` | defaults, credential/cursor round-trip, malformed-entry sanitisation, unreadable JSON |
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
-| `ai/settings` | defaults, round-trip, custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths |
+| `ai/settings` | defaults, round-trip, provider-preset inference from legacy configs, preset/protocol consistency, endpoint resolution (typed URL wins), custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths |
 | `ai/tasks` | local-time prompt context and weekday, category id → name list, unknown category dropped, impossible dates and out-of-range times rejected, end before start dropped, all-day date-only, priority coercion, multiple tasks, 10-item cap, malformed JSON and wrong shape |
 | `ai/usage` | Latin and CJK rates, mixed scripts, prompt halves counted, rounding never fractional |
-| `ai/providers/openai` | URL and bearer header, message body, usage mapping, `json_schema` → `json_object` retry on 4xx, HTTP status in the error, empty answer rejected |
+| `ai/providers/openai` | URL and bearer header, message body, usage mapping, preset endpoint resolution, injected transport, `json_schema` → `json_object` retry on 4xx, `max_tokens` → `max_completion_tokens` retry, HTTP status in the error, empty answer rejected |
 | `settings/store` | theme normalization (system/light/dark, junk → system) and that the theme is not part of the synced file |
 | Template validation (P1) | missing required placeholder, unknown placeholder, empty sections |
 
@@ -32,7 +36,13 @@ WebDAV network behaviour is **not** covered by unit tests: `webdav_request` and
 real servers must be exercised by hand (or by a future `rclone serve webdav`
 smoke test). Everything above the transport is: the plan/URL/XML logic has unit
 tests, and `webdavEngine.test.ts` runs the whole sync and conflict-resolution
-flow against an in-memory folder, client and baseline.
+flow against an in-memory folder, client and baseline. AI network behaviour is
+not covered either: `ai_request` and the real vendor endpoints need a manual
+call with a real key; the provider request shape and retries are unit-tested
+through an injected transport. CalDAV network behaviour is not covered either:
+discovery and REPORT against a real server need a manual run; the multistatus
+parser, `.ics` parser, import planner and settings are unit-tested with canned
+documents.
 
 Run:
 
@@ -48,7 +58,8 @@ Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `webdavPlan.test.ts`, `webdavClient.test.ts`, `webdavManifest.test.ts`,
 `webdavEngine.test.ts`, `mergeTasks.test.ts`, `mergeFiles.test.ts`,
 `aiPrompt.test.ts`, `aiSettings.test.ts`, `aiTasks.test.ts`, `aiUsage.test.ts`,
-`openaiProvider.test.ts`, `theme.test.ts`.
+`openaiProvider.test.ts`, `theme.test.ts`, `caldavIcs.test.ts`,
+`caldavClient.test.ts`, `caldavImport.test.ts`, `caldavSettings.test.ts`.
 
 AI provider calls are also **not** covered: tests cover prompt construction,
 settings parsing and output paths. Verifying the SDK/API path requires a real
@@ -115,11 +126,24 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
 - [ ] After Daymark's own write, no banner appears (signature re-baselining).
 - [ ] Deleting a day file externally also raises the banner (file count drops).
 
-### CalDAV (when implemented)
+### CalDAV
 
-- [ ] Wrong password → clear error, local data unchanged.
-- [ ] Airplane mode → cached events remain visible.
-- [ ] Removed event → disappears after the next full sync.
+- [ ] Wrong password → a clear 401 error in the settings card, local tasks
+      unchanged.
+- [ ] Press **Find calendars** against a real iCloud/Nextcloud account → the
+      expected calendars are listed; tick one and **Import now** → events appear
+      as read-only tasks with ◆.
+- [ ] Press **Import now** again with no server change → the ctag skip reports
+      no work and changes nothing.
+- [ ] Move or rename an event on the server → the imported task follows after
+      the next import; delete it → the task disappears.
+- [ ] Open an imported event → fields are disabled; **Turn into local task** →
+      the task becomes editable/completable and a later import does not
+      re-create it.
+- [ ] Build a report covering an imported event's date → the event is not in
+      the report until detached.
+- [ ] Airplane mode → a readable network error; previously imported tasks stay
+      visible.
 
 ## 4. Performance checks
 
@@ -140,4 +164,5 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
 - Automated end-to-end UI tests.
 - Windows-specific rendering.
 - Multiple simultaneous app instances on one machine.
-- Merge behaviour (P1, not implemented).
+- Live network runs against a real WebDAV or CalDAV server (manual checklist
+  above).

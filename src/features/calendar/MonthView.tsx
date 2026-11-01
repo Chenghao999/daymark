@@ -50,7 +50,17 @@ export default function MonthView({ anchor, tasks, language, weekStartsOn, onSel
             >
               <span className="date-number">{format(day, "d")}</span>
               {visible.map((task) => (
-                <span key={task.id} className={task.status === "done" ? "mini-task done" : "mini-task"}>
+                <span
+                  key={task.id}
+                  className={[
+                    "mini-task",
+                    task.status === "done" ? "done" : "",
+                    task.source === "caldav" ? "external" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  title={task.source === "caldav" ? t("task.calendarEvent") : undefined}
+                >
                   {task.title}
                 </span>
               ))}

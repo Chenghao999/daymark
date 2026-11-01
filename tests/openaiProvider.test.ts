@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAiProvider } from "../src/ai";
 import { OpenAiProvider } from "../src/ai/providers/openai";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -73,6 +74,79 @@ describe("OpenAI-compatible provider", () => {
     expect(first.response_format.type).toBe("json_schema");
     expect(second.response_format.type).toBe("json_object");
     expect(second.messages[0].content).toContain("JSON Schema");
+  });
+
+  it("uses the provider preset endpoint when no base URL is typed", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(answer));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = createAiProvider({
+      enabled: true,
+      provider: "deepseek",
+      protocol: "openai",
+      apiKey: "k",
+      model: "deepseek-chat",
+      baseUrl: "",
+    });
+    await provider.complete({ system: "s", user: "u" });
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "https://api.deepseek.com/v1/chat/completions",
+    );
+  });
+
+  it("can use an injected transport (the app's Rust path)", async () => {
+    const transport = vi.fn(async () => ({
+      status: 200,
+      body: JSON.stringify(answer),
+    }));
+    const provider = new OpenAiProvider({
+      apiKey: "k",
+      model: "deepseek-chat",
+      baseUrl: "https://api.deepseek.com/v1",
+      transport,
+    });
+
+    const result = await provider.complete({ system: "s", user: "u" });
+
+    expect(result.text).toBe("hello");
+    expect(transport).toHaveBeenCalledWith({
+      url: "https://api.deepseek.com/v1/chat/completions",
+      headers: {
+        Authorization: "Bearer k",
+        "Content-Type": "application/json",
+      },
+      body: expect.any(String),
+    });
+  });
+
+  it("retries with max_completion_tokens when the model rejects max_tokens", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              message:
+                "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+            },
+          },
+          400,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(answer));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAiProvider({ apiKey: "k", model: "o3-mini" });
+    const result = await provider.complete({ system: "s", user: "u" });
+
+    expect(result.text).toBe("hello");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const first = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    const second = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(first.max_tokens).toBe(2048);
+    expect(second.max_completion_tokens).toBe(2048);
+    expect(second.max_tokens).toBeUndefined();
   });
 
   it("surfaces HTTP failures with their status", async () => {

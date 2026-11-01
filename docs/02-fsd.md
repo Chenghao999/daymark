@@ -92,7 +92,11 @@ honours `weekStartsOn` (Sunday or Monday), monthly honours
 | Malformed event | Skip the event, log its UID, do not abort the sync |
 | Account removed | Keep imported events read-only until the user deletes them |
 
-CalDAV is design-only; nothing in §5 is implemented in 0.1.
+CalDAV v1 implements §5 as a manual, read-only import (doc 07): a network or
+auth error is shown in Settings and the imported tasks stay; a malformed event
+is skipped; a server without ctag does a full fetch on each manual run. There
+is no offline cache marker and no re-authentication prompt beyond the error
+message.
 
 ## 6. Data path changes
 

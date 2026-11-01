@@ -176,7 +176,8 @@ simply returns to the app. The suggested file name is
 | Scan for external changes | 30 s / 60 s / 300 s | Synced; how often the folder is polled. |
 | Data location | absolute folder | Device-local; **Change folder** opens another folder. |
 | WebDAV sync | server URL, remote folder, username, password | Device-local; nothing in this card is written to the data folder. |
-| AI assistant | enable, Anthropic API key, model | Device-local; off by default; only the report outline is sent. |
+| AI assistant | enable, provider, base URL, API key, model | Device-local; off by default; only the report outline is sent. |
+| CalDAV | server URL, username, app-specific password, calendars | Device-local; read-only import; nothing is written back to the server. |
 | Categories | add (English + Chinese names, colour) / archive | Shared, stored in `_categories.md`. |
 | Device ID | read-only UUID | Device-local; identifies this installation. |
 
@@ -251,19 +252,75 @@ one.
 删除之后改过该任务，则以修改为准、任务保留。同步本身不会删除任何文件。密码只
 存在本机，不会写进 `_settings.md`。
 
+### CalDAV import (read-only)
+
+The CalDAV card imports events from a calendar server (iCloud, Nextcloud,
+Fastmail or any CalDAV server) as **read-only** tasks. Nothing is ever written
+back to the server.
+
+1. Enter the server URL and your username. For iCloud and most providers, use
+   an **app-specific password** (generate one in the provider's account
+   settings), not your normal login password.
+2. Press **Find calendars**. Daymark discovers the principal and the calendar
+   home, then lists the calendars it found.
+3. Tick the calendars to import, then press **Import now**. The status line
+   reports how many events were created, updated, deleted and left unchanged,
+   plus the last sync time.
+4. Press **Import now** again whenever you want to pick up changes. The import
+   is manual; nothing runs in the background. If the server's `getctag` has not
+   changed, that calendar is skipped without downloading it.
+
+How imported events appear:
+
+- They show in the week, day and month views with a ◆ marker instead of the
+  completion circle, and cannot be ticked complete or edited.
+- Click one to see its read-only details. The editor offers **Turn into local
+  task** instead of Save/Delete; that copies the event into an ordinary local
+  task, which can then be edited, completed and reported normally. The original
+  calendar series is remembered so it is not imported again.
+- Calendar events are **excluded from reports and the AI assistant**. Detach an
+  event first if it should count in a report.
+- Events match a Daymark category by name, in English or Chinese; a name with
+  no match leaves the event uncategorized.
+- Recurring events are expanded for the past year and the next two years.
+  Supported rules: daily, weekly, monthly and yearly with interval, count,
+  until, by-day and by-month-day. A single moved or edited occurrence
+  (`RECURRENCE-ID`) is skipped. Deleting a series or marking it cancelled
+  removes its imported occurrences.
+- An event deleted on the server is removed from Daymark on the next import. A
+  task you detached stays, because it is now a local task.
+
+The server URL, username, password, calendar selection and sync cursor are
+stored on this device only, like the WebDAV password. They are never written to
+`_settings.md` or the data folder, and never sent anywhere except that calendar
+server. Known limitations: no write-back, no VTODO, no background or push sync,
+and the detached-series memory is per device — another device importing the
+same calendar may create its own read-only copy.
+
+**中文要点：** CalDAV 日历事件只读导入：填服务器地址、用户名和专用密码
+（iCloud 等需要 App 专用密码），先“查找日历”，勾选后点“立即导入”。事件在
+周/日/月视图里显示为带 ◆ 的只读条目，不能打勾或编辑；打开后可点“转为本地任务”
+把它变成普通任务，之后就能完成、编辑并进入报告。日历事件本身不进入报告和 AI。
+事件按中英文分类名匹配分类；重复事件展开过去一年、未来两年，单次移动/修改的
+实例会跳过。服务器上删除或取消的事件会在下次导入时移除。账号密码和同步进度只
+存在本机，不会写进 `_settings.md`，也不会写回服务器。
+
 ### AI assistant
 
-The AI assistant is **off by default**. Enable it in Settings, choose the API
-protocol, paste a key and pick a model; the Reports page then shows an **AI
+The AI assistant is **off by default**. Enable it in Settings, choose a
+provider, paste a key and pick a model; the Reports page then shows an **AI
 assistant** button next to Export.
 
-- **API protocol** — `Anthropic-compatible` for Anthropic and Claude relays
-  (`/v1/messages`), or `OpenAI-compatible` for OpenAI-style services such as
-  DeepSeek, Kimi, GLM, OpenRouter and most enterprise gateways
-  (`/v1/chat/completions`).
-- **API base URL** — leave empty for the official endpoint. For a relay or a
-  vendor such as Oppo AI, enter its base address; the app appends the protocol's
-  path itself.
+- **Provider** — Anthropic (Claude), OpenAI (GPT), DeepSeek, Alibaba Qwen
+  (DashScope), Moonshot (Kimi), Zhipu (GLM), Google Gemini, OpenRouter, or
+  **Custom endpoint / relay**. Choosing a provider fills in its endpoint and
+  suggests its models.
+- **API base URL** — leave empty to use the chosen provider's default. For a
+  relay, an enterprise gateway or a vendor not in the list, choose Custom and
+  enter its base address; the app appends the protocol's path itself.
+- **API protocol** — only shown for Custom: `Anthropic-compatible`
+  (`/v1/messages`) or `OpenAI-compatible` (`/v1/chat/completions`). Every
+  provider preset except Anthropic uses the OpenAI-compatible protocol.
 - **Model name** — any model the endpoint accepts. The dropdown is a set of
   suggestions, not a whitelist.
 
@@ -287,11 +344,14 @@ WebDAV sync does not upload `_ai/`.
 
 The API key is stored in this device's local app data, like the WebDAV password.
 It is never written to `_settings.md` or the data folder. Requests go directly
-from this app to Anthropic and are billed to your account.
+from this app to the provider you configured and are billed to your account.
 
-**中文要点：** AI 助手默认关闭。启用后选择接口协议、填写密钥与模型：协议可选
-Anthropic 兼容（`/v1/messages`）或 OpenAI 兼容（`/v1/chat/completions`）；接口
-地址留空用官方地址，用中转、Oppo AI 等服务时填基础地址；模型名可任意填写。
+**中文要点：** AI 助手默认关闭。启用后先选服务商：Anthropic（Claude）、
+OpenAI（GPT）、DeepSeek、通义千问、Moonshot（Kimi）、智谱（GLM）、Google
+Gemini、OpenRouter，或“自定义接口 / 中转”。选择服务商会自动填入接口地址并给出
+模型建议；接口地址留空即用该服务商的默认地址，使用中转或未列出的服务时选“自定义”
+再填基础地址；只有自定义接口才需要选协议：Anthropic 兼容（`/v1/messages`）或
+OpenAI 兼容（`/v1/chat/completions`）。模型名可任意填写。
 随后报告页会出现“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示
 分类/条目/字符数与 token 估算，并可预览完整文本；只发送报告标题、周期、分类和
 任务标题，不发送备注、任务 ID 和本地路径。结果可编辑，只有点“保存到 `_ai/`”
@@ -381,16 +441,17 @@ choose the copied folder on first launch.
 | Reopening clears completion metadata | The task's earlier completion date is lost. |
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
-| CalDAV is not implemented | `source` and `externalUid` are reserved fields only. |
+| CalDAV is import-only | No write-back, VTODO, event editing, background sync or push. A single moved/edited occurrence (`RECURRENCE-ID`) is skipped. Detached-series memory is per device. |
 | WebDAV sync is manual and first-version | No background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
-| AI assistant is first-version and online | Requires an Anthropic API key and a network connection; no local model; the key is in local app storage, not the OS keychain yet. |
+| AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
 **中文要点：** 0.1.0 的 WebDAV 只支持手动同步，同步不删除文件（任务删除以标记
 注释的形式同步）；无法自动排序的冲突在设置页选择“保留我的 / 保留对方的 / 两者
-都保留”。没有 CalDAV、AI 助手、提醒和搜索；重新打开任务会清除其完成时间；归档
-分类需要在文件里手工恢复。
+都保留”。CalDAV 只读导入，不能写回或编辑事件，也没有后台同步；AI 助手需要联网
+和所选服务商的 API Key；重新打开任务会清除其完成时间；归档分类需要在文件里
+手工恢复。
 
 ## 12. Quick reference
 
@@ -408,6 +469,8 @@ choose the copied folder on first launch.
 | Use two computers | Put the folder in a synced directory and read doc 16 first. |
 | Sync without a desktop client | Settings → WebDAV sync → Test connection → Sync now. |
 | Settle a sync conflict | Settings → WebDAV sync → choose Keep mine / theirs / both → Apply. |
+| Import my calendar | Settings → CalDAV → enter the URL and app password → Find calendars → tick calendars → Import now. |
+| Turn a calendar event into a task | Open the event → Turn into local task. |
 | Polish this period's report | Reports → AI assistant → Polish report → Generate → Save to `_ai/`. |
 | Create a task from a sentence | New task → Describe it in one sentence → Fill fields → review → Save. |
 | Use a relay or Oppo AI | Settings → AI assistant → choose the protocol, enter the base URL and model, then Test. |

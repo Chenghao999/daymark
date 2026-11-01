@@ -23,3 +23,27 @@ export interface StoreState {
 }
 
 export const BACKLOG_KEY = "backlog";
+
+/** Fields an importer (currently CalDAV) writes onto a task. */
+export interface ExternalTaskDraft {
+  /** Stable key of the remote item; `externalUid` on the task. */
+  externalUid: string;
+  title: string;
+  notes: string;
+  categoryId: string | null;
+  startAt: string;
+  endAt: string | null;
+  allDay: boolean;
+}
+
+/**
+ * A pure diff between a remote listing and the local tasks. Produced by the
+ * importer and applied by `applyExternalImport`, so the comparison rules are
+ * testable without opening a store.
+ */
+export interface ExternalImportPlan {
+  creates: ExternalTaskDraft[];
+  updates: Array<ExternalTaskDraft & { id: string }>;
+  deletes: string[];
+  unchanged: number;
+}

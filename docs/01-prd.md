@@ -59,16 +59,16 @@ Priority: **P0** must ship in 0.1 · **P1** should ship · **P2** optional.
 | F-15 | Template placeholder engine | P1 | partial (built-in styles) |
 | F-16 | DOCX export | P0 | done |
 | F-17 | PDF export | P2 | not started |
-| F-18 | CalDAV account binding | P1 | not started |
-| F-19 | Read-only CalDAV events in calendar | P1 | not started |
+| F-18 | CalDAV account binding | P1 | done (discovery, device-local credentials) |
+| F-19 | Read-only CalDAV events in calendar | P1 | done (detach to a local task) |
 | F-20 | Write tasks back as VTODO/VEVENT | P2 | not started |
-| F-21 | Incremental CalDAV sync (ctag/etag) | P1 | not started |
+| F-21 | Incremental CalDAV sync (ctag/etag) | P1 | done (ctag) |
 | F-22 | zh-CN + en, switch without restart | P0 | done |
 | F-23 | Windows portable build | P0 | build config ready, unverified |
 | F-24 | Unsigned macOS distribution | P0 | build config ready |
 | F-25 | Modular deployment, external resources | P1 | partial |
 | F-26 | WebDAV sync | P2 | first version: manual sync, automatic merge, deletion markers, in-app conflict resolution; see doc 19 §3.8–3.9 |
-| F-27 | AI assistant | P2 | first version: report polish + retrospective + one-sentence task entry, opt-in; see doc 19 §4.9, §4.10 |
+| F-27 | AI assistant | P2 | first version: report polish + retrospective + one-sentence task entry, opt-in; provider presets and custom endpoints in doc 19 §4.9–§4.11 |
 
 F-26 and F-27 both have first versions: WebDAV sync is manual (no background
 sync; sync never deletes files, though a task delete travels as a marker) but

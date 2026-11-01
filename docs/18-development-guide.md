@@ -139,7 +139,7 @@ doc 14; the table below is the map of who may call what.
 | `domain/tasks.ts` | `NewTaskInput`, `hasSchedule`, `normalizeStatus`, `scheduleTask`, `unscheduleTask`, `completeTask`, `reopenTask`, `sortTasks` | `storage/repository.ts`, tests | pure functions, no setup |
 | `domain/periods.ts` | `reportPeriod`, `PeriodOptions`, `ReportPeriod` | reports, features | fixed `anchor` + options |
 | `domain/reports.ts` | `generateReport`, `reportTitle`, `uncategorizedLabel` | features, tests | in-memory fixtures |
-| `storage/repository.ts` | `listTasks`, `listCategories`, `createTask`, `updateTask`, `softDeleteTask`, `completeTask`, `reopenTask`, `listCompletions`, `createCategory`, `archiveCategory` | `App.tsx`, `ReportsView` | open a temp folder, call the function |
+| `storage/repository.ts` | `listTasks`, `listCategories`, `createTask`, `updateTask`, `softDeleteTask`, `completeTask`, `reopenTask`, `listCompletions`, `createCategory`, `archiveCategory`, `applyExternalImport`, `detachExternalTask` | `App.tsx`, `ReportsView`, `caldav/engine.ts` | open a temp folder, call the function |
 | `storage/client.ts` | `openStore`, `closeStore`, `getStoreState`, `getStoreRoot`, `deviceId` | `App.tsx`, `storage/repository.ts` | point at a fixture folder |
 | `storage/markdown.ts` | `parseMarkdown`, `serializeMarkdown`, `parseCategoriesMarkdown`, `serializeCategoriesMarkdown` | client, repository, migration | one string in, one string out |
 | `storage/fs.ts` | file primitives plus `treeSignature` | the storage modules and the scanner | the only module that calls `invoke` |
@@ -151,15 +151,22 @@ doc 14; the table below is the map of who may call what.
 | `sync/webdav/client.ts` | `WebDavClient` and the URL/PROPFIND helpers | `engine.ts`, `App.tsx` (test button), tests | unit-test helpers; network goes through `webdav_request` |
 | `sync/webdav/manifest.ts` | `localManifest(root, io?)`, `sha256` | `engine.ts`, tests | inject `ManifestIo` |
 | `settings/webdav.ts` | `loadWebDavSettings`, `saveWebDavSettings`, `isWebDavConfigured` | `App.tsx` | stub `localStorage` |
-| `ai/index.ts` | `createAiProvider`, `buildPrompt`, `buildTaskPrompt`, `parseTaskResponse`, `reportOutline`, `aiContextSummary`, `saveAiOutput`, types | `AiPanel.tsx`, `TaskEditor.tsx` | fake provider object; test the pure helpers alone |
+| `sync/caldav/engine.ts` | `syncCalDav(settings, options) → CalDavSyncResult` | `App.tsx` | fake `CalDavClient`, or unit-test `planCalendarImport` alone |
+| `sync/caldav/client.ts` | `CalDavClient` (`discover`, `ctag`, `events`) and the URL/multistatus helpers | `engine.ts`, `App.tsx` (discover button), tests | unit-test helpers; network goes through `webdav_request` |
+| `sync/caldav/ics.ts` | `parseCalendarData(text, options?) → CalDavEvent[]` | `engine.ts`, tests | a fixed `.ics` string in, events out |
+| `sync/caldav/import.ts` | `planCalendarImport(input) → ExternalImportPlan`, `seriesUidOf` | `engine.ts`, tests | pure: events/tasks/categories in, plan out |
+| `settings/caldav.ts` | `loadCalDavSettings`, `saveCalDavSettings`, `isCalDavConfigured`, `isCalDavReady` | `App.tsx` | stub `localStorage` |
+| `ai/index.ts` | `createAiProvider`, `buildPrompt`, `buildTaskPrompt`, `parseTaskResponse`, `reportOutline`, `aiContextSummary`, `saveAiOutput`, preset exports, types | `AiPanel.tsx`, `TaskEditor.tsx` | fake provider object; test the pure helpers alone |
+| `ai/presets.ts` | `AI_PROVIDER_PRESETS`, `findPreset`, `inferProvider`, `normalizeProvider`, `protocolFor`, `baseUrlFor`, `modelsFor`, `defaultModelFor` | `ai/index.ts`, `settings/ai.ts`, `SettingsView.tsx`, tests | pure config in, id/endpoint out |
 | `ai/prompts.ts` | `buildPrompt(request) → {system,user}` | `ai/index.ts`, tests | fixed `ReportDocument` in, strings out |
 | `ai/context.ts` | `reportOutline`, `aiContextSummary` | prompts, tests | pure |
 | `ai/tasks.ts` | `buildTaskPrompt`, `TASK_SUGGESTION_SCHEMA`, `parseTaskResponse` | `TaskEditor.tsx`, tests | pure: fixed `Date` + JSON string in, suggestions out |
 | `ai/providers/anthropic.ts` | `AnthropicProvider` (`complete`, `completeJson`, optional `baseURL`) | `ai/index.ts` only | network; not unit-tested |
-| `ai/providers/openai.ts` | `OpenAiProvider` (`fetch`, json_schema → json_object fallback) | `ai/index.ts` only | stub global `fetch` |
+| `ai/providers/openai.ts` | `OpenAiProvider` (`HttpTransport`, json_schema → json_object fallback, max_tokens fallback) | `ai/index.ts` only | inject a fake `transport` or stub global `fetch` |
+| `ai/transport.ts` | `defaultTransport`, `tauriTransport` (`invoke("ai_request")`), `fetchTransport`, `HttpTransport` | `providers/openai.ts` | fake transport in; request/response out |
 | `ai/output.ts` | `aiOutputPath`, `saveAiOutput` | `AiPanel.tsx` | `aiOutputPath` is pure; write via a temp folder |
 | `ai/usage.ts` | `estimateTokens`, `estimatePrompt` | `AiPanel.tsx`, tests | pure strings in, token counts out |
-| `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `isAiConfigured`, `AI_MODELS` | `App.tsx`, `ReportsView` | stub `localStorage` |
+| `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `isAiConfigured`, `normalizeProtocol`, `normalizeModel`, `normalizeBaseUrl` | `App.tsx`, `ReportsView` | stub `localStorage` |
 | `settings/store.ts` | `AppSettings`, `SyncedSettings`, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart` | `App.tsx`, `i18n`, `SettingsView`, `storage/settingsFile.ts` | stub `localStorage` |
 
 Rules that keep this useful:
@@ -342,7 +349,7 @@ Update these in the same commit:
 | File added/moved/deleted | 13 |
 | Interface, command, permission, format | 14 |
 | File format, metadata key, migration | 05, 14 |
-| Sync behaviour | 06, 16 |
+| Sync behaviour | 06, 16 (WebDAV) / 07 (CalDAV) |
 | User workflow | 15, 17 |
 | Build/toolchain | 10, 18 |
 | Locale keys/policy | 09 |

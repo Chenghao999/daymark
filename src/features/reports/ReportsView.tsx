@@ -80,6 +80,8 @@ export default function ReportsView({
     };
   }, [period]);
 
+  // Calendar events are context, not work: they stay out of reports (and thus
+  // out of the text sent to AI) unless the user turns one into a local task.
   const report = useMemo(
     () =>
       generateReport({
@@ -90,7 +92,7 @@ export default function ReportsView({
         periodEnd: period.end,
         numbering,
         categories,
-        tasks,
+        tasks: tasks.filter((task) => task.source !== "caldav"),
         completions,
       }),
     [kind, language, period, numbering, categories, tasks, completions],

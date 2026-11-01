@@ -25,9 +25,13 @@ interface TaskEditorProps {
   categories: Category[];
   language: "en" | "zh-CN";
   ai: AiConfig;
+  /** Imported calendar events are read-only until detached. */
+  readOnly?: boolean;
   onSave: (draft: TaskDraft) => Promise<void>;
   onCreateMany?: (drafts: TaskDraft[]) => Promise<void>;
   onDelete?: () => Promise<void>;
+  /** Turns an imported event into a normal local task. */
+  onDetach?: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -55,9 +59,11 @@ export default function TaskEditor({
   categories,
   language,
   ai,
+  readOnly = false,
   onSave,
   onCreateMany,
   onDelete,
+  onDetach,
   onClose,
 }: TaskEditorProps) {
   const { t } = useTranslation();
@@ -144,8 +150,19 @@ export default function TaskEditor({
     }
   }
 
+  async function detach() {
+    if (!onDetach) return;
+    setBusy(true);
+    try {
+      await onDetach();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (readOnly) return;
     if (!title.trim()) {
       setError(t("task.validationTitle"));
       return;
@@ -171,13 +188,15 @@ export default function TaskEditor({
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <form className="modal" onSubmit={submit}>
         <header>
-          <h2>{task ? t("task.edit") : t("task.new")}</h2>
+          <h2>{readOnly ? t("task.calendarEvent") : task ? t("task.edit") : t("task.new")}</h2>
           <button type="button" className="ghost" onClick={onClose} aria-label={t("actions.close")}>
             ×
           </button>
         </header>
 
-        {isAiConfigured(ai) && (
+        {readOnly && <p className="muted small">{t("task.calendarReadOnly")}</p>}
+
+        {!readOnly && isAiConfigured(ai) && (
           <div className="ai-quick">
             <label className="field">
               <span>{t("task.aiLabel")}</span>
@@ -235,6 +254,7 @@ export default function TaskEditor({
           </div>
         )}
 
+        <fieldset className="editor-fields" disabled={readOnly}>
         <label className="field">
           <span>{t("task.title")}</span>
           <input
@@ -299,22 +319,30 @@ export default function TaskEditor({
           <span>{t("task.notes")}</span>
           <textarea rows={4} value={notes} onChange={(event) => setNotes(event.currentTarget.value)} />
         </label>
+        </fieldset>
 
         {error && <p className="error">{error}</p>}
 
         <footer>
-          {onDelete && (
+          {onDelete && !readOnly && (
             <button type="button" className="danger" onClick={() => void onDelete()} disabled={busy}>
               {t("actions.delete")}
             </button>
           )}
+          {readOnly && onDetach && (
+            <button type="button" className="primary" onClick={() => void detach()} disabled={busy}>
+              {t("task.detach")}
+            </button>
+          )}
           <div className="spacer" />
           <button type="button" className="ghost" onClick={onClose} disabled={busy}>
-            {t("actions.cancel")}
+            {readOnly ? t("actions.close") : t("actions.cancel")}
           </button>
-          <button type="submit" className="primary" disabled={busy}>
-            {t("actions.save")}
-          </button>
+          {!readOnly && (
+            <button type="submit" className="primary" disabled={busy}>
+              {t("actions.save")}
+            </button>
+          )}
         </footer>
       </form>
     </div>

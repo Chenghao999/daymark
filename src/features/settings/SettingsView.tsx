@@ -4,7 +4,9 @@ import type { AppLanguage, Category, NumberingStyle } from "../../domain/types";
 import type { AppSettings } from "../../settings/store";
 import type { SyncConflict, WebDavConfig } from "../../sync/webdav/types";
 import type { MergeDecision, MergeDecisions } from "../../sync/merge";
-import type { AiConfig } from "../../ai/types";
+import type { CalDavCalendar, CalDavConfig, CalDavState } from "../../sync/caldav/types";
+import { AI_PROVIDER_PRESETS, findPreset, modelsFor } from "../../ai/presets";
+import type { AiConfig, AiProviderId } from "../../ai/types";
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -15,6 +17,11 @@ interface SettingsViewProps {
   webdavStatus: string | null;
   webdavConflicts: SyncConflict[];
   ai: AiConfig;
+  caldav: CalDavConfig;
+  caldavState: CalDavState;
+  caldavFound: CalDavCalendar[] | null;
+  caldavBusy: boolean;
+  caldavStatus: string | null;
   onLanguage: (language: AppLanguage) => Promise<void>;
   onChangeFolder: () => Promise<void>;
   onPatch: (patch: Partial<AppSettings>) => void;
@@ -25,6 +32,10 @@ interface SettingsViewProps {
   onWebdavSync: () => Promise<void>;
   onWebdavResolve: (conflict: SyncConflict, decisions: MergeDecisions) => Promise<void>;
   onAiPatch: (patch: Partial<AiConfig>) => void;
+  onCalDavPatch: (patch: Partial<CalDavConfig>) => void;
+  onCalDavDiscover: () => Promise<void>;
+  onCalDavToggle: (calendar: CalDavCalendar, selected: boolean) => void;
+  onCalDavSync: () => Promise<void>;
 }
 
 const COLORS = ["#5b8def", "#e0a03a", "#7f8c9a", "#4bb37a", "#c96b9b", "#8a6bd1", "#4aa3a3", "#c0574f"];
@@ -38,6 +49,11 @@ export default function SettingsView({
   webdavStatus,
   webdavConflicts,
   ai,
+  caldav,
+  caldavState,
+  caldavFound,
+  caldavBusy,
+  caldavStatus,
   onLanguage,
   onChangeFolder,
   onPatch,
@@ -48,6 +64,10 @@ export default function SettingsView({
   onWebdavSync,
   onWebdavResolve,
   onAiPatch,
+  onCalDavPatch,
+  onCalDavDiscover,
+  onCalDavToggle,
+  onCalDavSync,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [nameEn, setNameEn] = useState("");
@@ -76,6 +96,29 @@ export default function SettingsView({
     setNameEn("");
     setNameZh("");
   }
+
+  // A preset fills the endpoint and model list. Switching vendors resets the
+  // model so an OpenAI model name is never sent to DeepSeek; the API key is
+  // kept because the user may already have pasted the new vendor's key.
+  function chooseProvider(id: AiProviderId) {
+    const preset = id === "custom" ? null : findPreset(id);
+    if (!preset) {
+      onAiPatch({ provider: "custom" });
+      return;
+    }
+    onAiPatch({
+      provider: preset.id,
+      protocol: preset.protocol,
+      baseUrl: preset.baseUrl,
+      model: preset.defaultModel,
+    });
+  }
+
+  const lastCalDavSync = Object.values(caldavState.calendars)
+    .map((entry) => entry.syncedAt)
+    .filter(Boolean)
+    .sort()
+    .pop();
 
   return (
     <div className="settings-view">
@@ -335,6 +378,96 @@ export default function SettingsView({
       </section>
 
       <section className="settings-card">
+        <h2>{t("settings.caldav")}</h2>
+        <p className="muted small">{t("settings.caldavHint")}</p>
+
+        <label className="field">
+          <span>{t("settings.caldavUrl")}</span>
+          <input
+            value={caldav.serverUrl}
+            onChange={(event) => onCalDavPatch({ serverUrl: event.currentTarget.value })}
+            placeholder={t("settings.caldavUrlPlaceholder")}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+
+        <div className="field-row">
+          <label className="field">
+            <span>{t("settings.caldavUsername")}</span>
+            <input
+              value={caldav.username}
+              onChange={(event) => onCalDavPatch({ username: event.currentTarget.value })}
+              autoComplete="username"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span>{t("settings.caldavPassword")}</span>
+            <input
+              type="password"
+              value={caldav.password}
+              onChange={(event) => onCalDavPatch({ password: event.currentTarget.value })}
+              autoComplete="current-password"
+            />
+          </label>
+        </div>
+        <p className="muted small">{t("settings.caldavPasswordHint")}</p>
+
+        <div className="button-row">
+          <button
+            disabled={caldavBusy || !caldav.serverUrl.trim()}
+            onClick={() => void onCalDavDiscover()}
+          >
+            {caldavBusy ? t("settings.caldavDiscovering") : t("settings.caldavDiscover")}
+          </button>
+          <button
+            className="ghost"
+            disabled={caldavBusy || caldav.calendars.length === 0}
+            onClick={() => void onCalDavSync()}
+          >
+            {t("settings.caldavSync")}
+          </button>
+        </div>
+
+        {caldavFound && caldavFound.length > 0 ? (
+          <div>
+            <p className="muted small">{t("settings.caldavChoose")}</p>
+            <ul className="calendar-picker">
+              {caldavFound.map((calendar) => (
+                <li key={calendar.href}>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={caldav.calendars.some((item) => item.href === calendar.href)}
+                      onChange={(event) => onCalDavToggle(calendar, event.currentTarget.checked)}
+                    />
+                    <span>{calendar.name}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {caldav.calendars.length > 0 ? (
+          <p className="muted small">
+            {t("settings.caldavSelected", { count: caldav.calendars.length })}
+          </p>
+        ) : null}
+
+        {lastCalDavSync ? (
+          <p className="muted small">
+            {t("settings.caldavLastSync", {
+              date: new Date(lastCalDavSync).toLocaleString(),
+            })}
+          </p>
+        ) : null}
+        {caldavStatus ? <p className="muted small">{caldavStatus}</p> : null}
+        <p className="muted small">{t("settings.caldavPrivacy")}</p>
+      </section>
+
+      <section className="settings-card">
         <h2>{t("settings.ai")}</h2>
         <p className="muted small">{t("settings.aiHint")}</p>
 
@@ -348,29 +481,51 @@ export default function SettingsView({
         </label>
 
         <label className="field">
+          <span>{t("settings.aiProvider")}</span>
+          <select
+            value={ai.provider}
+            onChange={(event) => chooseProvider(event.currentTarget.value as AiProviderId)}
+          >
+            {AI_PROVIDER_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {t(`settings.aiProvider_${preset.id}`)}
+              </option>
+            ))}
+            <option value="custom">{t("settings.aiProvider_custom")}</option>
+          </select>
+        </label>
+        <p className="muted small">{t("settings.aiProviderHint")}</p>
+
+        <label className="field">
           <span>{t("settings.aiApiKey")}</span>
           <input
             type="password"
             value={ai.apiKey}
             onChange={(event) => onAiPatch({ apiKey: event.currentTarget.value })}
-            placeholder="sk-ant-…"
+            placeholder="sk-…"
             autoComplete="off"
             spellCheck={false}
           />
         </label>
         <p className="muted small">{t("settings.aiApiKeyHint")}</p>
 
-        <label className="field">
-          <span>{t("settings.aiProtocol")}</span>
-          <select
-            value={ai.protocol}
-            onChange={(event) => onAiPatch({ protocol: event.currentTarget.value as AiConfig["protocol"] })}
-          >
-            <option value="anthropic">{t("settings.aiProtocolAnthropic")}</option>
-            <option value="openai">{t("settings.aiProtocolOpenai")}</option>
-          </select>
-        </label>
-        <p className="muted small">{t("settings.aiProtocolHint")}</p>
+        {ai.provider === "custom" ? (
+          <>
+            <label className="field">
+              <span>{t("settings.aiProtocol")}</span>
+              <select
+                value={ai.protocol}
+                onChange={(event) =>
+                  onAiPatch({ protocol: event.currentTarget.value as AiConfig["protocol"] })
+                }
+              >
+                <option value="anthropic">{t("settings.aiProtocolAnthropic")}</option>
+                <option value="openai">{t("settings.aiProtocolOpenai")}</option>
+              </select>
+            </label>
+            <p className="muted small">{t("settings.aiProtocolHint")}</p>
+          </>
+        ) : null}
 
         <label className="field">
           <span>{t("settings.aiBaseUrl")}</span>
@@ -378,7 +533,8 @@ export default function SettingsView({
             value={ai.baseUrl}
             onChange={(event) => onAiPatch({ baseUrl: event.currentTarget.value })}
             placeholder={
-              ai.protocol === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com"
+              findPreset(ai.provider)?.baseUrl ||
+              (ai.protocol === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com")
             }
             autoComplete="off"
             spellCheck={false}
@@ -396,11 +552,9 @@ export default function SettingsView({
             spellCheck={false}
           />
           <datalist id="ai-model-presets">
-            <option value="claude-opus-5-5" />
-            <option value="claude-sonnet-5-5" />
-            <option value="claude-haiku-5-5" />
-            <option value="gpt-4.1-mini" />
-            <option value="deepseek-chat" />
+            {modelsFor(ai.provider).map((model) => (
+              <option key={model} value={model} />
+            ))}
           </datalist>
         </label>
         <p className="muted small">{t("settings.aiModelHint")}</p>

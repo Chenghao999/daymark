@@ -15,7 +15,7 @@ corresponding area is built.
 | 04 | [Technical architecture](04-architecture.md) | 技术架构文档 | ✅ |
 | 05 | [Data model](05-data-model.md) | 数据模型与存储设计 | ✅ |
 | 06 | [Sync and conflict design](06-sync-conflict.md) | 同步与冲突处理设计 | ✅ |
-| 07 | [CalDAV integration](07-caldav.md) | CalDAV 集成文档 | 🟡 design only |
+| 07 | [CalDAV integration](07-caldav.md) | CalDAV 集成文档 | ✅ v1 (read-only import) |
 | 08 | [Report template specification](08-report-templates.md) | 报告模板规范 | 🟡 first version |
 | 09 | [Internationalisation](09-i18n.md) | 国际化规范 | ✅ |
 | 10 | [Build and distribution](10-build-distribution.md) | 构建与分发 | ✅ |
@@ -27,7 +27,7 @@ corresponding area is built.
 | 16 | [Data and sync operations](16-data-sync-operations.md) | 数据同步操作手册 | ✅ |
 | 17 | [Troubleshooting](17-troubleshooting.md) | 故障排查 | ✅ |
 | 18 | [Development guide](18-development-guide.md) | 开发指南 | ✅ |
-| 19 | [Roadmap](19-roadmap.md) | 路线图：WebDAV（第一版已实现）、AI 与模块化计划 | 🟡 partly implemented |
+| 19 | [Roadmap](19-roadmap.md) | 路线图：WebDAV、CalDAV、AI 与模块化计划 | 🟡 partly implemented |
 
 Legend: ✅ implemented or directly reflected in code · 🟡 design agreed, code
 incomplete.

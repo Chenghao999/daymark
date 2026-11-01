@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { aiOutputPath } from "../src/ai";
+import { baseUrlFor, findPreset, modelsFor } from "../src/ai/presets";
 import {
   DEFAULT_AI,
   isAiConfigured,
@@ -37,6 +38,7 @@ describe("AI settings", () => {
     vi.stubGlobal("localStorage", fakeStorage());
     const config = {
       enabled: true,
+      provider: "deepseek" as const,
       protocol: "openai" as const,
       apiKey: "sk-test",
       model: "deepseek-chat",
@@ -44,6 +46,81 @@ describe("AI settings", () => {
     };
     saveAiSettings(config);
     expect(loadAiSettings()).toEqual(config);
+  });
+
+  it("maps a configuration saved before presets to the right provider", () => {
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          enabled: true,
+          apiKey: "k",
+          protocol: "openai",
+          model: "deepseek-chat",
+          baseUrl: "https://api.deepseek.com/v1",
+        }),
+      }),
+    );
+    expect(loadAiSettings().provider).toBe("deepseek");
+
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          enabled: true,
+          apiKey: "k",
+          protocol: "openai",
+          model: "gpt-4.1-mini",
+          baseUrl: "",
+        }),
+      }),
+    );
+    expect(loadAiSettings().provider).toBe("openai");
+
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          enabled: true,
+          apiKey: "k",
+          protocol: "anthropic",
+          model: "claude-opus-5-5",
+          baseUrl: "https://relay.example.com",
+        }),
+      }),
+    );
+    expect(loadAiSettings().provider).toBe("custom");
+  });
+
+  it("keeps a stored provider and its protocol in step", () => {
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          enabled: true,
+          provider: "qwen",
+          protocol: "anthropic",
+          apiKey: "k",
+          model: "qwen-plus",
+          baseUrl: "",
+        }),
+      }),
+    );
+    const loaded = loadAiSettings();
+    expect(loaded.provider).toBe("qwen");
+    expect(loaded.protocol).toBe("openai");
+    expect(baseUrlFor(loaded)).toBe("https://dashscope.aliyuncs.com/compatible-mode/v1");
+  });
+
+  it("resolves the endpoint from the preset and lets a typed URL win", () => {
+    expect(baseUrlFor({ provider: "deepseek", baseUrl: "" })).toBe("https://api.deepseek.com/v1");
+    expect(baseUrlFor({ provider: "deepseek", baseUrl: "https://relay.example.com/v1/" })).toBe(
+      "https://relay.example.com/v1",
+    );
+    expect(baseUrlFor({ provider: "anthropic", baseUrl: "" })).toBe("");
+    expect(findPreset("qwen")?.defaultModel).toBe("qwen-plus");
+    expect(modelsFor("qwen")).toContain("qwen-max");
+    expect(modelsFor("custom")).toEqual([]);
   });
 
   it("accepts a custom model name and protocol, and falls back on junk", () => {
@@ -92,7 +169,12 @@ describe("AI settings", () => {
   });
 
   it("requires both opt-in and a key before the AI panel is offered", () => {
-    const base = { protocol: "anthropic" as const, baseUrl: "", model: DEFAULT_AI.model };
+    const base = {
+      provider: "anthropic" as const,
+      protocol: "anthropic" as const,
+      baseUrl: "",
+      model: DEFAULT_AI.model,
+    };
     expect(isAiConfigured({ ...base, enabled: false, apiKey: "k" })).toBe(false);
     expect(isAiConfigured({ ...base, enabled: true, apiKey: "  " })).toBe(false);
     expect(isAiConfigured({ ...base, enabled: true, apiKey: " k " })).toBe(true);

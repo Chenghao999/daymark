@@ -60,14 +60,29 @@ export default function WeekView({
               {dayTasks.map((task) => {
                 const category = task.categoryId ? categoryById.get(task.categoryId) : undefined;
                 return (
-                  <div key={task.id} className={task.status === "done" ? "task-chip done" : "task-chip"}>
-                    <button
-                      className="check"
-                      onClick={() => onToggle(task)}
-                      aria-label={task.status === "done" ? t("actions.reopen") : t("actions.complete")}
-                    >
-                      {task.status === "done" ? "✓" : ""}
-                    </button>
+                  <div
+                    key={task.id}
+                    className={[
+                      "task-chip",
+                      task.status === "done" ? "done" : "",
+                      task.source === "caldav" ? "external" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {task.source === "caldav" ? (
+                      <span className="check external-mark" title={t("task.calendarEvent")} aria-hidden="true">
+                        ◆
+                      </span>
+                    ) : (
+                      <button
+                        className="check"
+                        onClick={() => onToggle(task)}
+                        aria-label={task.status === "done" ? t("actions.reopen") : t("actions.complete")}
+                      >
+                        {task.status === "done" ? "✓" : ""}
+                      </button>
+                    )}
                     <button className="task-title" onClick={() => onEdit(task)} title={task.title}>
                       {task.title}
                     </button>
