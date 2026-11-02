@@ -20,7 +20,7 @@
 | `sync/webdav/engine` | whole `syncWebDav` / `resolveConflict` against in-memory IO, client and baseline: first sync, download, task and settings merges, conflict copy, deletion marker, abort when a remote read fails, decisions and baseline advancement |
 | `sync/merge/tasks` | added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, explicit decisions, extras, deletion markers, backlog |
 | `sync/merge/files` | settings per-key and categories per-field three-way merge, with and without a base, deletions, explicit decisions |
-| `sync/caldav/ics` | all-day/UTC/`TZID`/floating time, folded lines, weekly `BYDAY` + `EXDATE` + `COUNT`, daily `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE` ignore, unknown TZID fallback, missing `UID`/`DTSTART` |
+| `sync/caldav/ics` | all-day/UTC/`TZID`/floating time, folded lines, weekly `BYDAY` + `EXDATE` + `COUNT`, daily `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE` shift/cancel/closest-wins, unknown TZID fallback, missing `UID`/`DTSTART` |
 | `sync/caldav/client` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT content-type/depth, typed 401 |
 | `sync/caldav/import` | create/update/unchanged/delete planning, category match by Chinese name, recurring occurrence retention, series deletion, cancelled series vs cancelled occurrence, vanished occurrence via `previousKeys`, missing cursor, detached series, `seriesUidOf` |
 | `settings/caldav` | defaults, credential/cursor round-trip including occurrence keys, malformed-entry sanitisation, unreadable JSON |

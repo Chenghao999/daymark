@@ -9,7 +9,8 @@ import type { CalDavEvent } from "./types";
  * through `Intl`, and an unknown TZID falls back to treating the value as
  * local time. Recurring series are expanded for a window around today; a
  * `RECURRENCE-ID` override replaces that one occurrence, and an override marked
- * cancelled removes it. `RANGE=THISANDFUTURE` is not supported and is ignored.
+ * cancelled removes it. An override with `RANGE=THISANDFUTURE` shifts (or
+ * cancels) that occurrence and every later one until a closer override wins.
  */
 
 const DAY_MS = 86_400_000;
@@ -51,7 +52,7 @@ interface ParsedEvent {
   uid: string;
   /** Set on a `RECURRENCE-ID` override; the original occurrence start. */
   recurrenceId: Moment | null;
-  /** `RANGE=THISANDFUTURE` is parsed but not applied. */
+  /** `RECURRENCE-ID;RANGE=THISANDFUTURE`: apply the change to later instances. */
   range: boolean;
   start: Moment;
   summary: string;
@@ -118,52 +119,99 @@ export function parseCalendarData(text: string, options: ParseCalendarOptions = 
 
     // An override only makes sense for a recurring master; a one-off event
     // with a RECURRENCE-ID is malformed and the master is kept unchanged.
-    const byKey = new Map<string, ParsedEvent>();
+    const exactByKey = new Map<string, ParsedEvent>();
+    const rangeOverrides: ParsedEvent[] = [];
     for (const override of master.rule ? list : []) {
-      if (override.range) continue;
-      byKey.set(occurrenceKey(uid, override.recurrenceId!.dateKey), override);
+      if (override.range) rangeOverrides.push(override);
+      else exactByKey.set(occurrenceKey(uid, override.recurrenceId!.dateKey), override);
     }
+    rangeOverrides.sort(
+      (a, b) => a.recurrenceId!.instant.getTime() - b.recurrenceId!.instant.getTime(),
+    );
+
+    const windowStart = startOfLocalDay(addDays(now, -(options.pastDays ?? 366)));
+    const windowEnd = endOfLocalDay(addDays(now, options.futureDays ?? 731));
+
+    // A range override can move occurrences into the window from outside it.
+    // Expand a little beyond the window so those instances are not lost.
+    const shiftDays = Math.min(
+      731,
+      Math.ceil(
+        Math.max(
+          0,
+          ...rangeOverrides.map((override) =>
+            Math.abs(override.start.instant.getTime() - override.recurrenceId!.instant.getTime()),
+          ),
+        ) / DAY_MS,
+      ),
+    );
+    const expansionOptions: ParseCalendarOptions =
+      shiftDays > 0
+        ? {
+            ...options,
+            pastDays: (options.pastDays ?? 366) + shiftDays,
+            futureDays: (options.futureDays ?? 731) + shiftDays,
+          }
+        : options;
 
     const expansion = master.rule
-      ? expandRecurrence(master.start, master.rule, now, options, master.exdates)
+      ? expandRecurrence(master.start, master.rule, now, expansionOptions, master.exdates)
       : { occurrences: [master.start], excluded: new Set<string>() };
     const emitted = new Set<string>();
 
     for (const occurrence of expansion.occurrences) {
       const key = master.rule ? occurrenceKey(uid, occurrence.dateKey) : uid;
-      const override = byKey.get(key);
-      if (override) {
-        emitted.add(key);
-        events.push(overrideEvent(override, master));
-      } else {
-        events.push(masterEvent(master, occurrence, key));
+      emitted.add(key);
+      const exact = exactByKey.get(key);
+      if (exact) {
+        events.push(overrideEvent(exact, master));
+        continue;
       }
+
+      const range = rangeFor(rangeOverrides, occurrence);
+      if (range) {
+        const shifted = shiftedMoment(range, occurrence);
+        if (!withinWindow(shifted, windowStart, windowEnd)) continue;
+        events.push(
+          range.cancelled
+            ? cancellationEvent(master, key, shifted.dateKey)
+            : rangeEvent(range, master, occurrence, shifted),
+        );
+        continue;
+      }
+
+      if (!withinWindow(occurrence, windowStart, windowEnd)) continue;
+      events.push(masterEvent(master, occurrence, key));
     }
 
     // An override can point at an occurrence outside the window, or at one
     // that EXDATE removed. Emit it so the moved event is not lost.
-    for (const [key, override] of byKey) {
+    for (const [key, override] of exactByKey) {
       if (emitted.has(key)) continue;
       emitted.add(key);
       events.push(overrideEvent(override, master));
+    }
+
+    // A range override whose own occurrence was not expanded (it lies before
+    // the window, or EXDATE removed it) still has to appear. Its first shifted
+    // instance is emitted like a single override.
+    for (const override of rangeOverrides) {
+      const key = occurrenceKey(uid, override.recurrenceId!.dateKey);
+      if (emitted.has(key)) continue;
+      emitted.add(key);
+      events.push(
+        override.cancelled
+          ? cancellationEvent(master, key, override.start.dateKey)
+          : overrideEvent(override, master),
+      );
     }
 
     // An EXDATE means "this occurrence does not exist". The cancellation is
     // emitted so the import can remove a task left by an earlier sync.
     for (const excluded of expansion.excluded) {
       const key = occurrenceKey(uid, excluded);
-      if (byKey.has(key)) continue;
-      events.push({
-        uid,
-        key,
-        title: master.summary || "Untitled",
-        notes: "",
-        categories: master.categories,
-        startAt: excluded,
-        endAt: null,
-        allDay: master.start.allDay,
-        cancelled: true,
-      });
+      if (emitted.has(key)) continue;
+      events.push(cancellationEvent(master, key, excluded));
     }
   }
   return events;
@@ -216,7 +264,7 @@ function parseEvent(lines: string[]): ParsedEvent | null {
   return {
     uid,
     recurrenceId,
-    range: Boolean(recurrenceProp?.params.RANGE),
+    range: (recurrenceProp?.params.RANGE ?? "").toUpperCase() === "THISANDFUTURE",
     start,
     summary,
     notes,
@@ -230,6 +278,69 @@ function parseEvent(lines: string[]): ParsedEvent | null {
 
 function occurrenceKey(uid: string, dateKey: string): string {
   return `${uid}#occ=${dateKey}`;
+}
+
+/** The latest range override at or before an occurrence's original start. */
+function rangeFor(ranges: ParsedEvent[], occurrence: Moment): ParsedEvent | null {
+  let match: ParsedEvent | null = null;
+  for (const range of ranges) {
+    if (range.recurrenceId!.instant.getTime() > occurrence.instant.getTime()) break;
+    match = range;
+  }
+  return match;
+}
+
+/** Apply a range override's start shift to one later occurrence. */
+function shiftedMoment(override: ParsedEvent, occurrence: Moment): Moment {
+  const original = override.recurrenceId!;
+  const start = override.start;
+  // Shift by local calendar days and wall-clock minutes, not by a raw
+  // millisecond delta: the same override must keep its wall-clock time across
+  // a daylight-saving change.
+  const dayShift = Math.round(
+    (startOfLocalDay(start.instant).getTime() -
+      startOfLocalDay(original.instant).getTime()) /
+      DAY_MS,
+  );
+  const minuteShift =
+    start.instant.getHours() * 60 +
+    start.instant.getMinutes() -
+    (original.instant.getHours() * 60 + original.instant.getMinutes());
+
+  const base = addDays(occurrence.instant, dayShift);
+  const instant = occurrence.allDay
+    ? base
+    : new Date(
+        base.getFullYear(),
+        base.getMonth(),
+        base.getDate(),
+        base.getHours(),
+        base.getMinutes() + minuteShift,
+        base.getSeconds(),
+      );
+  return {
+    allDay: occurrence.allDay,
+    dateKey: occurrence.allDay ? localDateKey(instant) : localMinute(instant),
+    instant,
+  };
+}
+
+function withinWindow(moment: Moment, from: Date, to: Date): boolean {
+  return moment.instant.getTime() >= from.getTime() && moment.instant.getTime() <= to.getTime();
+}
+
+function cancellationEvent(master: ParsedEvent, key: string, dateKey: string): CalDavEvent {
+  return {
+    uid: master.uid,
+    key,
+    title: master.summary || "Untitled",
+    notes: "",
+    categories: master.categories,
+    startAt: dateKey,
+    endAt: null,
+    allDay: master.start.allDay,
+    cancelled: true,
+  };
 }
 
 function masterEvent(master: ParsedEvent, occurrence: Moment, key: string): CalDavEvent {
@@ -258,6 +369,31 @@ function overrideEvent(override: ParsedEvent, master: ParsedEvent | null): CalDa
     endAt: endOfOccurrence(override, override.start),
     allDay: override.start.allDay,
     cancelled: override.cancelled,
+  };
+}
+
+function rangeEvent(
+  override: ParsedEvent,
+  master: ParsedEvent,
+  occurrence: Moment,
+  shifted: Moment,
+): CalDavEvent {
+  return {
+    uid: override.uid,
+    // The key stays on the original recurrence start, so a shifted occurrence
+    // updates its existing task instead of creating a new one.
+    key: occurrenceKey(override.uid, occurrence.dateKey),
+    title: override.summary || master.summary || "Untitled",
+    notes: override.notes,
+    categories:
+      override.categories.length > 0 ? override.categories : master.categories,
+    startAt: shifted.dateKey,
+    endAt: endOfOccurrence(
+      { ...override, durationMs: override.durationMs ?? master.durationMs },
+      shifted,
+    ),
+    allDay: shifted.allDay,
+    cancelled: false,
   };
 }
 

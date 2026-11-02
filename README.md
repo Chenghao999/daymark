@@ -103,14 +103,14 @@ cannot be completed or edited, are excluded from reports and AI, and are
 re-imported by `getctag` when the calendar changes. Opening one offers **Turn
 into local task**, which copies it into an ordinary task and remembers the
 series so it is not imported again. Recurring events are expanded for the past
-year and the next two years, including moved or cancelled single occurrences.
-Nothing is ever written back to the calendar server, and the credentials stay
-on this device. CalDAV 为手动只读导入：设置页填入服务器地址与专用密码，查找并
-勾选日历后点“立即导入”。事件在日/周/月视图中
+year and the next two years, including moved, cancelled or “this and future”
+occurrences. Nothing is ever written back to the calendar server, and the
+credentials stay on this device. CalDAV 为手动只读导入：设置页填入服务器地址与
+专用密码，查找并勾选日历后点“立即导入”。事件在日/周/月视图中
 以带 ◆ 的只读任务显示，不能完成或编辑，也不进入报告和 AI；日历变化时按 ctag
 重新导入。打开事件可“转为本地任务”，之后按普通任务处理，并记住该系列不再重复
-导入。重复事件展开过去一年与未来两年，单次移动或取消的实例也会正确显示。
-永远不会写回日历服务器，账号密码只存本机。
+导入。重复事件展开过去一年与未来两年，单次移动、取消或“此次及以后”的调整也会
+正确显示并更新原有任务。永远不会写回日历服务器，账号密码只存本机。
 
 The AI assistant is opt-in and off by default. It ships with provider presets
 for Anthropic, OpenAI, DeepSeek, Alibaba Qwen, Moonshot/Kimi, Zhipu GLM, Google
@@ -130,11 +130,10 @@ Gemini、OpenRouter 服务商预设，其他 Anthropic/OpenAI 兼容中转可用
 确认保存。
 
 Not implemented yet / 尚未实现：background WebDAV sync and CalDAV write-back
-(VEVENT/VTODO), plus `RANGE=THISANDFUTURE` recurrence overrides. They are
-planned in [`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV's design and
-limitations are in [`docs/07-caldav.md`](docs/07-caldav.md). 后台 WebDAV 同步、
-CalDAV 写回与 `RANGE=THISANDFUTURE` 重复事件调整仍在路线图中，CalDAV 设计见
-07 号文档。
+(VEVENT/VTODO). They are planned in
+[`docs/19-roadmap.md`](docs/19-roadmap.md); CalDAV's design and limitations are
+in [`docs/07-caldav.md`](docs/07-caldav.md). 后台 WebDAV 同步与 CalDAV 写回仍在
+路线图中，CalDAV 设计见 07 号文档。
 
 ## Data folder · 数据目录
 

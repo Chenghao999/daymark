@@ -77,8 +77,10 @@ idle → PROPFIND getctag → unchanged → idle
   `COUNT`, `UNTIL`, `BYDAY`, `BYMONTHDAY`, `WKST`, plus `EXDATE`.
   A `RECURRENCE-ID` override replaces just its occurrence (a moved or renamed
   instance keeps the task keyed by its original recurrence start), and a
-  cancelled override removes just that occurrence. `RANGE=THISANDFUTURE` is
-  ignored. A cancelled series deletes all of its imported occurrences.
+  cancelled override removes just that occurrence. An override with
+  `RANGE=THISANDFUTURE` shifts or cancels that occurrence and every later one;
+  a closer override, a single-occurrence override or an `EXDATE` still wins. A
+  cancelled series deletes all of its imported occurrences.
 - The per-calendar import cursor stores both the series UIDs and the occurrence
   keys from the previous listing. An occurrence that disappears from the
   listing (EXDATE, dropped out of the window, deleted on the server) deletes
@@ -118,8 +120,8 @@ file or the synced data folder.
 
 - No write-back, no VTODO, no event editing.
 - No background sync and no push; the user runs "Import now".
-- `RANGE=THISANDFUTURE` overrides are ignored: only the single occurrence named
-  by `RECURRENCE-ID` can be replaced or cancelled.
+- `RANGE=THISANDPRIOR` is not supported; only `THISANDFUTURE` and single
+  occurrences are applied.
 - Detaching is per device: `ignoredUids` is not synced, so another device that
   imports the same series will still create its read-only tasks. The detached
   copy is a local task and is not removed by a later calendar deletion.
