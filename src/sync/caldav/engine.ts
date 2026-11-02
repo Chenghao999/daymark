@@ -56,6 +56,7 @@ export async function syncCalDav(
         tasks,
         categories,
         previousUids: previous?.uids ?? [],
+        previousKeys: previous?.keys ?? [],
         ignoredUids: settings.ignoredUids,
       });
       await applyExternalImport(plan);
@@ -67,6 +68,7 @@ export async function syncCalDav(
       nextState.calendars[calendar.href] = {
         ctag: ctag ?? null,
         uids: [...new Set(events.filter((event) => !event.cancelled).map((event) => event.uid))],
+        keys: [...new Set(events.filter((event) => !event.cancelled).map((event) => event.key))],
         syncedAt: now.toISOString(),
       };
     } catch (cause) {

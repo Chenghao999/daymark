@@ -105,7 +105,7 @@ describe("iCalendar parsing", () => {
     expect(event.notes).toBe("First line continues here");
   });
 
-  it("expands a weekly BYDAY series and honours EXDATE", () => {
+  it("expands a weekly BYDAY series and reports EXDATE as a cancellation", () => {
     const events = parseCalendarData(
       calendar(
         "BEGIN:VEVENT",
@@ -119,13 +119,21 @@ describe("iCalendar parsing", () => {
       ),
       { now },
     );
-    expect(events.map((event) => event.startAt)).toEqual([
+    const active = events.filter((event) => !event.cancelled);
+    expect(active.map((event) => event.startAt)).toEqual([
       "2026-11-02T09:00",
       "2026-11-09T09:00",
       "2026-11-11T09:00",
     ]);
-    expect(events[0].key).toBe("weekly-1#occ=2026-11-02T09:00");
-    expect(events[1].key).toBe("weekly-1#occ=2026-11-09T09:00");
+    expect(active[0].key).toBe("weekly-1#occ=2026-11-02T09:00");
+    expect(active[1].key).toBe("weekly-1#occ=2026-11-09T09:00");
+    expect(events.filter((event) => event.cancelled)).toEqual([
+      expect.objectContaining({
+        uid: "weekly-1",
+        key: "weekly-1#occ=2026-11-04T09:00",
+        cancelled: true,
+      }),
+    ]);
   });
 
   it("stops a daily all-day series at UNTIL", () => {
@@ -164,11 +172,74 @@ describe("iCalendar parsing", () => {
     expect(event.key).toBe("cancel-1");
   });
 
-  it("skips recurrence overrides", () => {
+  it("replaces one occurrence with its RECURRENCE-ID override", () => {
     const events = parseCalendarData(
       calendar(
         "BEGIN:VEVENT",
         "UID:series-1",
+        "DTSTART:20261102T090000",
+        "DTEND:20261102T100000",
+        "RRULE:FREQ=WEEKLY;COUNT=3",
+        "SUMMARY:Standup",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-1",
+        "RECURRENCE-ID:20261109T090000",
+        "DTSTART:20261109T150000",
+        "DTEND:20261109T163000",
+        "SUMMARY:Moved standup",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    const active = events.filter((event) => !event.cancelled);
+    expect(active.map((event) => event.startAt)).toEqual([
+      "2026-11-02T09:00",
+      "2026-11-09T15:00",
+      "2026-11-16T09:00",
+    ]);
+    expect(active[1]).toMatchObject({
+      key: "series-1#occ=2026-11-09T09:00",
+      title: "Moved standup",
+      endAt: "2026-11-09T16:30",
+    });
+  });
+
+  it("cancels a single occurrence without cancelling the series", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-2",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=WEEKLY;COUNT=3",
+        "SUMMARY:Class",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-2",
+        "RECURRENCE-ID:20261109T090000",
+        "DTSTART:20261109T090000",
+        "STATUS:CANCELLED",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.filter((event) => !event.cancelled).map((event) => event.startAt)).toEqual([
+      "2026-11-02T09:00",
+      "2026-11-16T09:00",
+    ]);
+    expect(events.filter((event) => event.cancelled)).toEqual([
+      expect.objectContaining({
+        key: "series-2#occ=2026-11-09T09:00",
+        cancelled: true,
+      }),
+    ]);
+  });
+
+  it("keeps an override that has no master component", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:orphan-1",
         "RECURRENCE-ID:20261102T090000",
         "DTSTART:20261102T110000",
         "SUMMARY:Moved",
@@ -176,7 +247,38 @@ describe("iCalendar parsing", () => {
       ),
       { now },
     );
-    expect(events).toEqual([]);
+    expect(events).toEqual([
+      expect.objectContaining({
+        key: "orphan-1#occ=2026-11-02T09:00",
+        startAt: "2026-11-02T11:00",
+        title: "Moved",
+      }),
+    ]);
+  });
+
+  it("ignores a THISANDFUTURE override", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-3",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=WEEKLY;COUNT=2",
+        "SUMMARY:Weekly",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-3",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE:20261109T090000",
+        "DTSTART:20261109T100000",
+        "SUMMARY:Shifted",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => event.startAt)).toEqual([
+      "2026-11-02T09:00",
+      "2026-11-09T09:00",
+    ]);
+    expect(events.every((event) => event.title === "Weekly")).toBe(true);
   });
 
   it("falls back to local time for an unknown TZID", () => {

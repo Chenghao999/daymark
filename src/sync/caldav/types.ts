@@ -28,7 +28,14 @@ export type CalDavCalendar = CalDavCalendarRef;
 export interface CalDavCalendarState {
   /** `getctag` value; null when the server does not expose one. */
   ctag: string | null;
+  /** Series UIDs in the previous listing; kept for older saved state. */
   uids: string[];
+  /**
+   * Occurrence keys (`uid` or `uid#occ=<start>`) in the previous listing.
+   * Comparing this with the current listing removes occurrences excluded by an
+   * EXDATE, dropped from the window, or cancelled individually.
+   */
+  keys: string[];
   syncedAt: string;
 }
 

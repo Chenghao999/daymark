@@ -90,7 +90,7 @@ The full safe procedure is `16-data-sync-operations.md`.
 |---|---|---|
 | 401 after **Find calendars** or **Import now** | Wrong password, or the provider requires an app-specific password | Generate an app-specific password in the provider's account settings and use that; a normal login password often fails. |
 | No calendars found | The server URL is wrong, the account has no CalDAV calendars, or discovery was blocked | Try the full server URL (for iCloud, `https://caldav.icloud.com/`); confirm the account has at least one calendar. |
-| An event never appears | It is outside the recurrence window (past 366 / future 731 days), a `RECURRENCE-ID` override, or malformed | Check the event date and whether it is a single moved occurrence; a malformed event is skipped with an error in the status line. |
+| An event never appears | It is outside the recurrence window (past 366 / future 731 days), malformed, or part of an ignored detached series | Check the event date and whether the series was detached on this device; a malformed event is skipped with an error in the status line. |
 | A task cannot be ticked complete or edited | It is a calendar event, not a local task | Open it and press **Turn into local task**. |
 | A calendar event is missing from a report | Calendar events are excluded from reports and AI | Detach it first; only local tasks count. |
 | The event comes back after detaching | Detaching was done on another device, or the calendar is imported on this device too | The ignored-series list is per device; detach it on this device as well. |
@@ -98,9 +98,10 @@ The full safe procedure is `16-data-sync-operations.md`.
 | Duplicate copies of the same event | The event UID changed on the server, or two devices imported it | Keep one and delete the other; an UID change looks like a delete plus a create. |
 
 **中文要点：** CalDAV 报 401 通常是密码问题——iCloud 等服务商要求 App 专用密码。
-事件不显示时先看是否在“过去一年、未来两年”的展开窗口内，或是单次调整的
-`RECURRENCE-ID` 实例（暂不支持）。日历事件不能直接完成或进入报告，需先“转为
-本地任务”。导入是手动的，没有后台同步。
+事件不显示时先看是否在“过去一年、未来两年”的展开窗口内，或该系列已在本机
+“转为本地任务”。单次调整的 `RECURRENCE-ID` 实例现在会覆盖对应的一次事件；
+只有 `RANGE=THISANDFUTURE` 形式仍会被忽略。日历事件不能直接完成或进入报告，
+需先“转为本地任务”。导入是手动的，没有后台同步。
 
 ## 5. Reports and export
 
@@ -193,7 +194,7 @@ Read `15-user-guide.md` §11 before filing an issue:
 - WebDAV sync is manual and never deletes;
 - the AI assistant is opt-in, needs an API key and a network connection;
 - CalDAV is read-only and manual (no write-back, VTODO, background sync or
-  `RECURRENCE-ID` overrides);
+  `RANGE=THISANDFUTURE` overrides);
 - no reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.

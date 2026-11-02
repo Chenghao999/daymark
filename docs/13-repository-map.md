@@ -121,8 +121,8 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `merge/index.ts` | Public entry: `mergeableDateKey(path)` (day file → date, `_backlog.md` → null, anything else → undefined) plus the merge exports. |
 | `caldav/types.ts` | `CalDavConfig`, `CalDavState`, `CalDavSettings`, `CalDavEvent`, `CalDavRequest`/`CalDavHttpResponse`, `CalDavTransport`, `CalDavSyncResult`. Types only. |
 | `caldav/client.ts` | `CalDavClient` (`discover`, `ctag`, `events`) plus URL/href/multistatus helpers. The only module that knows CalDAV verbs; transport is the Rust `webdav_request` command (`TAURI_CALDAV_TRANSPORT`). |
-| `caldav/ics.ts` | `parseCalendarData(text, options?)`: unfolds iCalendar, reads `VEVENT` (skipping nested `VALARM`), converts DATE/UTC/TZID/floating times to local wall clock, applies `DURATION`, expands `RRULE`/`EXDATE` within a window, keys occurrences as `uid#occ=<start>`. Pure, no I/O. |
-| `caldav/import.ts` | Pure `planCalendarImport({events, tasks, categories, previousUids, ignoredUids?})` and `seriesUidOf(externalUid)`: create/update/delete diff by `externalUid`, category match by name, series-level deletion, detached-series skip. |
+| `caldav/ics.ts` | `parseCalendarData(text, options?)`: unfolds iCalendar, reads `VEVENT` (skipping nested `VALARM`), converts DATE/UTC/TZID/floating times to local wall clock, applies `DURATION`, groups masters and `RECURRENCE-ID` overrides by UID, expands `RRULE`/`EXDATE` within a window, and keys occurrences as `uid#occ=<start>`. Overrides replace or cancel their one occurrence; `RANGE=THISANDFUTURE` is ignored. Pure, no I/O. |
+| `caldav/import.ts` | Pure `planCalendarImport({events, tasks, categories, previousUids, previousKeys?, ignoredUids?})` and `seriesUidOf(externalUid)`: create/update/delete diff by `externalUid`, category match by name, series-level deletion, occurrence-level deletion from a cancellation or from a key missing in the current listing, detached-series skip. |
 | `caldav/engine.ts` | `syncCalDav(settings, options)`: per calendar, skip on unchanged ctag, REPORT, parse, plan, `applyExternalImport`, then return counters and the next `CalDavState`. Per-calendar errors are collected, not thrown. |
 
 ### AI assistant (`src/ai/`)
@@ -148,7 +148,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
 | `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
 | `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset; the API key never enters `_settings.md`. |
-| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID cursor and detached series UIDs. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
+| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID/occurrence-key cursor and detached series UIDs. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
@@ -190,10 +190,10 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
-| `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` skip, unknown TZID, missing `UID`/`DTSTART`. |
+| `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE` ignore, unknown TZID, missing `UID`/`DTSTART`. |
 | `caldavClient.test.ts` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT body/content-type/depth, typed 401. |
-| `caldavImport.test.ts` | Create/update/unchanged/delete planning, category match by name, recurring occurrence retention, series deletion, cancelled, detached series, `seriesUidOf`. |
-| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip, malformed-entry sanitisation, unreadable JSON. |
+| `caldavImport.test.ts` | Create/update/unchanged/delete planning, category match by name, recurring occurrence retention, series deletion, cancelled series vs cancelled occurrence, vanished occurrence via `previousKeys`, missing cursor, detached series, `seriesUidOf`. |
+| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip including occurrence keys, malformed-entry sanitisation, unreadable JSON. |
 
 Tests import only `src/domain/*`, `src/storage/*`, `src/sync/webdav/*`,
 `src/sync/caldav/*` and `src/settings/*` modules;

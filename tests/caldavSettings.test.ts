@@ -47,6 +47,7 @@ describe("CalDAV settings", () => {
           "https://caldav.icloud.com/1/calendars/work/": {
             ctag: "ctag-1",
             uids: ["uid-1", "uid-2"],
+            keys: ["uid-1", "uid-2#occ=2026-11-02T09:00"],
             syncedAt: "2026-11-01T10:00:00.000Z",
           },
         },
@@ -67,15 +68,19 @@ describe("CalDAV settings", () => {
             serverUrl: 42,
             calendars: [null, { href: 7 }, { href: "/c/", name: 1 }, { href: "/c/", name: "dup" }],
           },
-          state: { calendars: { "/c/": { ctag: 9, uids: ["a", 1, null], syncedAt: 3 } } },
-          ignoredUids: "nope",
+          state: { calendars: { "/c/": { ctag: 9, uids: ["a", 1, null], syncedAt: 3 } } },          ignoredUids: "nope",
         }),
       }),
     );
     const loaded = loadCalDavSettings();
     expect(loaded.config.serverUrl).toBe("");
     expect(loaded.config.calendars).toEqual([{ href: "/c/", name: "" }]);
-    expect(loaded.state.calendars["/c/"]).toEqual({ ctag: null, uids: ["a"], syncedAt: "" });
+    expect(loaded.state.calendars["/c/"]).toEqual({
+      ctag: null,
+      uids: ["a"],
+      keys: [],
+      syncedAt: "",
+    });
     expect(loaded.ignoredUids).toEqual([]);
   });
 

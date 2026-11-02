@@ -75,8 +75,15 @@ idle → PROPFIND getctag → unchanged → idle
 - Recurring series are expanded within the window (past 366 days, future 731
   days). Supported: `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` with `INTERVAL`,
   `COUNT`, `UNTIL`, `BYDAY`, `BYMONTHDAY`, `WKST`, plus `EXDATE`.
-  `RECURRENCE-ID` overrides are skipped; a cancelled series deletes all of its
-  imported occurrences.
+  A `RECURRENCE-ID` override replaces just its occurrence (a moved or renamed
+  instance keeps the task keyed by its original recurrence start), and a
+  cancelled override removes just that occurrence. `RANGE=THISANDFUTURE` is
+  ignored. A cancelled series deletes all of its imported occurrences.
+- The per-calendar import cursor stores both the series UIDs and the occurrence
+  keys from the previous listing. An occurrence that disappears from the
+  listing (EXDATE, dropped out of the window, deleted on the server) deletes
+  its imported task. On the first sync after upgrading, `keys` is empty, so no
+  occurrence is removed by the cursor until the next sync.
 - Calendar events are excluded from reports and AI context. They become
   ordinary report data only after the user detaches them.
 
@@ -98,7 +105,7 @@ idle → PROPFIND getctag → unchanged → idle
 |---|---|---|
 | Server URL, username, password | `localStorage["daymark.caldav.v1"]` | No |
 | Selected calendars, selection names | same key | No |
-| Per-calendar ctag, last UID set, `syncedAt` | same key | No |
+| Per-calendar ctag, last UID set and occurrence-key set, `syncedAt` | same key | No |
 | Detached (ignored) series UIDs | same key | No |
 | Imported tasks | Markdown day files | Yes, via the data folder |
 
@@ -111,8 +118,8 @@ file or the synced data folder.
 
 - No write-back, no VTODO, no event editing.
 - No background sync and no push; the user runs "Import now".
-- `RECURRENCE-ID` overrides (a single moved or edited occurrence) are skipped
-  rather than applied.
+- `RANGE=THISANDFUTURE` overrides are ignored: only the single occurrence named
+  by `RECURRENCE-ID` can be replaced or cancelled.
 - Detaching is per device: `ignoredUids` is not synced, so another device that
   imports the same series will still create its read-only tasks. The detached
   copy is a local task and is not removed by a later calendar deletion.
