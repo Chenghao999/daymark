@@ -99,9 +99,9 @@ The full safe procedure is `16-data-sync-operations.md`.
 
 **中文要点：** CalDAV 报 401 通常是密码问题——iCloud 等服务商要求 App 专用密码。
 事件不显示时先看是否在“过去一年、未来两年”的展开窗口内，或该系列已在本机
-“转为本地任务”。单次调整的 `RECURRENCE-ID` 实例现在会覆盖对应的一次事件；
-只有 `RANGE=THISANDFUTURE` 形式仍会被忽略。日历事件不能直接完成或进入报告，
-需先“转为本地任务”。导入是手动的，没有后台同步。
+“转为本地任务”。单次调整的 `RECURRENCE-ID` 实例会覆盖对应的一次事件，
+`RANGE=THISANDFUTURE` 的“此次及以后”调整也会一并应用。日历事件不能直接完成或
+进入报告，需先“转为本地任务”。导入是手动的，没有后台同步。
 
 ## 5. Reports and export
 
@@ -194,7 +194,7 @@ Read `15-user-guide.md` §11 before filing an issue:
 - WebDAV sync is manual and never deletes;
 - the AI assistant is opt-in, needs an API key and a network connection;
 - CalDAV is read-only and manual (no write-back, VTODO, background sync or
-  `RANGE=THISANDFUTURE` overrides);
+  `THISANDPRIOR` overrides);
 - no reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.

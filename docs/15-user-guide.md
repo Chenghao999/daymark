@@ -286,9 +286,10 @@ How imported events appear:
   Supported rules: daily, weekly, monthly and yearly with interval, count,
   until, by-day and by-month-day. A single moved or edited occurrence
   (`RECURRENCE-ID`) replaces only that occurrence in Daymark, and a cancelled
-  occurrence disappears without affecting the rest of the series. The rarer
-  `RANGE=THISANDFUTURE` form is ignored. Deleting a series or marking it
-  cancelled removes its imported occurrences.
+  occurrence disappears without affecting the rest of the series. An edit
+  applied to “this and future” events shifts or cancels that occurrence and
+  every later one. Deleting a series or marking it cancelled
+  removes its imported occurrences.
 - An event deleted on the server is removed from Daymark on the next import,
   and so is an occurrence that no longer appears in the listing (for example
   after an `EXDATE`). A task you detached stays, because it is now a local task.
@@ -444,7 +445,7 @@ choose the copied folder on first launch.
 | Reopening clears completion metadata | The task's earlier completion date is lost. |
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
-| CalDAV is import-only | No write-back, VTODO, event editing, background sync or push. `RANGE=THISANDFUTURE` overrides are ignored; only single-occurrence overrides are applied. Detached-series memory is per device. |
+| CalDAV is import-only | No write-back, VTODO, event editing, background sync or push. Detached-series memory is per device. |
 | WebDAV sync is manual and first-version | No background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
 | AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |

@@ -710,8 +710,9 @@ Rules:
    expands recurrences within the window, and never throws for one bad object.
    A `RECURRENCE-ID` override replaces the occurrence it names (keyed by the
    original recurrence start); a cancelled override or an `EXDATE` emits a
-   cancelled occurrence; `RANGE=THISANDFUTURE` is ignored. Nested `VALARM`
-   blocks are skipped.
+   cancelled occurrence. A `RANGE=THISANDFUTURE` override shifts or cancels
+   that occurrence and later ones, and a closer override or exact `EXDATE`
+   wins. Nested `VALARM` blocks are skipped.
 5. `planCalendarImport` is pure: it matches categories case-insensitively
    against `nameEn`/`nameZh`, compares title/notes/category/start/end/all-day,
    deletes by series UID or by occurrence key, removes occurrences present in

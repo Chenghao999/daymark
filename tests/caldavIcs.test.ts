@@ -256,13 +256,14 @@ describe("iCalendar parsing", () => {
     ]);
   });
 
-  it("ignores a THISANDFUTURE override", () => {
+  it("shifts this and future occurrences with a THISANDFUTURE override", () => {
     const events = parseCalendarData(
       calendar(
         "BEGIN:VEVENT",
         "UID:series-3",
         "DTSTART:20261102T090000",
-        "RRULE:FREQ=WEEKLY;COUNT=2",
+        "DTEND:20261102T100000",
+        "RRULE:FREQ=WEEKLY;COUNT=4",
         "SUMMARY:Weekly",
         "END:VEVENT",
         "BEGIN:VEVENT",
@@ -276,9 +277,137 @@ describe("iCalendar parsing", () => {
     );
     expect(events.map((event) => event.startAt)).toEqual([
       "2026-11-02T09:00",
-      "2026-11-09T09:00",
+      "2026-11-09T10:00",
+      "2026-11-16T10:00",
+      "2026-11-23T10:00",
     ]);
-    expect(events.every((event) => event.title === "Weekly")).toBe(true);
+    expect(events.map((event) => event.key)).toEqual([
+      "series-3#occ=2026-11-02T09:00",
+      "series-3#occ=2026-11-09T09:00",
+      "series-3#occ=2026-11-16T09:00",
+      "series-3#occ=2026-11-23T09:00",
+    ]);
+    expect(events.map((event) => event.title)).toEqual([
+      "Weekly",
+      "Shifted",
+      "Shifted",
+      "Shifted",
+    ]);
+    expect(events[1].endAt).toBe("2026-11-09T11:00");
+  });
+
+  it("cancels this and future occurrences with a THISANDFUTURE override", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-4",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "SUMMARY:Daily",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE:20261103T090000",
+        "DTSTART:20261103T090000",
+        "STATUS:CANCELLED",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.filter((event) => !event.cancelled).map((event) => event.startAt)).toEqual([
+      "2026-11-02T09:00",
+    ]);
+    expect(events.filter((event) => event.cancelled).map((event) => event.key)).toEqual([
+      "series-4#occ=2026-11-03T09:00",
+      "series-4#occ=2026-11-04T09:00",
+    ]);
+  });
+
+  it("lets a single-occurrence override win over an earlier range shift", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-5",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=WEEKLY;COUNT=3",
+        "SUMMARY:Weekly",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-5",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE:20261109T090000",
+        "DTSTART:20261109T100000",
+        "SUMMARY:Shifted",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-5",
+        "RECURRENCE-ID:20261116T090000",
+        "DTSTART:20261116T120000",
+        "SUMMARY:Special",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.title])).toEqual([
+      ["series-5#occ=2026-11-02T09:00", "2026-11-02T09:00", "Weekly"],
+      ["series-5#occ=2026-11-09T09:00", "2026-11-09T10:00", "Shifted"],
+      ["series-5#occ=2026-11-16T09:00", "2026-11-16T12:00", "Special"],
+    ]);
+  });
+
+  it("lets the closest THISANDFUTURE override win", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-6",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "SUMMARY:Daily",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-6",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE:20261103T090000",
+        "DTSTART:20261103T100000",
+        "SUMMARY:Ten",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-6",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE:20261104T090000",
+        "DTSTART:20261104T110000",
+        "SUMMARY:Eleven",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.title])).toEqual([
+      ["series-6#occ=2026-11-02T09:00", "2026-11-02T09:00", "Daily"],
+      ["series-6#occ=2026-11-03T09:00", "2026-11-03T10:00", "Ten"],
+      ["series-6#occ=2026-11-04T09:00", "2026-11-04T11:00", "Eleven"],
+    ]);
+  });
+
+  it("shifts an all-day series by whole days", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-7",
+        "DTSTART;VALUE=DATE:20261102",
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "SUMMARY:Habit",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-7",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE;VALUE=DATE:20261103",
+        "DTSTART;VALUE=DATE:20261105",
+        "SUMMARY:Habit moved",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.allDay])).toEqual([
+      ["series-7#occ=2026-11-02", "2026-11-02", true],
+      ["series-7#occ=2026-11-03", "2026-11-05", true],
+      ["series-7#occ=2026-11-04", "2026-11-06", true],
+    ]);
   });
 
   it("falls back to local time for an unknown TZID", () => {
