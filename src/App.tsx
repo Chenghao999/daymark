@@ -37,6 +37,7 @@ import {
   isCalDavConfigured,
   isCalDavReady,
   loadCalDavSettings,
+  normalizeRefreshMinutes,
   saveCalDavSettings,
 } from "./settings/caldav";
 import { CalDavClient } from "./sync/caldav/client";
@@ -78,6 +79,8 @@ export default function App() {
   const [caldavBusy, setCaldavBusy] = useState(false);
   const [caldavStatus, setCaldavStatus] = useState<string | null>(null);
   const [caldavFound, setCaldavFound] = useState<CalDavCalendar[] | null>(null);
+  const caldavBusyRef = useRef(false);
+  const caldavSyncRef = useRef<(() => Promise<void>) | null>(null);
   const bootedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
 
@@ -183,6 +186,23 @@ export default function App() {
       scannerRef.current = null;
     };
   }, [ready, settings.dataDir, settings.scanIntervalSec]);
+
+  // Keep the timer pointed at the latest closure, so an import triggered by
+  // the interval sees the current credentials, calendars and import cursor.
+  useEffect(() => {
+    caldavSyncRef.current = runCalDavSync;
+  });
+
+  // Optional automatic import while the app is open. It is deliberately not a
+  // background service: closing the window stops it, and the setting is off
+  // by default.
+  useEffect(() => {
+    if (!ready || caldav.refreshMinutes <= 0 || !isCalDavReady(caldav.config)) return;
+    const timer = window.setInterval(() => {
+      if (!caldavBusyRef.current) void caldavSyncRef.current?.();
+    }, caldav.refreshMinutes * 60_000);
+    return () => window.clearInterval(timer);
+  }, [ready, caldav.refreshMinutes, caldav.config]);
 
   async function chooseFolder() {
     const picked = await openDialog({ directory: true, multiple: false, title: t("onboarding.choose") });
@@ -323,6 +343,14 @@ export default function App() {
     });
   }, []);
 
+  const setCalDavRefresh = useCallback((minutes: number) => {
+    setCaldav((current) => {
+      const next = { ...current, refreshMinutes: normalizeRefreshMinutes(minutes) };
+      saveCalDavSettings(next);
+      return next;
+    });
+  }, []);
+
   const toggleCalDavCalendar = useCallback((calendar: CalDavCalendar, selected: boolean) => {
     setCaldav((current) => {
       const others = current.config.calendars.filter((item) => item.href !== calendar.href);
@@ -358,6 +386,9 @@ export default function App() {
   }
 
   async function runCalDavSync() {
+    // An automatic import and a click must never overlap: both would read the
+    // same ctag and apply the same plan twice.
+    if (caldavBusyRef.current) return;
     if (!isCalDavReady(caldav.config)) {
       setCaldavStatus(
         isCalDavConfigured(caldav.config)
@@ -366,6 +397,7 @@ export default function App() {
       );
       return;
     }
+    caldavBusyRef.current = true;
     setCaldavBusy(true);
     setCaldavStatus(t("settings.caldavSyncing"));
     try {
@@ -400,6 +432,7 @@ export default function App() {
         `${t("settings.caldavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
     } finally {
+      caldavBusyRef.current = false;
       setCaldavBusy(false);
     }
   }
@@ -675,6 +708,7 @@ export default function App() {
               caldavFound={caldavFound}
               caldavBusy={caldavBusy}
               caldavStatus={caldavStatus}
+              caldavRefreshMinutes={caldav.refreshMinutes}
               onWebdavPatch={patchWebdav}
               onWebdavTest={testWebdav}
               onWebdavSync={runWebdavSync}
@@ -683,6 +717,7 @@ export default function App() {
               onCalDavDiscover={discoverCalDavCalendars}
               onCalDavToggle={toggleCalDavCalendar}
               onCalDavSync={runCalDavSync}
+              onCalDavRefresh={setCalDavRefresh}
               onAiPatch={patchAi}
               onLanguage={changeLanguage}
               onChangeFolder={chooseFolder}

@@ -148,7 +148,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
 | `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
 | `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset; the API key never enters `_settings.md`. |
-| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID/occurrence-key cursor and detached series UIDs. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
+| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID/occurrence-key cursor, detached series UIDs and the optional in-app import interval. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
@@ -193,7 +193,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE` shift/cancel/closest-wins, unknown TZID, missing `UID`/`DTSTART`. |
 | `caldavClient.test.ts` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT body/content-type/depth, typed 401. |
 | `caldavImport.test.ts` | Create/update/unchanged/delete planning, category match by name, recurring occurrence retention, series deletion, cancelled series vs cancelled occurrence, vanished occurrence via `previousKeys`, missing cursor, detached series, `seriesUidOf`. |
-| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip including occurrence keys, malformed-entry sanitisation, unreadable JSON. |
+| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip including occurrence keys, automatic-import interval presets, malformed-entry sanitisation, unreadable JSON. |
 
 Tests import only `src/domain/*`, `src/storage/*`, `src/sync/webdav/*`,
 `src/sync/caldav/*` and `src/settings/*` modules;

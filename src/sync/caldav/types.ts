@@ -51,6 +51,11 @@ export interface CalDavSettings {
    * detached event does not come back as a duplicate on the next sync.
    */
   ignoredUids: string[];
+  /**
+   * Automatic import interval in minutes while the app is open; `0` means the
+   * user runs "Import now" manually. Device-local, like the rest of this file.
+   */
+  refreshMinutes: number;
 }
 
 export interface CalDavRequest {

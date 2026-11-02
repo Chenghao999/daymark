@@ -267,8 +267,10 @@ back to the server.
    reports how many events were created, updated, deleted and left unchanged,
    plus the last sync time.
 4. Press **Import now** again whenever you want to pick up changes. The import
-   is manual; nothing runs in the background. If the server's `getctag` has not
-   changed, that calendar is skipped without downloading it.
+   is manual by default; **Automatic import** can instead run it every 15, 30
+   or 60 minutes while Daymark is open. Nothing runs once the app is closed. If
+   the server's `getctag` has not changed, that calendar is skipped without
+   downloading it.
 
 How imported events appear:
 
@@ -297,7 +299,8 @@ How imported events appear:
 The server URL, username, password, calendar selection and sync cursor are
 stored on this device only, like the WebDAV password. They are never written to
 `_settings.md` or the data folder, and never sent anywhere except that calendar
-server. Known limitations: no write-back, no VTODO, no background or push sync,
+server. Known limitations: no write-back, no VTODO, no OS background or push
+sync,
 and the detached-series memory is per device — another device importing the
 same calendar may create its own read-only copy.
 
@@ -445,7 +448,7 @@ choose the copied folder on first launch.
 | Reopening clears completion metadata | The task's earlier completion date is lost. |
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
-| CalDAV is import-only | No write-back, VTODO, event editing, background sync or push. Detached-series memory is per device. |
+| CalDAV is import-only | No write-back, VTODO, event editing, OS background sync or push. Automatic import runs only while the app is open. Detached-series memory is per device. |
 | WebDAV sync is manual and first-version | No background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
 | AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
