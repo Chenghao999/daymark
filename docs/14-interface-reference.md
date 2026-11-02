@@ -637,7 +637,12 @@ interface CalDavConfig {
 }
 
 interface CalDavCalendarRef { href: string; name: string }
-interface CalDavCalendarState { ctag: string | null; uids: string[]; syncedAt: string }
+interface CalDavCalendarState {
+  ctag: string | null;
+  uids: string[];                      // series UIDs in the previous listing
+  keys: string[];                      // occurrence keys in the previous listing
+  syncedAt: string;
+}
 interface CalDavState { calendars: Record<string, CalDavCalendarState> }
 
 interface CalDavSettings {
@@ -675,7 +680,7 @@ class CalDavError extends Error { status: number }
 
 planCalendarImport(input: {
   events: CalDavEvent[]; tasks: Task[]; categories: Category[];
-  previousUids: string[]; ignoredUids?: string[];
+  previousUids: string[]; previousKeys?: string[]; ignoredUids?: string[];
 }): ExternalImportPlan
 seriesUidOf(externalUid: string | null): string | null
 
@@ -703,10 +708,15 @@ Rules:
    at depth 1; a non-207 answer throws.
 4. `parseCalendarData` converts every time to the device's local wall clock,
    expands recurrences within the window, and never throws for one bad object.
-   Nested `VALARM` blocks are skipped.
+   A `RECURRENCE-ID` override replaces the occurrence it names (keyed by the
+   original recurrence start); a cancelled override or an `EXDATE` emits a
+   cancelled occurrence; `RANGE=THISANDFUTURE` is ignored. Nested `VALARM`
+   blocks are skipped.
 5. `planCalendarImport` is pure: it matches categories case-insensitively
    against `nameEn`/`nameZh`, compares title/notes/category/start/end/all-day,
-   deletes by series UID, and never re-imports `ignoredUids`.
+   deletes by series UID or by occurrence key, removes occurrences present in
+   `previousKeys` but missing from the listing, and never re-imports
+   `ignoredUids`.
 6. `syncCalDav` is read-only against the server and does not touch React state;
    the caller saves `nextState` and reloads the store when anything changed.
    Per-calendar errors are collected in `errors`, not thrown.

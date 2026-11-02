@@ -92,10 +92,16 @@ function stateOf(value: CalDavState | undefined): CalDavState {
   const result: CalDavState = { calendars: {} };
   for (const [href, raw] of Object.entries(value.calendars)) {
     if (!raw || typeof raw !== "object") continue;
-    const entry = raw as { ctag?: unknown; uids?: unknown; syncedAt?: unknown };
+    const entry = raw as {
+      ctag?: unknown;
+      uids?: unknown;
+      keys?: unknown;
+      syncedAt?: unknown;
+    };
     result.calendars[href] = {
       ctag: typeof entry.ctag === "string" ? entry.ctag : null,
       uids: stringList(entry.uids),
+      keys: stringList(entry.keys),
       syncedAt: text(entry.syncedAt),
     };
   }

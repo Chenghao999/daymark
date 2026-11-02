@@ -8,7 +8,8 @@ import type { CalDavEvent } from "./types";
  * files store. `VTIMEZONE` blocks are not interpreted; IANA TZIDs are resolved
  * through `Intl`, and an unknown TZID falls back to treating the value as
  * local time. Recurring series are expanded for a window around today; a
- * `RECURRENCE-ID` override is skipped rather than merged.
+ * `RECURRENCE-ID` override replaces that one occurrence, and an override marked
+ * cancelled removes it. `RANGE=THISANDFUTURE` is not supported and is ignored.
  */
 
 const DAY_MS = 86_400_000;
@@ -46,6 +47,28 @@ interface RecurrenceRule {
   weekStart: number;
 }
 
+interface ParsedEvent {
+  uid: string;
+  /** Set on a `RECURRENCE-ID` override; the original occurrence start. */
+  recurrenceId: Moment | null;
+  /** `RANGE=THISANDFUTURE` is parsed but not applied. */
+  range: boolean;
+  start: Moment;
+  summary: string;
+  notes: string;
+  categories: string[];
+  cancelled: boolean;
+  durationMs: number | null;
+  rule: RecurrenceRule | null;
+  exdates: Set<string>;
+}
+
+interface Expansion {
+  occurrences: Moment[];
+  /** Occurrence keys removed by `EXDATE`; reported as cancellations. */
+  excluded: Set<string>;
+}
+
 const WEEKDAYS: Record<string, number> = {
   SU: 0,
   MO: 1,
@@ -59,26 +82,102 @@ const WEEKDAYS: Record<string, number> = {
 /** Parses every VEVENT in a calendar object into local occurrences. */
 export function parseCalendarData(text: string, options: ParseCalendarOptions = {}): CalDavEvent[] {
   const now = options.now ?? new Date();
+  const parsed = eventBlocks(text)
+    .map((block) => parseEvent(block))
+    .filter((event): event is ParsedEvent => event !== null);
+
+  const masters = new Map<string, ParsedEvent>();
+  const overrides = new Map<string, ParsedEvent[]>();
+  for (const event of parsed) {
+    if (event.recurrenceId) {
+      const list = overrides.get(event.uid) ?? [];
+      list.push(event);
+      overrides.set(event.uid, list);
+    } else if (!masters.has(event.uid)) {
+      masters.set(event.uid, event);
+    }
+  }
+
   const events: CalDavEvent[] = [];
-  for (const block of eventBlocks(text)) {
-    const parsed = parseEvent(block, now, options);
-    if (parsed) events.push(...parsed);
+  const uids = new Set([...masters.keys(), ...overrides.keys()]);
+  for (const uid of uids) {
+    const master = masters.get(uid);
+    const list = overrides.get(uid) ?? [];
+
+    if (!master) {
+      // A server can send an override without the master. Showing it is still
+      // more useful than dropping the event.
+      for (const override of list) events.push(overrideEvent(override, null));
+      continue;
+    }
+
+    if (master.cancelled) {
+      events.push(masterEvent(master, master.start, uid));
+      continue;
+    }
+
+    // An override only makes sense for a recurring master; a one-off event
+    // with a RECURRENCE-ID is malformed and the master is kept unchanged.
+    const byKey = new Map<string, ParsedEvent>();
+    for (const override of master.rule ? list : []) {
+      if (override.range) continue;
+      byKey.set(occurrenceKey(uid, override.recurrenceId!.dateKey), override);
+    }
+
+    const expansion = master.rule
+      ? expandRecurrence(master.start, master.rule, now, options, master.exdates)
+      : { occurrences: [master.start], excluded: new Set<string>() };
+    const emitted = new Set<string>();
+
+    for (const occurrence of expansion.occurrences) {
+      const key = master.rule ? occurrenceKey(uid, occurrence.dateKey) : uid;
+      const override = byKey.get(key);
+      if (override) {
+        emitted.add(key);
+        events.push(overrideEvent(override, master));
+      } else {
+        events.push(masterEvent(master, occurrence, key));
+      }
+    }
+
+    // An override can point at an occurrence outside the window, or at one
+    // that EXDATE removed. Emit it so the moved event is not lost.
+    for (const [key, override] of byKey) {
+      if (emitted.has(key)) continue;
+      emitted.add(key);
+      events.push(overrideEvent(override, master));
+    }
+
+    // An EXDATE means "this occurrence does not exist". The cancellation is
+    // emitted so the import can remove a task left by an earlier sync.
+    for (const excluded of expansion.excluded) {
+      const key = occurrenceKey(uid, excluded);
+      if (byKey.has(key)) continue;
+      events.push({
+        uid,
+        key,
+        title: master.summary || "Untitled",
+        notes: "",
+        categories: master.categories,
+        startAt: excluded,
+        endAt: null,
+        allDay: master.start.allDay,
+        cancelled: true,
+      });
+    }
   }
   return events;
 }
 
-function parseEvent(
-  lines: string[],
-  now: Date,
-  options: ParseCalendarOptions,
-): CalDavEvent[] | null {
+function parseEvent(lines: string[]): ParsedEvent | null {
   const props = parseProperties(lines);
   const uid = firstValue(props, "UID");
   const start = parseMomentProp(firstProperty(props, "DTSTART"));
   if (!uid || !start) return null;
-  // A modified occurrence of a series is a separate VEVENT; v1 does not merge
-  // it, so a change to one occurrence appears only on the next full listing.
-  if (firstProperty(props, "RECURRENCE-ID")) return null;
+
+  const recurrenceProp = firstProperty(props, "RECURRENCE-ID");
+  const recurrenceId = recurrenceProp ? parseMomentProp(recurrenceProp) : null;
+  if (recurrenceProp && !recurrenceId) return null;
 
   const summary = decodeText(firstValue(props, "SUMMARY") ?? "");
   const description = decodeText(firstValue(props, "DESCRIPTION") ?? "");
@@ -102,22 +201,6 @@ function parseEvent(
         ? parseDuration(declaredDuration)
         : null;
 
-  if (status === "CANCELLED") {
-    return [
-      {
-        uid,
-        key: uid,
-        title: summary || "Untitled",
-        notes,
-        categories,
-        startAt: start.dateKey,
-        endAt: end && !start.allDay ? end.dateKey : null,
-        allDay: start.allDay,
-        cancelled: true,
-      },
-    ];
-  }
-
   const exdates = new Set<string>(
     props
       .filter((prop) => prop.name === "EXDATE")
@@ -130,25 +213,58 @@ function parseEvent(
       ),
   );
 
-  const rule = parseRule(firstValue(props, "RRULE"));
-  const starts = rule
-    ? expandRecurrence(start, rule, now, options, exdates)
-    : [start];
-
-  return starts.map((occurrence) => ({
+  return {
     uid,
-    key: rule ? `${uid}#occ=${occurrence.dateKey}` : uid,
-    title: summary || "Untitled",
+    recurrenceId,
+    range: Boolean(recurrenceProp?.params.RANGE),
+    start,
+    summary,
     notes,
     categories,
+    cancelled: status === "CANCELLED",
+    durationMs,
+    rule: parseRule(firstValue(props, "RRULE")),
+    exdates,
+  };
+}
+
+function occurrenceKey(uid: string, dateKey: string): string {
+  return `${uid}#occ=${dateKey}`;
+}
+
+function masterEvent(master: ParsedEvent, occurrence: Moment, key: string): CalDavEvent {
+  return {
+    uid: master.uid,
+    key,
+    title: master.summary || "Untitled",
+    notes: master.notes,
+    categories: master.categories,
     startAt: occurrence.dateKey,
-    endAt:
-      !start.allDay && durationMs !== null && durationMs > 0
-        ? localMinute(new Date(occurrence.instant.getTime() + durationMs))
-        : null,
-    allDay: start.allDay,
-    cancelled: false,
-  }));
+    endAt: endOfOccurrence(master, occurrence),
+    allDay: master.start.allDay,
+    cancelled: master.cancelled,
+  };
+}
+
+function overrideEvent(override: ParsedEvent, master: ParsedEvent | null): CalDavEvent {
+  return {
+    uid: override.uid,
+    key: occurrenceKey(override.uid, override.recurrenceId!.dateKey),
+    title: override.summary || master?.summary || "Untitled",
+    notes: override.notes,
+    categories:
+      override.categories.length > 0 ? override.categories : (master?.categories ?? []),
+    startAt: override.start.dateKey,
+    endAt: endOfOccurrence(override, override.start),
+    allDay: override.start.allDay,
+    cancelled: override.cancelled,
+  };
+}
+
+function endOfOccurrence(event: ParsedEvent, occurrence: Moment): string | null {
+  const duration = event.durationMs;
+  if (occurrence.allDay || duration === null || duration <= 0) return null;
+  return localMinute(new Date(occurrence.instant.getTime() + duration));
 }
 
 function eventBlocks(text: string): string[][] {
@@ -396,12 +512,23 @@ function expandRecurrence(
   now: Date,
   options: ParseCalendarOptions,
   exdates: Set<string>,
-): Moment[] {
+): Expansion {
   const windowStart = startOfLocalDay(addDays(now, -(options.pastDays ?? 366)));
   const windowEnd = endOfLocalDay(addDays(now, options.futureDays ?? 731));
   const base = start.instant;
   const candidates: Date[] = [];
+  const excluded = new Set<string>();
   let index = 0;
+
+  const add = (date: Date) => {
+    const key = start.allDay ? localDateKey(date) : localMinute(date);
+    if (exdates.has(key)) excluded.add(key);
+    else candidates.push(date);
+  };
+  const done = (): Expansion => ({
+    occurrences: toMoments(candidates, start.allDay),
+    excluded,
+  });
 
   if (rule.freq === "DAILY") {
     const step = rule.interval;
@@ -420,10 +547,9 @@ function expandRecurrence(
       if (date.getTime() < windowStart.getTime()) continue;
       if (date.getTime() < base.getTime()) continue;
       index = cursor + 1;
-      const key = start.allDay ? localDateKey(date) : localMinute(date);
-      if (!exdates.has(key)) candidates.push(date);
+      add(date);
     }
-    return toMoments(candidates, start.allDay);
+    return done();
   }
 
   if (rule.freq === "WEEKLY" && rule.byDay.length === 0) {
@@ -438,10 +564,9 @@ function expandRecurrence(
       if (rule.count !== null && cursor >= rule.count) break;
       if (rule.until && afterUntil(date, start.allDay, rule.until)) break;
       if (date.getTime() < windowStart.getTime()) continue;
-      const key = start.allDay ? localDateKey(date) : localMinute(date);
-      if (!exdates.has(key)) candidates.push(date);
+      add(date);
     }
-    return toMoments(candidates, start.allDay);
+    return done();
   }
 
   if (rule.freq === "WEEKLY") {
@@ -460,19 +585,18 @@ function expandRecurrence(
           base.getSeconds(),
         );
         if (date.getTime() < base.getTime()) continue;
-        if (rule.count !== null && index >= rule.count) return toMoments(candidates, start.allDay);
+        if (rule.count !== null && index >= rule.count) return done();
         index += 1;
         if (rule.until && afterUntil(date, start.allDay, rule.until)) {
-          return toMoments(candidates, start.allDay);
+          return done();
         }
         if (date.getTime() > windowEnd.getTime() || date.getTime() < windowStart.getTime()) {
           continue;
         }
-        const key = start.allDay ? localDateKey(date) : localMinute(date);
-        if (!exdates.has(key)) candidates.push(date);
+        add(date);
       }
     }
-    return toMoments(candidates, start.allDay);
+    return done();
   }
 
   const months = rule.freq === "MONTHLY";
@@ -499,19 +623,18 @@ function expandRecurrence(
       );
       if (date.getMonth() !== cursor.getMonth()) continue;
       if (date.getTime() < base.getTime()) continue;
-      if (rule.count !== null && index >= rule.count) return toMoments(candidates, start.allDay);
+      if (rule.count !== null && index >= rule.count) return done();
       index += 1;
       if (rule.until && afterUntil(date, start.allDay, rule.until)) {
-        return toMoments(candidates, start.allDay);
+        return done();
       }
       if (date.getTime() > windowEnd.getTime() || date.getTime() < windowStart.getTime()) {
         continue;
       }
-      const key = start.allDay ? localDateKey(date) : localMinute(date);
-      if (!exdates.has(key)) candidates.push(date);
+      add(date);
     }
   }
-  return toMoments(candidates, start.allDay);
+  return done();
 }
 
 function toMoments(dates: Date[], allDay: boolean): Moment[] {

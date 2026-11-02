@@ -10,6 +10,8 @@ export interface CalendarImportInput {
   categories: Category[];
   /** UIDs seen in this calendar at the previous sync. */
   previousUids: string[];
+  /** Occurrence keys seen at the previous sync; removes excluded occurrences. */
+  previousKeys?: string[];
   /** Series the user detached; they must not be re-imported. */
   ignoredUids?: string[];
 }
@@ -39,11 +41,20 @@ export function planCalendarImport(input: CalendarImportInput): ExternalImportPl
   const currentUids = new Set(
     input.events.filter((event) => !event.cancelled).map((event) => event.uid),
   );
+  const currentKeys = new Set(
+    input.events.filter((event) => !event.cancelled).map((event) => event.key),
+  );
+  const previousKeys = new Set(input.previousKeys ?? []);
   const removedUids = new Set(
     input.previousUids.filter((uid) => !currentUids.has(uid)),
   );
+  const cancelledKeys = new Set<string>();
   for (const event of input.events) {
-    if (event.cancelled) removedUids.add(event.uid);
+    if (!event.cancelled) continue;
+    // A cancelled master removes the whole series; a cancelled occurrence
+    // removes only its own task.
+    if (event.key === event.uid) removedUids.add(event.uid);
+    else cancelledKeys.add(event.key);
   }
 
   const creates: ExternalTaskDraft[] = [];
@@ -77,9 +88,17 @@ export function planCalendarImport(input: CalendarImportInput): ExternalImportPl
 
   for (const task of input.tasks) {
     if (task.source !== "caldav" || deleted.has(task.id)) continue;
-    const series = seriesUidOf(task.externalUid);
+    const externalUid = task.externalUid;
+    if (!externalUid) continue;
+    const series = seriesUidOf(externalUid);
     if (!series || ignored.has(series)) continue;
-    if (removedUids.has(series)) {
+    const vanished =
+      previousKeys.has(externalUid) && !currentKeys.has(externalUid);
+    if (
+      removedUids.has(series) ||
+      cancelledKeys.has(externalUid) ||
+      vanished
+    ) {
       deletes.push(task.id);
       deleted.add(task.id);
     }

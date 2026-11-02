@@ -149,6 +149,70 @@ describe("calendar import planning", () => {
     expect(plan.creates).toEqual([]);
   });
 
+  it("deletes only the cancelled occurrence of a recurring series", () => {
+    const plan = planCalendarImport({
+      events: [
+        event({ key: "weekly#occ=2026-11-02T09:00", startAt: "2026-11-02T09:00" }),
+        event({
+          key: "weekly#occ=2026-11-09T09:00",
+          startAt: "2026-11-09T09:00",
+          cancelled: true,
+        }),
+      ],
+      tasks: [
+        task({ id: "keep", externalUid: "weekly#occ=2026-11-02T09:00" }),
+        task({
+          id: "remove",
+          externalUid: "weekly#occ=2026-11-09T09:00",
+          startAt: "2026-11-09T09:00",
+        }),
+      ],
+      categories,
+      previousUids: ["event-1"],
+      previousKeys: ["weekly#occ=2026-11-02T09:00", "weekly#occ=2026-11-09T09:00"],
+    });
+    expect(plan.deletes).toEqual(["remove"]);
+  });
+
+  it("deletes an occurrence that disappeared from the listing", () => {
+    const plan = planCalendarImport({
+      events: [
+        event({ key: "weekly#occ=2026-11-02T09:00", startAt: "2026-11-02T09:00" }),
+      ],
+      tasks: [
+        task({ id: "keep", externalUid: "weekly#occ=2026-11-02T09:00" }),
+        task({
+          id: "excluded",
+          externalUid: "weekly#occ=2026-11-09T09:00",
+          startAt: "2026-11-09T09:00",
+        }),
+      ],
+      categories,
+      previousUids: ["event-1"],
+      previousKeys: ["weekly#occ=2026-11-02T09:00", "weekly#occ=2026-11-09T09:00"],
+    });
+    expect(plan.deletes).toEqual(["excluded"]);
+  });
+
+  it("keeps an occurrence task when the listing has no previous-key cursor", () => {
+    const plan = planCalendarImport({
+      events: [
+        event({ key: "weekly#occ=2026-11-02T09:00", startAt: "2026-11-02T09:00" }),
+      ],
+      tasks: [
+        task({ id: "keep", externalUid: "weekly#occ=2026-11-02T09:00" }),
+        task({
+          id: "older",
+          externalUid: "weekly#occ=2026-10-26T09:00",
+          startAt: "2026-10-26T09:00",
+        }),
+      ],
+      categories,
+      previousUids: ["event-1"],
+    });
+    expect(plan.deletes).toEqual([]);
+  });
+
   it("never re-imports an ignored (detached) series", () => {
     const plan = planCalendarImport({
       events: [event()],
