@@ -96,8 +96,9 @@ the deletion wins. WebDAV 同步为手动、保守实现：不删除文件；两
 的选择。删除任务会在文件里留下一行 `daymark deleted` 标记，另一台设备据此删除
 该任务；若对方在删除后修改过它，则以修改为准。尚未针对所有 WebDAV 服务端做验证。
 
-CalDAV import is read-only and manual. Enter a server URL and an app-specific
-password in Settings, find and tick calendars, then press Import now. Events
+CalDAV import is read-only. Enter a server URL and an app-specific password in
+Settings, find and tick calendars, then press Import now; an optional timer can
+re-import every 15/30/60 minutes while the app is open. Events
 appear in the day/week/month views as read-only tasks with a ◆ marker; they
 cannot be completed or edited, are excluded from reports and AI, and are
 re-imported by `getctag` when the calendar changes. Opening one offers **Turn
@@ -105,8 +106,9 @@ into local task**, which copies it into an ordinary task and remembers the
 series so it is not imported again. Recurring events are expanded for the past
 year and the next two years, including moved, cancelled or “this and future”
 occurrences. Nothing is ever written back to the calendar server, and the
-credentials stay on this device. CalDAV 为手动只读导入：设置页填入服务器地址与
-专用密码，查找并勾选日历后点“立即导入”。事件在日/周/月视图中
+credentials stay on this device. CalDAV 为只读导入：设置页填入服务器地址与专用密码，
+查找并勾选日历后点“立即导入”；也可选择在应用打开时每 15/30/60 分钟自动导入。
+事件在日/周/月视图中
 以带 ◆ 的只读任务显示，不能完成或编辑，也不进入报告和 AI；日历变化时按 ctag
 重新导入。打开事件可“转为本地任务”，之后按普通任务处理，并记住该系列不再重复
 导入。重复事件展开过去一年与未来两年，单次移动、取消或“此次及以后”的调整也会

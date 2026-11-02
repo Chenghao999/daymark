@@ -23,7 +23,7 @@
 | `sync/caldav/ics` | all-day/UTC/`TZID`/floating time, folded lines, weekly `BYDAY` + `EXDATE` + `COUNT`, daily `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE` shift/cancel/closest-wins, unknown TZID fallback, missing `UID`/`DTSTART` |
 | `sync/caldav/client` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT content-type/depth, typed 401 |
 | `sync/caldav/import` | create/update/unchanged/delete planning, category match by Chinese name, recurring occurrence retention, series deletion, cancelled series vs cancelled occurrence, vanished occurrence via `previousKeys`, missing cursor, detached series, `seriesUidOf` |
-| `settings/caldav` | defaults, credential/cursor round-trip including occurrence keys, malformed-entry sanitisation, unreadable JSON |
+| `settings/caldav` | defaults, credential/cursor round-trip including occurrence keys, automatic-import interval presets, malformed-entry sanitisation, unreadable JSON |
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
 | `ai/settings` | defaults, round-trip, provider-preset inference from legacy configs, preset/protocol consistency, endpoint resolution (typed URL wins), custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths |
 | `ai/tasks` | local-time prompt context and weekday, category id → name list, unknown category dropped, impossible dates and out-of-range times rejected, end before start dropped, all-day date-only, priority coercion, multiple tasks, 10-item cap, malformed JSON and wrong shape |

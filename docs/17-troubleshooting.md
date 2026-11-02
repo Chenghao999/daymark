@@ -94,14 +94,15 @@ The full safe procedure is `16-data-sync-operations.md`.
 | A task cannot be ticked complete or edited | It is a calendar event, not a local task | Open it and press **Turn into local task**. |
 | A calendar event is missing from a report | Calendar events are excluded from reports and AI | Detach it first; only local tasks count. |
 | The event comes back after detaching | Detaching was done on another device, or the calendar is imported on this device too | The ignored-series list is per device; detach it on this device as well. |
-| Server changes are not picked up | Import is manual | Press **Import now**; there is no background sync. |
+| Server changes are not picked up | Import is manual by default | Press **Import now**, or set **Automatic import** to 15/30/60 minutes while the app is open; there is no OS background sync. |
 | Duplicate copies of the same event | The event UID changed on the server, or two devices imported it | Keep one and delete the other; an UID change looks like a delete plus a create. |
 
 **中文要点：** CalDAV 报 401 通常是密码问题——iCloud 等服务商要求 App 专用密码。
 事件不显示时先看是否在“过去一年、未来两年”的展开窗口内，或该系列已在本机
 “转为本地任务”。单次调整的 `RECURRENCE-ID` 实例会覆盖对应的一次事件，
 `RANGE=THISANDFUTURE` 的“此次及以后”调整也会一并应用。日历事件不能直接完成或
-进入报告，需先“转为本地任务”。导入是手动的，没有后台同步。
+进入报告，需先“转为本地任务”。导入默认手动，也可设为在应用打开时每 15/30/60
+分钟自动导入；关闭应用后不会同步。
 
 ## 5. Reports and export
 
@@ -193,8 +194,8 @@ Read `15-user-guide.md` §11 before filing an issue:
 - archived categories cannot be restored in the UI;
 - WebDAV sync is manual and never deletes;
 - the AI assistant is opt-in, needs an API key and a network connection;
-- CalDAV is read-only and manual (no write-back, VTODO, background sync or
-  `THISANDPRIOR` overrides);
+- CalDAV is read-only (import is manual or on an in-app timer; no write-back,
+  VTODO, OS background sync or `THISANDPRIOR` overrides);
 - no reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.

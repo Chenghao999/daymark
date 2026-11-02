@@ -22,6 +22,7 @@ interface SettingsViewProps {
   caldavFound: CalDavCalendar[] | null;
   caldavBusy: boolean;
   caldavStatus: string | null;
+  caldavRefreshMinutes: number;
   onLanguage: (language: AppLanguage) => Promise<void>;
   onChangeFolder: () => Promise<void>;
   onPatch: (patch: Partial<AppSettings>) => void;
@@ -36,6 +37,7 @@ interface SettingsViewProps {
   onCalDavDiscover: () => Promise<void>;
   onCalDavToggle: (calendar: CalDavCalendar, selected: boolean) => void;
   onCalDavSync: () => Promise<void>;
+  onCalDavRefresh: (minutes: number) => void;
 }
 
 const COLORS = ["#5b8def", "#e0a03a", "#7f8c9a", "#4bb37a", "#c96b9b", "#8a6bd1", "#4aa3a3", "#c0574f"];
@@ -54,6 +56,7 @@ export default function SettingsView({
   caldavFound,
   caldavBusy,
   caldavStatus,
+  caldavRefreshMinutes,
   onLanguage,
   onChangeFolder,
   onPatch,
@@ -68,6 +71,7 @@ export default function SettingsView({
   onCalDavDiscover,
   onCalDavToggle,
   onCalDavSync,
+  onCalDavRefresh,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [nameEn, setNameEn] = useState("");
@@ -429,6 +433,20 @@ export default function SettingsView({
             {t("settings.caldavSync")}
           </button>
         </div>
+
+        <label className="field">
+          <span>{t("settings.caldavRefresh")}</span>
+          <select
+            value={caldavRefreshMinutes}
+            onChange={(event) => onCalDavRefresh(Number(event.currentTarget.value))}
+          >
+            <option value={0}>{t("settings.caldavRefreshOff")}</option>
+            <option value={15}>{t("settings.caldavRefresh15")}</option>
+            <option value={30}>{t("settings.caldavRefresh30")}</option>
+            <option value={60}>{t("settings.caldavRefresh60")}</option>
+          </select>
+        </label>
+        <p className="muted small">{t("settings.caldavRefreshHint")}</p>
 
         {caldavFound && caldavFound.length > 0 ? (
           <div>

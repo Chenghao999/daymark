@@ -45,11 +45,13 @@ idle → PROPFIND getctag → unchanged → idle
 
 - `getctag` unchanged: the calendar is skipped entirely.
 - A server without `getctag` returns no ctag and every sync fetches the
-  calendar; there is no throttle other than the user pressing "Import now".
+  calendar; the only throttle is the manual trigger or the optional timer.
 - The REPORT is a full `calendar-query` for `VEVENT` with `calendar-data`; it
   is not an `etag`-based delta. The ctag check is what avoids the fetch when
   nothing changed.
-- Sync is manual. There is no background scheduler, no retry and no backoff.
+- Sync is manual by default. The user may opt into an in-app timer (every 15,
+  30 or 60 minutes); it runs only while the window is open, skips a run while
+  another import is in flight, and has no retry or backoff.
 - Per-calendar UID sets are the deletion basis: a series UID present last time
   and absent now means its tasks are deleted.
 - A malformed object is skipped and surfaced as a per-calendar error; the rest
@@ -108,6 +110,7 @@ idle → PROPFIND getctag → unchanged → idle
 | Server URL, username, password | `localStorage["daymark.caldav.v1"]` | No |
 | Selected calendars, selection names | same key | No |
 | Per-calendar ctag, last UID set and occurrence-key set, `syncedAt` | same key | No |
+| Automatic import interval | same key | No |
 | Detached (ignored) series UIDs | same key | No |
 | Imported tasks | Markdown day files | Yes, via the data folder |
 
@@ -119,7 +122,8 @@ file or the synced data folder.
 ## 7. Known limitations
 
 - No write-back, no VTODO, no event editing.
-- No background sync and no push; the user runs "Import now".
+- No OS-level background sync and no push. The user runs "Import now", or opts
+  into an in-app timer (15/30/60 minutes) that only runs while the app is open.
 - `RANGE=THISANDPRIOR` is not supported; only `THISANDFUTURE` and single
   occurrences are applied.
 - Detaching is per device: `ignoredUids` is not synced, so another device that

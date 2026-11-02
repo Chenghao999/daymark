@@ -53,6 +53,7 @@ describe("CalDAV settings", () => {
         },
       },
       ignoredUids: ["detached-1"],
+      refreshMinutes: 30,
     };
     saveCalDavSettings(settings);
     expect(loadCalDavSettings()).toEqual(settings);
@@ -68,7 +69,9 @@ describe("CalDAV settings", () => {
             serverUrl: 42,
             calendars: [null, { href: 7 }, { href: "/c/", name: 1 }, { href: "/c/", name: "dup" }],
           },
-          state: { calendars: { "/c/": { ctag: 9, uids: ["a", 1, null], syncedAt: 3 } } },          ignoredUids: "nope",
+          state: { calendars: { "/c/": { ctag: 9, uids: ["a", 1, null], syncedAt: 3 } } },
+          ignoredUids: "nope",
+          refreshMinutes: 7,
         }),
       }),
     );
@@ -82,6 +85,17 @@ describe("CalDAV settings", () => {
       syncedAt: "",
     });
     expect(loaded.ignoredUids).toEqual([]);
+    expect(loaded.refreshMinutes).toBe(0);
+  });
+
+  it("keeps a preset automatic-import interval", () => {
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.caldav.v1": JSON.stringify({ refreshMinutes: 60 }),
+      }),
+    );
+    expect(loadCalDavSettings().refreshMinutes).toBe(60);
   });
 
   it("survives unreadable JSON", () => {

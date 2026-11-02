@@ -649,6 +649,7 @@ interface CalDavSettings {
   config: CalDavConfig;
   state: CalDavState;
   ignoredUids: string[];               // detached series, never re-imported
+  refreshMinutes: number;              // 0 = manual; 15 / 30 / 60 while open
 }
 
 interface CalDavEvent {
@@ -720,9 +721,12 @@ Rules:
    `ignoredUids`.
 6. `syncCalDav` is read-only against the server and does not touch React state;
    the caller saves `nextState` and reloads the store when anything changed.
-   Per-calendar errors are collected in `errors`, not thrown.
+   Per-calendar errors are collected in `errors`, not thrown. The optional
+   `refreshMinutes` timer lives in the UI layer, not in the engine.
 7. The deterministic task id (`caldav-<two FNV-1a hex>` of `externalUid`) is
    what lets two devices importing the same event merge into one task.
+8. `loadCalDavSettings` accepts only `0`, `15`, `30` or `60` for
+   `refreshMinutes`; any other stored value means manual only.
 
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 

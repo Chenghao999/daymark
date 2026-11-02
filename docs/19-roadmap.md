@@ -255,13 +255,15 @@ suite and the production build pass.
 | Mapping | Title, notes, start/end, all-day, category by English/Chinese name; `source = "caldav"`, `externalUid` set |
 | Import engine | Pure plan → `applyExternalImport`; creates/updates/deletes per `externalUid`; a per-calendar occurrence-key cursor removes occurrences that vanish from the listing; deterministic ids so two devices merge to one task |
 | Read-only UI | No checkbox/complete/delete; the editor is disabled and offers **Turn into local task**, which sets `source = "local"` and records the series in device-local `ignoredUids` |
+| Automatic import | Optional device-local timer (15/30/60 minutes) while the app is open; off by default, skips a run while another import is in flight, and stops with the window |
 | Reports/AI | Calendar events are filtered out of report generation and AI context |
 | Credentials | URL, password, calendar selection and cursor in `localStorage["daymark.caldav.v1"]`; never in `_settings.md` or the data folder; nothing is written back to the server |
-| Tests | 43 CalDAV unit tests: parsing (including single and this-and-future overrides), discovery/REPORT, import planning, settings sanitisation |
+| Tests | 44 CalDAV unit tests: parsing (including single and this-and-future overrides), discovery/REPORT, import planning, settings sanitisation |
 
 First-version boundaries (deliberate, not defects):
 
-- No write-back, no VTODO, no event editing, no background sync or push.
+- No write-back, no VTODO, no event editing, no OS-level background sync or
+  push (an optional timer runs only while the app is open).
 - `RANGE=THISANDPRIOR` overrides are ignored; `THISANDFUTURE` and single
   occurrences are applied.
 - Detaching is per device: `ignoredUids` is not synced, so another device that
@@ -270,8 +272,8 @@ First-version boundaries (deliberate, not defects):
 - Not yet validated against a live iCloud/Nextcloud/Fastmail account; the test
   suite uses canned multistatus and `.ics` documents.
 
-Next (CalDAV v2): OS keychain, background refresh, `THISANDPRIOR` overrides,
-and optionally write-back as VEVENT/VTODO (F-20).
+Next (CalDAV v2): OS keychain, OS-level background refresh, `THISANDPRIOR`
+overrides, and optionally write-back as VEVENT/VTODO (F-20).
 
 ---
 
