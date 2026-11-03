@@ -67,11 +67,12 @@ Priority: **P0** must ship in 0.1 · **P1** should ship · **P2** optional.
 | F-23 | Windows portable build | P0 | build config ready, unverified |
 | F-24 | Unsigned macOS distribution | P0 | build config ready |
 | F-25 | Modular deployment, external resources | P1 | partial |
-| F-26 | WebDAV sync | P2 | first version: manual sync, automatic merge, deletion markers, in-app conflict resolution; see doc 19 §3.8–3.9 |
+| F-26 | WebDAV sync | P2 | first version: manual or in-app timer sync, automatic merge, deletion markers, in-app conflict resolution; see doc 19 §3.8–3.9 |
 | F-27 | AI assistant | P2 | first version: report polish + retrospective + one-sentence task entry, opt-in; provider presets and custom endpoints in doc 19 §4.9–§4.11 |
 
-F-26 and F-27 both have first versions: WebDAV sync is manual (no background
-sync; sync never deletes files, though a task delete travels as a marker) but
+F-26 and F-27 both have first versions: WebDAV sync runs when you press "Sync
+now" or on an optional in-app timer (there is no OS-level background sync;
+sync never deletes files, though a task delete travels as a marker) but
 merges both copies and lets you answer what it cannot order, and the AI
 assistant is opt-in report polish, retrospective and one-sentence task filling
 (it never creates a task itself).

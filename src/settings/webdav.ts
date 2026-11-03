@@ -7,7 +7,19 @@ export const DEFAULT_WEBDAV: WebDavConfig = {
   remotePath: "/daymark/",
   username: "",
   password: "",
+  autoSyncMinutes: 0,
 };
+
+/** Intervals offered in Settings; any stored value outside this set is off. */
+export const WEBDAV_SYNC_MINUTES = [0, 15, 30, 60] as const;
+
+/** A stored interval that is not one of the presets is read as manual only. */
+export function normalizeWebDavSyncMinutes(value: unknown): number {
+  return typeof value === "number" &&
+    (WEBDAV_SYNC_MINUTES as readonly number[]).includes(value)
+    ? value
+    : 0;
+}
 
 /**
  * WebDAV settings are device-local and must never be written to
@@ -24,6 +36,7 @@ export function loadWebDavSettings(): WebDavConfig {
       remotePath: typeof parsed.remotePath === "string" ? parsed.remotePath : DEFAULT_WEBDAV.remotePath,
       username: typeof parsed.username === "string" ? parsed.username : "",
       password: typeof parsed.password === "string" ? parsed.password : "",
+      autoSyncMinutes: normalizeWebDavSyncMinutes(parsed.autoSyncMinutes),
     };
   } catch {
     return { ...DEFAULT_WEBDAV };

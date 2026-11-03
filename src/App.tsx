@@ -24,6 +24,7 @@ import { loadAiSettings, saveAiSettings } from "./settings/ai";
 import {
   isWebDavConfigured,
   loadWebDavSettings,
+  normalizeWebDavSyncMinutes,
   saveWebDavSettings,
 } from "./settings/webdav";
 import type { AiConfig } from "./ai/types";
@@ -74,6 +75,8 @@ export default function App() {
   const [webdavBusy, setWebdavBusy] = useState(false);
   const [webdavStatus, setWebdavStatus] = useState<string | null>(null);
   const [webdavConflicts, setWebdavConflicts] = useState<SyncConflict[]>([]);
+  const webdavBusyRef = useRef(false);
+  const webdavSyncRef = useRef<(() => Promise<void>) | null>(null);
   const [ai, setAi] = useState<AiConfig>(() => loadAiSettings());
   const [caldav, setCaldav] = useState<CalDavSettings>(() => loadCalDavSettings());
   const [caldavBusy, setCaldavBusy] = useState(false);
@@ -204,6 +207,21 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [ready, caldav.refreshMinutes, caldav.config]);
 
+  // WebDAV works the same way: the latest closure, an opt-in interval, and one
+  // sync at a time. Closing the window stops automatic syncs.
+  useEffect(() => {
+    webdavSyncRef.current = runWebdavSync;
+  });
+
+  useEffect(() => {
+    if (!ready || !settings.dataDir) return;
+    if (webdav.autoSyncMinutes <= 0 || !isWebDavConfigured(webdav)) return;
+    const timer = window.setInterval(() => {
+      if (!webdavBusyRef.current) void webdavSyncRef.current?.();
+    }, webdav.autoSyncMinutes * 60_000);
+    return () => window.clearInterval(timer);
+  }, [ready, settings.dataDir, webdav]);
+
   async function chooseFolder() {
     const picked = await openDialog({ directory: true, multiple: false, title: t("onboarding.choose") });
     if (typeof picked === "string") await activateFolder(picked);
@@ -323,6 +341,14 @@ export default function App() {
   const patchWebdav = useCallback((patch: Partial<WebDavConfig>) => {
     setWebdav((current) => {
       const next = { ...current, ...patch };
+      saveWebDavSettings(next);
+      return next;
+    });
+  }, []);
+
+  const setWebdavAutoSync = useCallback((minutes: number) => {
+    setWebdav((current) => {
+      const next = { ...current, autoSyncMinutes: normalizeWebDavSyncMinutes(minutes) };
       saveWebDavSettings(next);
       return next;
     });
@@ -457,10 +483,12 @@ export default function App() {
   }
 
   async function runWebdavSync() {
+    if (webdavBusyRef.current) return;
     if (!isWebDavConfigured(webdav)) {
       setWebdavStatus(t("settings.webdavNotConfigured"));
       return;
     }
+    webdavBusyRef.current = true;
     setWebdavBusy(true);
     setWebdavConflicts([]);
     setWebdavStatus(t("settings.webdavSyncing"));
@@ -493,11 +521,13 @@ export default function App() {
         `${t("settings.webdavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
     } finally {
+      webdavBusyRef.current = false;
       setWebdavBusy(false);
     }
   }
 
   async function resolveWebdavConflict(conflict: SyncConflict, decisions: MergeDecisions) {
+    webdavBusyRef.current = true;
     setWebdavBusy(true);
     try {
       const result = await resolveConflict(webdav, settings.dataDir, conflict, decisions);
@@ -525,6 +555,7 @@ export default function App() {
         `${t("settings.webdavError")}: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
     } finally {
+      webdavBusyRef.current = false;
       setWebdavBusy(false);
     }
   }
@@ -702,6 +733,7 @@ export default function App() {
               webdavBusy={webdavBusy}
               webdavStatus={webdavStatus}
               webdavConflicts={webdavConflicts}
+              webdavAutoSyncMinutes={webdav.autoSyncMinutes}
               ai={ai}
               caldav={caldav.config}
               caldavState={caldav.state}
@@ -712,6 +744,7 @@ export default function App() {
               onWebdavPatch={patchWebdav}
               onWebdavTest={testWebdav}
               onWebdavSync={runWebdavSync}
+              onWebdavAutoSync={setWebdavAutoSync}
               onWebdavResolve={resolveWebdavConflict}
               onCalDavPatch={patchCalDav}
               onCalDavDiscover={discoverCalDavCalendars}

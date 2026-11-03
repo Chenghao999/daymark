@@ -48,8 +48,8 @@ OneDrive、iCloud Drive、Syncthing 或支持 WebDAV 的目录，同步这件事
 presets and numbering, daily/weekly/monthly/yearly reports with configurable
 assessment month/year and DOCX export, English-first UI with a full Chinese
 translation (zh-CN / en), custom data
-folder, synced settings file, external-change scanner, manual WebDAV sync
-(first version), read-only CalDAV import, an opt-in AI assistant for report
+folder, synced settings file, external-change scanner, WebDAV sync (manual or
+on an in-app timer), read-only CalDAV import, an opt-in AI assistant for report
 polish, retrospectives and
 one-sentence task entry (built-in presets for Anthropic, OpenAI, DeepSeek, Qwen,
 Moonshot, Zhipu, Gemini and OpenRouter, plus custom Anthropic- or
@@ -59,7 +59,7 @@ migration from the old `daymark.db`.
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
 完成状态、分类与报告编号、日报/周报/月报/年报（可自定义考核月与考核年）及 DOCX
 导出、英文为主且中文完整可切换的界面、自定义数据目录、可同步的设置文件、
-外部变更检测、手动 WebDAV 同步（第一版）、CalDAV 只读导入、可选的 AI 报告润色、
+外部变更检测、WebDAV 同步（手动或应用内定时）、CalDAV 只读导入、可选的 AI 报告润色、
 周期回顾与
 一句话建任务（内置 Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱、Gemini、
 OpenRouter 预设，也可自定义 Anthropic/OpenAI 兼容中转）、浅色/深色/跟随系统外观，
@@ -83,14 +83,15 @@ and Linux x64 and drafts a GitHub Release. Builds are unsigned for now, so
 macOS needs right-click → Open and Windows shows SmartScreen. Details:
 [`docs/10-build-distribution.md`](docs/10-build-distribution.md) §7–8.
 
-WebDAV sync is manual and deliberately conservative: it never deletes a file.
-When both sides changed the same file, it merges the two copies first — tasks by
+WebDAV sync is deliberately conservative: it never deletes a file. Run it with
+**Sync now**, or opt into an in-app timer (15/30/60 minutes) that only runs
+while Daymark is open. When both sides changed the same file, it merges the two copies first — tasks by
 id and version, `_settings.md` and `_categories.md` key by key against the text
 both sides had after the last sync. Only a change it cannot order is saved as a
 `(conflict …)` file, listed in Settings so you can choose keep mine, keep theirs
 or keep both. A deleted task leaves a one-line `daymark deleted` marker in its
 file, so the other device drops it instead of re-adding it; an edit made after
-the deletion wins. WebDAV 同步为手动、保守实现：不删除文件；两边都改过时先自动
+the deletion wins. WebDAV 同步为保守实现：可点“立即同步”，也可开启应用内定时（15/30/60 分钟，仅在打开时运行）；不删除文件，两边都改过时先自动
 合并——任务按 id 与版本合并，设置和分类按上一次同步的共同文本逐键合并；无法判定
 先后的改动才生成冲突副本，并在设置页提供“保留我的 / 保留对方的 / 两者都保留”
 的选择。删除任务会在文件里留下一行 `daymark deleted` 标记，另一台设备据此删除
@@ -207,7 +208,7 @@ Markdown，再把数据库改名为 `daymark.db.migrated-<时间戳>`，不会�
 src/
   domain/       pure logic: task state, report periods, report derivation, numbering
   storage/      Markdown parser/serializer, paths, repository, migration, settings file
-  sync/         external-change scanner, manual WebDAV sync and CalDAV import (scanner.ts, webdav/, caldav/)
+  sync/         external-change scanner, WebDAV sync and CalDAV import (scanner.ts, webdav/, caldav/)
   settings/     device-local settings plus the synced subset written to _settings.md
   ai/           provider interface, prompt/context builders, Anthropic + OpenAI providers, _ai/ output
   features/     calendar views, reports, settings

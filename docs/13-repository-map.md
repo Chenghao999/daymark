@@ -43,7 +43,7 @@ dependencies (`node_modules/`) and generated Tauri schemas
 |---|---|---|---|
 | Domain | `src/domain/` | types, task state machine, period math, report derivation, numbering | filesystem calls, DOM, Tauri APIs, localStorage |
 | Storage | `src/storage/` | Markdown parse/serialize, paths, in-memory store, repository, migration | report rules, UI state |
-| Sync | `src/sync/` | folder-signature polling, external-change signal, manual WebDAV sync, CalDAV read-only import, merge of two copies (tasks, settings, categories) | React state, store mutation |
+| Sync | `src/sync/` | folder-signature polling, external-change signal, WebDAV sync, CalDAV read-only import, merge of two copies (tasks, settings, categories) | React state, store mutation |
 | AI | `src/ai/` | provider interface, prompt/context builders, `_ai/` output | React state, store writes |
 | Device settings | `src/settings/` | device-local preferences (WebDAV, AI, CalDAV) and the synced settings model | shared task data |
 | Presentation | `src/components/`, `src/features/`, `src/App.tsx` | view state, interaction, layout | Markdown parsing, direct `invoke` calls |
@@ -146,7 +146,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | File | Responsibility |
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
-| `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults and `isWebDavConfigured`. The password never enters `_settings.md`. |
+| `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults, the optional in-app sync interval and `isWebDavConfigured`. The password never enters `_settings.md`. |
 | `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset; the API key never enters `_settings.md`. |
 | `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID/occurrence-key cursor, detached series UIDs and the optional in-app import interval. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
 

@@ -95,7 +95,7 @@ manifest is needed, generate it locally on demand.
 
 Settings shows only "configured / not configured" and never echoes the password.
 
-### 3.4 Sync algorithm (v1: manual "Sync now") · 同步算法
+### 3.4 Sync algorithm (v1: "Sync now" or in-app timer) · 同步算法
 
 1. **Local manifest:** read only Daymark's data files — `_settings.md`,
    `_categories.md` and `_backlog.md` in the root, plus
@@ -126,10 +126,12 @@ Settings shows only "configured / not configured" and never echoes the password.
    `reloadFromDisk()`; otherwise call `scanner.touch()`, so sync writes are not
    mistaken for external modifications.
 
-v1 does no background scheduling and no `If-Match` conditional requests; the
-user presses "Sync now" once per sync. M6 (§3.9) added automatic merge, a
-conflict-resolution UI and task deletion tombstones; v2 adds scheduled sync and
-ETag conditional requests.
+v1 does no OS-level scheduling and no `If-Match` conditional requests. The
+user presses "Sync now", or enables an in-app timer (15/30/60 minutes) that
+runs only while Daymark is open; the timer skips a tick while a sync is already
+in flight and stops with the window. M6 (§3.9) added automatic merge, a
+conflict-resolution UI and task deletion tombstones; v2 adds OS-level scheduled
+sync and ETag conditional requests.
 
 ### 3.5 Module layout · 模块划分
 
@@ -187,16 +189,18 @@ Shipped (2026-10-23):
 |---|---|
 | Transport | `src-tauri/src/http.rs`, a single command `webdav_request` (later joined by `ai_request`), `reqwest` + rustls, 45 s timeout; HTTP errors returned as data |
 | Front-end modules | `src/sync/webdav/{types,client,manifest,plan,baseline,engine}.ts`; settings in `src/settings/webdav.ts` |
-| UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, progress, result, conflict list |
+| UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, Automatic sync interval, progress, result, conflict list |
+| Automatic sync | Optional device-local timer (15/30/60 minutes) while the app is open, off by default; skipped while another sync or conflict resolution is running, and stopped when the window closes |
 | Decision | Three-way comparison (local / remote / baseline), pure function `planSync`; **never deletes, never silently overwrites** |
 | Security | Password stored only in local localStorage, never written to `_settings.md`; Basic auth is sent only when a username is filled in |
-| Tests | 20 unit tests across `webdavPlan`, `webdavClient` and `webdavManifest`; `npm run typecheck`, `npm run test`, `npm run build` and `cargo check` all pass |
+| Tests | 35 unit tests across `webdavPlan`, `webdavClient`, `webdavManifest`, `webdavEngine` and `webdavSettings`; `npm run typecheck`, `npm run test`, `npm run build` and `cargo check` all pass |
 
 First-version boundaries (deliberate, not defects):
 
 - Syncs only files Daymark knows about; other files the user puts in the folder
   are not mirrored.
-- Manual trigger only; no background schedule, no sync at login.
+- Manual trigger or an opt-in in-app timer only; no OS-level background
+  schedule and no sync at login.
 - Conflict copies stay as the last fallback; since M6 (§3.9) unresolved items are
   answered in Settings rather than by editing copies.
 - Not yet validated end to end against a real WebDAV service (the §3.7
@@ -206,9 +210,10 @@ First-version boundaries (deliberate, not defects):
   server's `PROPFIND` behaviour.
 - The password lives in localStorage, not yet in the system keychain.
 
-Next (M3 v2): keychain storage, `If-Match`/ETag overwrite protection, scheduled
-sync, and a manual smoke run against a real server (the in-memory engine suite
-already covers first sync, merge, conflict and resolution).
+Next (M3 v2): keychain storage, `If-Match`/ETag overwrite protection,
+OS-level scheduled sync, and a manual smoke run against a real server (the
+in-memory engine suite already covers first sync, merge, conflict and
+resolution).
 
 ### 3.9 Automatic merge (M6, first version) · 自动合并
 

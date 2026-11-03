@@ -505,6 +505,7 @@ interface WebDavConfig {
   remotePath: string;                 // normalised to "/…/"; default "/daymark/"
   username: string;
   password: string;                   // device-local only, never in _settings.md
+  autoSyncMinutes: number;            // in-app timer while open; 0 = manual only
 }
 
 normalizeRemotePath(path: string): string
@@ -581,6 +582,7 @@ interface MergeConflict { id: string; label: string; fields: string[]; local: st
 loadWebDavSettings(): WebDavConfig
 saveWebDavSettings(config: WebDavConfig): void
 isWebDavConfigured(config: WebDavConfig): boolean
+normalizeWebDavSyncMinutes(value: unknown): number  // presets 0 | 15 | 30 | 60; anything else → 0
 ```
 
 Contract:

@@ -16,6 +16,7 @@ interface SettingsViewProps {
   webdavBusy: boolean;
   webdavStatus: string | null;
   webdavConflicts: SyncConflict[];
+  webdavAutoSyncMinutes: number;
   ai: AiConfig;
   caldav: CalDavConfig;
   caldavState: CalDavState;
@@ -31,6 +32,7 @@ interface SettingsViewProps {
   onWebdavPatch: (patch: Partial<WebDavConfig>) => void;
   onWebdavTest: () => Promise<void>;
   onWebdavSync: () => Promise<void>;
+  onWebdavAutoSync: (minutes: number) => void;
   onWebdavResolve: (conflict: SyncConflict, decisions: MergeDecisions) => Promise<void>;
   onAiPatch: (patch: Partial<AiConfig>) => void;
   onCalDavPatch: (patch: Partial<CalDavConfig>) => void;
@@ -50,6 +52,7 @@ export default function SettingsView({
   webdavBusy,
   webdavStatus,
   webdavConflicts,
+  webdavAutoSyncMinutes,
   ai,
   caldav,
   caldavState,
@@ -65,6 +68,7 @@ export default function SettingsView({
   onWebdavPatch,
   onWebdavTest,
   onWebdavSync,
+  onWebdavAutoSync,
   onWebdavResolve,
   onAiPatch,
   onCalDavPatch,
@@ -300,6 +304,20 @@ export default function SettingsView({
             {t("settings.webdavSync")}
           </button>
         </div>
+
+        <label className="field">
+          <span>{t("settings.webdavAutoSync")}</span>
+          <select
+            value={webdavAutoSyncMinutes}
+            onChange={(event) => onWebdavAutoSync(Number(event.currentTarget.value))}
+          >
+            <option value={0}>{t("settings.webdavAutoSyncOff")}</option>
+            <option value={15}>{t("settings.webdavAutoSync15")}</option>
+            <option value={30}>{t("settings.webdavAutoSync30")}</option>
+            <option value={60}>{t("settings.webdavAutoSync60")}</option>
+          </select>
+        </label>
+        <p className="muted small">{t("settings.webdavAutoSyncHint")}</p>
 
         {webdavStatus ? <p className="muted small">{webdavStatus}</p> : null}
 
