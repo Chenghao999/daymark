@@ -43,7 +43,7 @@ There is no background daemon and no network listener.
 |---|---|---|
 | `domain/` | task state machine, period math, report derivation, numbering | touch the filesystem, DOM or Tauri APIs |
 | `storage/` | Markdown format, in-memory store, repository, migration | contain report or numbering rules |
-| `sync/` | folder-signature polling, external-change signal, manual WebDAV planning/execution (`sync/webdav/`) | write to the store |
+| `sync/` | folder-signature polling, external-change signal, WebDAV planning/execution (`sync/webdav/`) | write to the store |
 | `features/` | view state and user interaction | parse Markdown or call `invoke` directly |
 | `settings/` | device-local preferences (including WebDAV and AI config) and the synced settings model | hold task data |
 | `ai/` | prompt/context building, provider interface, report polish/retrospective, one-sentence task parsing, `_ai/` output | import React or write into the store |

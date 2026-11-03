@@ -32,6 +32,7 @@ const config: WebDavConfig = {
   remotePath: "daymark/",
   username: "user",
   password: "secret",
+  autoSyncMinutes: 0,
 };
 
 const categories: Category[] = [];

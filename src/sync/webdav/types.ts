@@ -11,6 +11,11 @@ export interface WebDavConfig {
   remotePath: string;
   username: string;
   password: string;
+  /**
+   * Automatic sync interval in minutes while the app is open; `0` means the
+   * user presses "Sync now". Device-local, like the rest of this config.
+   */
+  autoSyncMinutes: number;
 }
 
 export interface RemoteEntry {

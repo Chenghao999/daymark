@@ -192,7 +192,7 @@ Read `15-user-guide.md` §11 before filing an issue:
   where keep mine / keep theirs / keep both settles it;
 - reopening a task clears its completion timestamp;
 - archived categories cannot be restored in the UI;
-- WebDAV sync is manual and never deletes;
+- WebDAV sync runs manually or on the optional in-app timer and never deletes;
 - the AI assistant is opt-in, needs an API key and a network connection;
 - CalDAV is read-only (import is manual or on an in-app timer; no write-back,
   VTODO, OS background sync or `THISANDPRIOR` overrides);

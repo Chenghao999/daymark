@@ -194,8 +194,8 @@ is no restore button in 0.1.0; you can set `"archived": false` by hand in
 ### WebDAV sync
 
 The WebDAV card uploads the same Markdown files to a WebDAV folder, for when a
-desktop sync client is not available. It is manual: nothing runs in the
-background, and a sync only happens when you press **Sync now**.
+desktop sync client is not available. Sync runs when you press **Sync now**, or
+on the optional in-app timer; nothing runs while Daymark is closed.
 
 1. Enter the server URL (for example `https://dav.jianguoyun.com/dav`), the
    remote folder (default `/daymark/`, created on first sync) and your
@@ -205,6 +205,10 @@ background, and a sync only happens when you press **Sync now**.
 3. Press **Sync now**. The status line shows the phase and file count; the
    result line reports how many files were uploaded, downloaded, merged, and
    left unresolved.
+4. Optional: set **Automatic sync** to every 15, 30 or 60 minutes. The timer
+   runs only while the app is open; closing Daymark stops it, and the next
+   launch waits for the interval again. Unresolved conflicts still wait for
+   you in this card either way.
 
 How a sync decides:
 
@@ -240,8 +244,8 @@ written to `_settings.md` or the data folder, so it does not travel to other
 devices or into backups. Use an app-specific password when the server offers
 one.
 
-**中文要点：** WebDAV 是手动同步：填地址、远端目录和账号，先测试连接，再点
-“立即同步”。两边都改过时先自动合并：日文件和待办文件按任务合并（只有一边改过
+**中文要点：** WebDAV 可手动同步，也可开启应用内定时同步：填地址、远端目录和
+账号，先测试连接，再点“立即同步”或把“自动同步”设为 15/30/60 分钟。两边都改过时先自动合并：日文件和待办文件按任务合并（只有一边改过
 的保留，同一任务版本号高者、再比更新时间的胜出，完成优先于重开）；设置和分类按
 键/字段合并，以最后一次同步时两边相同的文本为基准，因此改不同设置或不同分类
 不会冲突。能干净合并时两份文件都会被合并结果替换。无法判定先后的改动（同版本
@@ -449,12 +453,13 @@ choose the copied folder on first launch.
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
 | CalDAV is import-only | No write-back, VTODO, event editing, OS background sync or push. Automatic import runs only while the app is open. Detached-series memory is per device. |
-| WebDAV sync is manual and first-version | No background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
+| WebDAV sync is first-version | Optional in-app timer only, no OS background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
 | AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
-**中文要点：** 0.1.0 的 WebDAV 只支持手动同步，同步不删除文件（任务删除以标记
+**中文要点：** 0.1.0 的 WebDAV 支持手动同步和可选的定时同步（仅在应用打开时
+运行，没有系统级后台同步），同步不删除文件（任务删除以标记
 注释的形式同步）；无法自动排序的冲突在设置页选择“保留我的 / 保留对方的 / 两者
 都保留”。CalDAV 只读导入，不能写回或编辑事件，也没有后台同步；AI 助手需要联网
 和所选服务商的 API Key；重新打开任务会清除其完成时间；归档分类需要在文件里
