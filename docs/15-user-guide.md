@@ -48,8 +48,15 @@ folder opens the store in the new folder; it does **not** move or copy the old
 files. To keep your tasks, copy the whole folder while Daymark is closed, then
 select the new folder.
 
+When the path clearly belongs to a known provider — iCloud Drive, OneDrive,
+Google Drive, Dropbox, Nutstore or Syncthing — the Data location card shows a
+short compatibility tip for that provider. It is only a hint: Daymark never
+moves or changes the folder based on it.
+
 **中文要点：** 所有数据都在所选文件夹里，一天一个 `.md` 文件。放同步盘即可多
-设备；“更改文件夹”只是打开另一个文件夹，不会自动搬迁旧文件。
+设备；“更改文件夹”只是打开另一个文件夹，不会自动搬迁旧文件。路径能识别出
+iCloud Drive、OneDrive、Google Drive、Dropbox、坚果云或 Syncthing 时，设置页会
+显示对应的使用提示；这只是提示，不会移动文件夹。
 
 ## 3. Interface tour
 

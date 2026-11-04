@@ -52,7 +52,7 @@ Priority: **P0** must ship in 0.1 · **P1** should ship · **P2** optional.
 | F-08 | Configurable external-change scanning | P0 | done (folder signature) |
 | F-09 | Two-device conflict detection and choice | P1 | detection only |
 | F-10 | Automatic merge of concurrent edits | P1 | not started |
-| F-11 | Sync-folder compatibility hints | P2 | detection helper pending |
+| F-11 | Sync-folder compatibility hints | P2 | done (provider detected from the data path; hint in Settings) |
 | F-12 | Daily report | P0 | done |
 | F-13 | Weekly report | P0 | done (configurable week start) |
 | F-14 | Monthly report | P0 | done (assessment month) |

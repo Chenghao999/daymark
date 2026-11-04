@@ -5,6 +5,7 @@ import type { AppSettings } from "../../settings/store";
 import type { SyncConflict, WebDavConfig } from "../../sync/webdav/types";
 import type { MergeDecision, MergeDecisions } from "../../sync/merge";
 import type { CalDavCalendar, CalDavConfig, CalDavState } from "../../sync/caldav/types";
+import { detectSyncFolder } from "../../storage/syncFolder";
 import { AI_PROVIDER_PRESETS, findPreset, modelsFor } from "../../ai/presets";
 import type { AiConfig, AiProviderId } from "../../ai/types";
 
@@ -127,6 +128,7 @@ export default function SettingsView({
     .filter(Boolean)
     .sort()
     .pop();
+  const syncFolder = detectSyncFolder(settings.dataDir);
 
   return (
     <div className="settings-view">
@@ -237,6 +239,14 @@ export default function SettingsView({
         <code className="path">{settings.dataDir}</code>
         <p className="muted">{t("settings.dataPathHint")}</p>
         <p className="muted small">{t("settings.storageHint")}</p>
+        {syncFolder ? (
+          <>
+            <p className="muted small">
+              {t("settings.syncFolderDetected", { provider: syncFolder.name })}
+            </p>
+            <p className="muted small">{t(`settings.syncFolderTip_${syncFolder.id}`)}</p>
+          </>
+        ) : null}
         <button onClick={() => void onChangeFolder()}>{t("settings.changeFolder")}</button>
         <p className="muted small">
           {t("settings.deviceId")}: <code>{deviceId}</code>

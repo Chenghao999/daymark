@@ -100,6 +100,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `migrate.ts` | `migrateLegacyDatabase(root)` — one-time SQLite → Markdown conversion. |
 | `settingsFile.ts` | `_settings.md` serializer/parser and `loadSyncedSettings` / `saveSyncedSettings`. |
 | `device.ts` | `deviceId()` from `localStorage["daymark.deviceId"]`. |
+| `syncFolder.ts` | `detectSyncFolder(path)` — pure path heuristic for iCloud Drive, OneDrive, Google Drive, Dropbox, Nutstore and Syncthing; Settings shows a short tip. Never touches the file system. |
 | `defaults.ts` | The four default categories seeded into a new folder. |
 
 ### 3.4 Sync (`src/sync/`)

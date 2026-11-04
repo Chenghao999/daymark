@@ -37,7 +37,9 @@ Device A ──writes──▶ 2026-10/2026-10-22.md ◀──sync client──�
 
 - The store is a folder of small Markdown files, one per day.
 - The sync client (Nutstore, OneDrive, iCloud Drive, Dropbox, Syncthing, a
-  WebDAV mount) is responsible for moving files.
+  WebDAV mount) is responsible for moving files. Daymark recognises these
+  provider names in the data-folder path and shows a short tip in Settings →
+  Data location; the tip is informational and never moves the folder.
 - Daymark detects that the folder changed underneath it and asks you to reload.
 - Daymark does **not** coordinate writers. A desktop sync client decides which
   file lands last; only the built-in WebDAV sync merges day/backlog conflicts
