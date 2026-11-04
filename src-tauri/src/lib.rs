@@ -191,6 +191,45 @@ fn tree_signature(root: String) -> Result<TreeSignature, String> {
     })
 }
 
+const KEYCHAIN_SERVICE: &str = "daymark";
+
+fn keychain_entry(account: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, account).map_err(|error| error.to_string())
+}
+
+/// Read a device-local secret from the OS credential store. `Ok(None)` means
+/// no item is stored; an unavailable store is an error, so the UI can fall
+/// back to its device-local copy.
+#[tauri::command]
+fn secret_get(account: String) -> Result<Option<String>, String> {
+    let entry = keychain_entry(&account)?;
+    match entry.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+/// Store a device-local secret. An empty value deletes the item, so clearing
+/// a password does not leave a usable credential behind.
+#[tauri::command]
+fn secret_set(account: String, value: String) -> Result<(), String> {
+    let entry = keychain_entry(&account)?;
+    if value.is_empty() {
+        match entry.delete_credential() {
+            Ok(()) => Ok(()),
+            Err(keyring::Error::NoEntry) => Ok(()),
+            // Some stores refuse deletion but accept an empty secret. Storing
+            // one still hides the old password from `secret_get`.
+            Err(_) => entry.set_password("").map_err(|error| error.to_string()),
+        }
+    } else {
+        entry
+            .set_password(&value)
+            .map_err(|error| error.to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -208,6 +247,8 @@ pub fn run() {
             remove_file,
             rename_path,
             tree_signature,
+            secret_get,
+            secret_set,
             http::webdav_request,
             http::ai_request
         ])

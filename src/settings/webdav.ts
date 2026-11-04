@@ -1,6 +1,8 @@
 import type { WebDavConfig } from "../sync/webdav/types";
+import { localSecretOf, queueSecret, scrubStoredSecret } from "./secrets";
 
 const STORAGE_KEY = "daymark.webdav.v1";
+const PASSWORD_SECRET = "webdav.password";
 
 export const DEFAULT_WEBDAV: WebDavConfig = {
   url: "",
@@ -32,11 +34,16 @@ export function loadWebDavSettings(): WebDavConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_WEBDAV };
     const parsed = JSON.parse(raw) as Partial<WebDavConfig>;
+    const localPassword = localSecretOf(PASSWORD_SECRET);
     return {
       url: typeof parsed.url === "string" ? parsed.url : "",
       remotePath: typeof parsed.remotePath === "string" ? parsed.remotePath : DEFAULT_WEBDAV.remotePath,
       username: typeof parsed.username === "string" ? parsed.username : "",
-      password: typeof parsed.password === "string" ? parsed.password : "",
+      // The dedicated secret slot wins, including an empty clear-tombstone;
+      // the field is kept for installs saved before the keychain migration.
+      password:
+        localPassword ??
+        (typeof parsed.password === "string" ? parsed.password : ""),
       autoSyncMinutes: normalizeWebDavSyncMinutes(parsed.autoSyncMinutes),
       syncOnLaunch: parsed.syncOnLaunch === true,
     };
@@ -47,10 +54,21 @@ export function loadWebDavSettings(): WebDavConfig {
 
 export function saveWebDavSettings(config: WebDavConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    // The password lives in the OS credential store (or its dedicated local
+    // fallback), never in the general settings object.
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...config, password: "" }),
+    );
   } catch {
     // Device-local convenience; a failed write only means re-entering the URL.
   }
+  queueSecret(PASSWORD_SECRET, config.password);
+}
+
+/** Called after hydration: old builds must no longer find the password here. */
+export function scrubWebDavPassword(): void {
+  scrubStoredSecret(STORAGE_KEY, ["password"]);
 }
 
 export function isWebDavConfigured(config: WebDavConfig): boolean {

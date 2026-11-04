@@ -91,6 +91,7 @@ The full safe procedure is `16-data-sync-operations.md`.
 | Symptom | Cause | Action |
 |---|---|---|
 | 401 after **Find calendars** or **Import now** | Wrong password, or the provider requires an app-specific password | Generate an app-specific password in the provider's account settings and use that; a normal login password often fails. |
+| The OS asks for keychain access after an upgrade, or credentials are empty after restoring a machine | The password moved from local app storage to the OS credential store on first launch, and the new machine has no keychain item | Allow access on the original machine. On a restored machine, re-enter the password once in Settings; the device-local fallback still works while the keychain is locked or unavailable. |
 | No calendars found | The server URL is wrong, the account has no CalDAV calendars, or discovery was blocked | Try the full server URL (for iCloud, `https://caldav.icloud.com/`); confirm the account has at least one calendar. |
 | An event never appears | It is outside the recurrence window (past 366 / future 731 days), malformed, or part of an ignored detached series | Check the event date and whether the series was detached on this device; a malformed event is skipped with an error in the status line. |
 | A task cannot be ticked complete or edited | It is a calendar event, not a local task | Open it and press **Turn into local task**. |

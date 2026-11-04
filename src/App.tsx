@@ -20,13 +20,15 @@ import {
 } from "./storage/repository";
 import { loadSyncedSettings, saveSyncedSettings } from "./storage/settingsFile";
 import { loadSettings, sanitize, saveSettings, type AppSettings } from "./settings/store";
-import { loadAiSettings, saveAiSettings } from "./settings/ai";
+import { loadAiSettings, saveAiSettings, scrubAiApiKey } from "./settings/ai";
 import {
   isWebDavConfigured,
   loadWebDavSettings,
   normalizeWebDavSyncMinutes,
   saveWebDavSettings,
+  scrubWebDavPassword,
 } from "./settings/webdav";
+import { hydrateSecret } from "./settings/secrets";
 import type { AiConfig } from "./ai/types";
 import { startFolderScanner, type FolderScanner } from "./sync/scanner";
 import { WebDavClient } from "./sync/webdav/client";
@@ -40,6 +42,7 @@ import {
   loadCalDavSettings,
   normalizeRefreshMinutes,
   saveCalDavSettings,
+  scrubCalDavPassword,
 } from "./settings/caldav";
 import { CalDavClient } from "./sync/caldav/client";
 import { syncCalDav } from "./sync/caldav/engine";
@@ -88,6 +91,7 @@ export default function App() {
   const caldavSyncRef = useRef<(() => Promise<void>) | null>(null);
   const caldavLaunchedRef = useRef(false);
   const bootedRef = useRef(false);
+  const secretsHydratedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
 
   const language = settings.language;
@@ -112,6 +116,40 @@ export default function App() {
     [i18n],
   );
 
+  /**
+   * Settings load synchronously, but the OS credential store does not. Resolve
+   * the three secrets before the app reports ready, so startup sync and the
+   * AI panel see the same credentials the user saved. This also migrates a
+   * password saved by an older build out of the general settings object.
+   */
+  const hydrateSecrets = useCallback(async () => {
+    if (secretsHydratedRef.current) return;
+    secretsHydratedRef.current = true;
+    const webdavPassword = webdav.password;
+    const caldavPassword = caldav.config.password;
+    const apiKey = ai.apiKey;
+    const [nextWebdav, nextCalDav, nextAi] = await Promise.all([
+      hydrateSecret("webdav.password", webdavPassword),
+      hydrateSecret("caldav.password", caldavPassword),
+      hydrateSecret("ai.apiKey", apiKey),
+    ]);
+    if (nextWebdav !== webdavPassword) {
+      setWebdav((current) => ({ ...current, password: nextWebdav }));
+    }
+    if (nextCalDav !== caldavPassword) {
+      setCaldav((current) => ({
+        ...current,
+        config: { ...current.config, password: nextCalDav },
+      }));
+    }
+    if (nextAi !== apiKey) {
+      setAi((current) => ({ ...current, apiKey: nextAi }));
+    }
+    scrubWebDavPassword();
+    scrubCalDavPassword();
+    scrubAiApiKey();
+  }, [ai.apiKey, caldav.config.password, webdav.password]);
+
   const activateFolder = useCallback(
     async (dir: string) => {
       try {
@@ -121,13 +159,14 @@ export default function App() {
         adoptSettings(next);
         if (!synced) await saveSyncedSettings(dir, next);
         await refresh();
+        await hydrateSecrets();
         setReady(true);
         setError(null);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     },
-    [adoptSettings, refresh, settings],
+    [adoptSettings, hydrateSecrets, refresh, settings],
   );
 
   useEffect(() => {
@@ -144,12 +183,13 @@ export default function App() {
           await saveSyncedSettings(settings.dataDir, settings);
         }
         await refresh();
+        await hydrateSecrets();
         setReady(true);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       }
     })();
-  }, [adoptSettings, refresh, settings]);
+  }, [adoptSettings, hydrateSecrets, refresh, settings]);
 
   // Theme is device-local: "system" follows the OS, while light/dark pin it.
   // The attribute wins over the media query in App.css.

@@ -4,8 +4,10 @@ import type {
   CalDavSettings,
   CalDavState,
 } from "../sync/caldav/types";
+import { localSecretOf, queueSecret, scrubStoredSecret } from "./secrets";
 
 const STORAGE_KEY = "daymark.caldav.v1";
+const PASSWORD_SECRET = "caldav.password";
 
 /**
  * CalDAV settings are device-local for the same reason as WebDAV settings: the
@@ -48,11 +50,14 @@ export function loadCalDavSettings(): CalDavSettings {
       refreshMinutes?: unknown;
       importOnLaunch?: unknown;
     };
+    const localPassword = localSecretOf(PASSWORD_SECRET);
     return {
       config: {
         serverUrl: text(parsed.config?.serverUrl),
         username: text(parsed.config?.username),
-        password: text(parsed.config?.password),
+        // The dedicated secret slot wins, including an empty clear-tombstone;
+        // the field is kept for installs saved before the keychain migration.
+        password: localPassword ?? text(parsed.config?.password),
         calendars: calendars(parsed.config?.calendars),
       },
       state: stateOf(parsed.state),
@@ -67,10 +72,24 @@ export function loadCalDavSettings(): CalDavSettings {
 
 export function saveCalDavSettings(settings: CalDavSettings): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    // The password lives in the OS credential store (or its dedicated local
+    // fallback), never in the general settings object.
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...settings,
+        config: { ...settings.config, password: "" },
+      }),
+    );
   } catch {
     // Device-local convenience; a failed write only means re-entering the URL.
   }
+  queueSecret(PASSWORD_SECRET, settings.config.password);
+}
+
+/** Called after hydration: old builds must no longer find the password here. */
+export function scrubCalDavPassword(): void {
+  scrubStoredSecret(STORAGE_KEY, ["config", "password"]);
 }
 
 export function isCalDavConfigured(config: CalDavConfig): boolean {

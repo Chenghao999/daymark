@@ -4,8 +4,10 @@ import {
   protocolFor,
 } from "../ai/presets";
 import type { AiConfig, AiProtocol } from "../ai/types";
+import { localSecretOf, queueSecret, scrubStoredSecret } from "./secrets";
 
 const STORAGE_KEY = "daymark.ai.v1";
+const API_KEY_SECRET = "ai.apiKey";
 
 export const AI_PROTOCOLS: readonly AiProtocol[] = ["anthropic", "openai"];
 
@@ -35,11 +37,16 @@ export function loadAiSettings(): AiConfig {
     // its protocol and endpoint point at, so Settings shows the right preset.
     const provider = normalizeProvider(parsed.provider, storedProtocol, baseUrl);
     const protocol = protocolFor(provider, storedProtocol);
+    const localKey = localSecretOf(API_KEY_SECRET);
     return {
       enabled: parsed.enabled === true,
       provider,
       protocol,
-      apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey : "",
+      // The dedicated secret slot wins, including an empty clear-tombstone;
+      // the field is kept for installs saved before the keychain migration.
+      apiKey:
+        localKey ??
+        (typeof parsed.apiKey === "string" ? parsed.apiKey : ""),
       model: normalizeModel(parsed.model, defaultModelFor(provider) || DEFAULT_AI.model),
       baseUrl,
     };
@@ -50,10 +57,21 @@ export function loadAiSettings(): AiConfig {
 
 export function saveAiSettings(config: AiConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    // The API key lives in the OS credential store (or its dedicated local
+    // fallback), never in the general settings object.
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...config, apiKey: "" }),
+    );
   } catch {
     // A failed write only means re-entering the key next launch.
   }
+  queueSecret(API_KEY_SECRET, config.apiKey);
+}
+
+/** Called after hydration: old builds must no longer find the key here. */
+export function scrubAiApiKey(): void {
+  scrubStoredSecret(STORAGE_KEY, ["apiKey"]);
 }
 
 /** The AI panel is offered only when the user opted in and supplied a key. */

@@ -23,6 +23,10 @@ serde_json = "1"
 # cannot send because of CORS. Requests live in Rust; the UI only calls the
 # `webdav_request` command.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "charset"] }
+# WebDAV/CalDAV passwords and the AI API key live in the OS credential store,
+# never in the synced data folder. The UI falls back to device-local app
+# storage when no keychain is available (for example in a browser build).
+keyring = "4"
 
 [profile.release]
 codegen-units = 1

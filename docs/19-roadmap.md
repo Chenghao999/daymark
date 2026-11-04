@@ -4,16 +4,18 @@
 > §4.9, natural-language entry v1 in §4.10); provider presets, custom AI
 > endpoints, dark mode and automated packaging are also complete (M7, M8). M6 v1 — automatic merge of
 > tasks, settings and categories, plus the in-app conflict-resolution UI — has
-> shipped (§3.9); CalDAV read-only import has also shipped (§3.10). Documents
-> 01–18 are the source of truth for what exists; this document records only the
-> plan and its trade-offs. Date: 2026-11-01. Baseline version `0.1.0`; storage
-> has moved from SQLite to Markdown text.
+> shipped (§3.9); CalDAV read-only import has also shipped (§3.10). M9 — OS
+> keychain storage for the WebDAV/CalDAV passwords and the AI API key — has
+> shipped. Documents 01–18 are the source of truth for what exists; this
+> document records only the plan and its trade-offs. Date: 2026-11-04.
+> Baseline version `0.1.0`; storage has moved from SQLite to Markdown text.
 >
 > **中文摘要：** Daymark（日迹）的路线图。M0–M5 已落地（WebDAV 第一版见 §3.8，
 > AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自定义 AI 接口、暗色模式与
 > 自动打包也已完成（M7、M8）；M6 第一版（任务、设置与分类的自动合并，以及
-> 冲突解决界面）已落地（§3.9），CalDAV 只读导入也已完成（§3.10）。已实现的
-> 模块以 01–18 号文档为准，本文只记录路线与取舍。日期：2026-11-01，基线版本
+> 冲突解决界面）已落地（§3.9），CalDAV 只读导入也已完成（§3.10）。M9 的
+> 系统钥匙串存储（WebDAV/CalDAV 密码与 AI 密钥）已完成。已实现的
+> 模块以 01–18 号文档为准，本文只记录路线与取舍。日期：2026-11-04，基线版本
 > `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
 ---
@@ -48,6 +50,7 @@
 | M6 | Automatic merge and CalDAV | M3 | v1 done: automatic merge in `src/sync/merge/*`, applied by `syncWebDav`, and the keep-mine / keep-theirs / keep-both conflict UI in Settings (`src/sync/webdav/resolve.ts`); see §3.9. CalDAV read-only import in `src/sync/caldav/*`, see §3.10 |
 | M7 | AI providers + dark mode | M4 | Done: Anthropic, OpenAI, DeepSeek, Qwen, Moonshot, Zhipu, Gemini, OpenRouter and custom endpoints (§4.11); appearance follows the system or switches manually |
 | M8 | Automated packaging and release | M0 | Done: `.github/workflows/release.yml`, `npm run release` (doc 10 §7–8); first packaged `v0.1.0` on 2026-10-24, all four platforms succeeded, installers attached to the draft release |
+| M9 | OS keychain credentials | M3, M4, M6 | Done: `keyring` in `src-tauri`, `secret_get` / `secret_set`, `src/settings/secrets.ts`, migration from the old localStorage fields and keychain hydration before the app reports ready |
 
 Ordering note: M3 and M4 are independent and can proceed in parallel; both
 depend on M0's file contract, so **stabilise the Markdown format before
@@ -89,7 +92,7 @@ manifest is needed, generate it locally on demand.
 |---|---|---|---|
 | `webdavUrl` | local localStorage | No | Each device may point at a different service |
 | `webdavUsername` | local localStorage | No | |
-| `webdavPassword` | v1: local localStorage (stated in the UI; later versions move to the system keychain) | **Never** | Must not be written to `_settings.md`, or the password would sync out with the folder |
+| `webdavPassword` | OS credential store (`keyring`; service `daymark`, account `webdav.password`), with a device-local fallback until the keychain accepts it | **Never** | Must not be written to `_settings.md`, or the password would sync out with the folder |
 | `webdavEnabled` | local localStorage | No | Per-device switch |
 | `webdavRemotePath` | local localStorage | No | Remote root path, default `/daymark/` |
 
@@ -200,7 +203,7 @@ Shipped (2026-10-23):
 | Automatic sync | Optional startup sync and optional device-local timer (15/30/60 minutes) while the app is open, off by default; the startup run happens once per data folder per session, both are skipped while another sync or conflict resolution is running, and both stop when the window closes |
 | Decision | Three-way comparison (local / remote / baseline), pure function `planSync`; **never deletes, never silently overwrites** |
 | Conditional writes | `If-Match` with the listed ETag overwrites, `If-None-Match: *` creates; a 412 reports the path and keeps the old baseline. Weak or missing ETags fall back to temp-file + `MOVE`. Resolution re-reads the remote and refuses a stale conflict snapshot |
-| Security | Password stored only in local localStorage, never written to `_settings.md`; Basic auth is sent only when a username is filled in |
+| Security | Password stored in the OS credential store (device-local fallback only until the keychain accepts it), never written to `_settings.md`; Basic auth is sent only when a username is filled in |
 | Tests | 48 unit tests across `webdavPlan`, `webdavClient`, `webdavManifest`, `webdavEngine` and `webdavSettings`; `npm run typecheck`, `npm run test`, `npm run build` and `cargo check` all pass |
 
 First-version boundaries (deliberate, not defects):
@@ -216,11 +219,12 @@ First-version boundaries (deliberate, not defects):
   engine and conflict resolution are covered end to end against in-memory ports
   (`tests/webdavEngine.test.ts`), but that cannot catch differences in each
   server's `PROPFIND` behaviour.
-- The password lives in localStorage, not yet in the system keychain.
+- The password is in the OS keychain since M9; the device-local fallback exists
+  only until the keychain write is confirmed or while no keychain is available.
 
-Next (M3 v2): keychain storage, OS-level scheduled sync, and a manual smoke run
-against a real server (the in-memory engine suite already covers first sync,
-merge, conflict, conditional writes and resolution).
+Next (M3 v2): OS-level scheduled sync and a manual smoke run against a real
+server (the in-memory engine suite already covers first sync, merge, conflict,
+conditional writes and resolution).
 
 ### 3.9 Automatic merge (M6, first version) · 自动合并
 
@@ -269,7 +273,7 @@ suite and the production build pass.
 | Read-only UI | No checkbox/complete/delete; the editor is disabled and offers **Turn into local task**, which sets `source = "local"` and records the series in device-local `ignoredUids` |
 | Automatic import | Optional startup import and optional device-local timer (15/30/60 minutes) while the app is open; off by default, the startup run happens once per session, both skip a run while another import is in flight, and both stop with the window |
 | Reports/AI | Calendar events are filtered out of report generation and AI context |
-| Credentials | URL, password, calendar selection and cursor in `localStorage["daymark.caldav.v1"]`; never in `_settings.md` or the data folder; nothing is written back to the server |
+| Credentials | URL, username and calendar selection/cursor in `localStorage["daymark.caldav.v1"]`; password in the OS credential store with a device-local fallback; never in `_settings.md` or the data folder; nothing is written back to the server |
 | Tests | 49 CalDAV unit tests: parsing (including single, this-and-future and this-and-prior overrides), discovery/REPORT, import planning, settings sanitisation |
 
 First-version boundaries (deliberate, not defects):
@@ -284,8 +288,8 @@ First-version boundaries (deliberate, not defects):
 - Not yet validated against a live iCloud/Nextcloud/Fastmail account; the test
   suite uses canned multistatus and `.ics` documents.
 
-Next (CalDAV v2): OS keychain, OS-level background refresh, and optionally
-write-back as VEVENT/VTODO (F-20).
+Next (CalDAV v2): OS-level background refresh, and optionally
+write-back as VEVENT/VTODO (F-20). OS keychain storage shipped in M9.
 
 ---
 
@@ -311,9 +315,10 @@ upload of the whole data directory.
 
 1. Off by default. When enabled, show an explanation: requests go to the model
    provider the user configured.
-2. **Bring your own key:** v1 stores it in local localStorage (stated in the
-   UI); later versions move it to the system keychain. It is never written to
-   `_settings.md` and never synced with the folder.
+2. **Bring your own key:** the key is stored in the OS credential store (with a
+   device-local fallback only until the keychain write succeeds or while no
+   keychain is available). It is never written to `_settings.md` and never
+   synced with the folder.
 3. **Minimal context:** send only the report title, period, category names,
    task titles and dates for the current report period; **never notes, task
    IDs, device IDs, local paths or the entire file history**.
@@ -426,7 +431,7 @@ Shipped (2026-10-23):
 |---|---|
 | Provider | `AiProvider` interface; `AnthropicProvider` uses the official `@anthropic-ai/sdk`, default model `claude-opus-5-5`, adaptive thinking, streaming, `finalMessage()`; the SDK is imported dynamically and stays out of the startup bundle |
 | Context | Pure functions `reportOutline` / `buildPrompt`; only the report title, period, counts, category names, task titles and dates |
-| Privacy | Off by default; the panel shows entry count, character count and input-token estimate, and can expand to preview the exact text sent; the key is stored only in local localStorage |
+| Privacy | Off by default; the panel shows entry count, character count and input-token estimate, and can expand to preview the exact text sent; the key is stored in the OS credential store (device-local fallback only) |
 | Output | The result is editable; only "Save to `_ai/`" writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md`, never overwriting older files; `_ai/` does not participate in WebDAV sync |
 | UI | Settings "AI assistant" card (switch, key, model); Reports page "AI assistant" button → polish / period review |
 | Tests | Unit tests for `aiPrompt`, `aiSettings` and `aiUsage`; 99 tests in total; typecheck and build pass |
@@ -436,7 +441,7 @@ Differences from the plan / acceptance criteria:
 - With no key configured the button is **hidden**, rather than "visible but
   points to Settings". The Settings card is always shown and explains how to
   enable it.
-- The key lives in localStorage, not yet in the system keychain.
+- The key lives in the OS keychain (M9), not in `_settings.md`.
 - **No end-to-end call has been made with a real API key** (none was
   available); prompt assembly, settings parsing and output paths have unit
   tests, but the SDK's network path is unverified. On first use, configure a key
@@ -446,9 +451,9 @@ Differences from the plan / acceptance criteria:
   model pricing changes, so avoid quoting stale amounts.
 - Offline detection and automatic retry are not done yet (§4.7).
 
-Next (M4 v2): keychain storage, token/cost estimation, offline detection and
+Next (M4 v2): token/cost estimation, offline detection and
 retry, and inserting polished text into report exports instead of only writing
-`_ai/`.
+`_ai/`. Keychain storage shipped in M9.
 
 ### 4.10 Natural-language task entry (first version) · M5 第一版实现状态
 

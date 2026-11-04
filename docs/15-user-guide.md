@@ -182,9 +182,9 @@ simply returns to the app. The suggested file name is
 | Report numbering | Chinese / Arabic / Alphabetical | Synced; used by previews and exports. |
 | Scan for external changes | 30 s / 60 s / 300 s | Synced; how often the folder is polled. |
 | Data location | absolute folder | Device-local; **Change folder** opens another folder. |
-| WebDAV sync | server URL, remote folder, username, password | Device-local; nothing in this card is written to the data folder. |
-| AI assistant | enable, provider, base URL, API key, model | Device-local; off by default; only the report outline is sent. |
-| CalDAV | server URL, username, app-specific password, calendars | Device-local; read-only import; nothing is written back to the server. |
+| WebDAV sync | server URL, remote folder, username, password | Device-local; the password is in the OS credential store (device-local fallback); nothing in this card is written to the data folder. |
+| AI assistant | enable, provider, base URL, API key, model | Device-local; off by default; the key is in the OS credential store (device-local fallback); only the report outline is sent. |
+| CalDAV | server URL, username, app-specific password, calendars | Device-local; the password is in the OS credential store (device-local fallback); read-only import; nothing is written back to the server. |
 | Categories | add (English + Chinese names, colour) / archive | Shared, stored in `_categories.md`. |
 | Device ID | read-only UUID | Device-local; identifies this installation. |
 
@@ -253,10 +253,14 @@ How a sync decides:
   not delete it on the other; only an individual task deletion travels, as that
   marker.
 
-The password is stored in this device's local app data only. It is never
-written to `_settings.md` or the data folder, so it does not travel to other
-devices or into backups. Use an app-specific password when the server offers
-one.
+The password is stored in this device's OS credential store (macOS Keychain,
+Windows Credential Manager or the Linux Secret Service), with a device-local
+fallback while the keychain write is pending or when no keychain is available.
+It is never written to `_settings.md` or the data folder, so it does not travel
+to other devices or into backups. Use an app-specific password when the server
+offers one. On first launch after upgrading from an older version, Daymark
+moves an existing saved password into the keychain and blanks the old copy; if
+macOS asks whether Daymark may access the keychain, allow it.
 
 **中文要点：** WebDAV 可手动同步，也可开启应用内定时同步：填地址、远端目录和
 账号，先测试连接，再点“立即同步”，或勾选“打开 Daymark 时同步”、把“自动同步”设为 15/30/60 分钟。两边都改过时先自动合并：日文件和待办文件按任务合并（只有一边改过
@@ -267,8 +271,8 @@ one.
 设置页列出两边内容：选择“保留我的 / 保留对方的 / 两者都保留（仅任务）”后点
 “应用”，两边同时写入，冲突从列表消失；副本保留在磁盘上作为备份。删除任务会在
 文件里留一行 `<!-- daymark deleted … -->` 注释，让另一台设备也删掉它；若对方在
-删除之后改过该任务，则以修改为准、任务保留。同步本身不会删除任何文件。密码只
-存在本机，不会写进 `_settings.md`。
+删除之后改过该任务，则以修改为准、任务保留。同步本身不会删除任何文件。密码优
+先存入系统钥匙串，不会写进 `_settings.md`。
 
 ### CalDAV import (read-only)
 
@@ -316,11 +320,12 @@ How imported events appear:
   and so is an occurrence that no longer appears in the listing (for example
   after an `EXDATE`). A task you detached stays, because it is now a local task.
 
-The server URL, username, password, calendar selection and sync cursor are
-stored on this device only, like the WebDAV password. They are never written to
-`_settings.md` or the data folder, and never sent anywhere except that calendar
-server. Known limitations: no write-back, no VTODO, no OS background or push
-sync,
+The server URL, username, calendar selection and sync cursor are stored on this
+device only. The password is in the OS credential store, like the WebDAV
+password, with a device-local fallback while the keychain write is pending or
+unavailable. Nothing is written to `_settings.md` or the data folder, and
+nothing is sent anywhere except that calendar server. Known limitations: no
+write-back, no VTODO, no OS background or push sync,
 and the detached-series memory is per device — another device importing the
 same calendar may create its own read-only copy.
 
@@ -329,8 +334,8 @@ same calendar may create its own read-only copy.
 周/日/月视图里显示为带 ◆ 的只读条目，不能打勾或编辑；打开后可点“转为本地任务”
 把它变成普通任务，之后就能完成、编辑并进入报告。日历事件本身不进入报告和 AI。
 事件按中英文分类名匹配分类；重复事件展开过去一年、未来两年，单次移动/修改的
-实例会跳过。服务器上删除或取消的事件会在下次导入时移除。账号密码和同步进度只
-存在本机，不会写进 `_settings.md`，也不会写回服务器。
+实例会跳过。服务器上删除或取消的事件会在下次导入时移除。账号密码（优先存入
+系统钥匙串）和同步进度只存在本机，不会写进 `_settings.md`，也不会写回服务器。
 
 ### AI assistant
 
@@ -369,9 +374,10 @@ press **Save to `_ai/`**, which creates a new timestamped Markdown file in the
 output is an ordinary note: it is not a task, it does not enter reports, and
 WebDAV sync does not upload `_ai/`.
 
-The API key is stored in this device's local app data, like the WebDAV password.
-It is never written to `_settings.md` or the data folder. Requests go directly
-from this app to the provider you configured and are billed to your account.
+The API key is stored in this device's OS credential store, like the WebDAV
+password, with a device-local fallback. It is never written to `_settings.md`
+or the data folder. Requests go directly from this app to the provider you
+configured and are billed to your account.
 
 **中文要点：** AI 助手默认关闭。启用后先选服务商：Anthropic（Claude）、
 OpenAI（GPT）、DeepSeek、通义千问、Moonshot（Kimi）、智谱（GLM）、Google
@@ -382,7 +388,7 @@ OpenAI 兼容（`/v1/chat/completions`）。模型名可任意填写。
 随后报告页会出现“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示
 分类/条目/字符数与 token 估算，并可预览完整文本；只发送报告标题、周期、分类和
 任务标题，不发送备注、任务 ID 和本地路径。结果可编辑，只有点“保存到 `_ai/`”
-才会写成新的 Markdown 文件。密钥只存在本机，不写入 `_settings.md`；请求直接发往
+才会写成新的 Markdown 文件。密钥优先存入系统钥匙串，不写入 `_settings.md`；请求直接发往
 你配置的接口，按你的账号计费，面板会显示本次实际使用的 token 数。离线时按钮
 禁用，失败后按钮变为“重试”。
 
@@ -470,7 +476,7 @@ choose the copied folder on first launch.
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
 | CalDAV is import-only | No write-back, VTODO, event editing, OS background sync or push. Import can run once at startup or on an in-app timer; both run only while the app is open. Detached-series memory is per device. |
 | WebDAV sync is first-version | Optional startup sync and in-app timer only, no OS background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Uploads are conditional on the remote ETag, so a concurrent edit is reported rather than overwritten. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
-| AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
+| AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model. The key is in the OS credential store when available, with a device-local fallback only while a keychain write is pending or unavailable. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 

@@ -18,6 +18,7 @@ should actually do.
 | Language, week start, assessment periods, numbering, scan interval, signature name | **Yes** | `_settings.md` |
 | Chosen data folder path | No | `localStorage`; paths differ per machine |
 | Device ID | No | `localStorage` on each device |
+| WebDAV/CalDAV passwords and the AI API key | No | OS credential store (service `daymark`), with a device-local fallback until the keychain write succeeds |
 | Generated DOCX reports | Only if you save them into a synced folder | wherever you export them |
 
 Consequence: after setting up a new device you must choose the folder again.

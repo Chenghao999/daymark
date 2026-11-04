@@ -5,6 +5,7 @@ import {
   isCalDavReady,
   loadCalDavSettings,
   saveCalDavSettings,
+  scrubCalDavPassword,
 } from "../src/settings/caldav";
 
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -34,7 +35,8 @@ describe("CalDAV settings", () => {
   });
 
   it("round-trips credentials, calendars and the import cursor", () => {
-    vi.stubGlobal("localStorage", fakeStorage());
+    const storage = fakeStorage();
+    vi.stubGlobal("localStorage", storage);
     const settings = {
       config: {
         serverUrl: "https://caldav.icloud.com/",
@@ -59,6 +61,46 @@ describe("CalDAV settings", () => {
     saveCalDavSettings(settings);
     expect(loadCalDavSettings()).toEqual(settings);
     expect(isCalDavReady(settings.config)).toBe(true);
+    // The password has its own slot and never sits in the general config.
+    expect(
+      JSON.parse(storage.getItem("daymark.caldav.v1") ?? "{}").config.password,
+    ).toBe("");
+    expect(storage.getItem("daymark.secret.caldav.password")).toBe(
+      "app-password",
+    );
+  });
+
+  it("scrubs a password saved by an older build after hydration", () => {
+    const storage = fakeStorage({
+      "daymark.caldav.v1": JSON.stringify({
+        config: {
+          serverUrl: "https://caldav.example.com/",
+          username: "me",
+          password: "old-password",
+        },
+        refreshMinutes: 30,
+      }),
+    });
+    vi.stubGlobal("localStorage", storage);
+    expect(loadCalDavSettings().config.password).toBe("old-password");
+    scrubCalDavPassword();
+    const stored = JSON.parse(storage.getItem("daymark.caldav.v1") ?? "{}");
+    expect(stored.config.password).toBe("");
+    expect(stored.config.serverUrl).toBe("https://caldav.example.com/");
+    expect(stored.refreshMinutes).toBe(30);
+  });
+
+  it("does not resurrect a legacy password after the user cleared it", () => {
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.caldav.v1": JSON.stringify({
+          config: { password: "old-password" },
+        }),
+        "daymark.secret.caldav.password": "",
+      }),
+    );
+    expect(loadCalDavSettings().config.password).toBe("");
   });
 
   it("drops malformed entries instead of throwing", () => {

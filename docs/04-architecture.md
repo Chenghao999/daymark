@@ -45,7 +45,7 @@ There is no background daemon and no network listener.
 | `storage/` | Markdown format, in-memory store, repository, migration | contain report or numbering rules |
 | `sync/` | folder-signature polling, external-change signal, WebDAV planning/execution (`sync/webdav/`) | write to the store |
 | `features/` | view state and user interaction | parse Markdown or call `invoke` directly |
-| `settings/` | device-local preferences (including WebDAV and AI config) and the synced settings model | hold task data |
+| `settings/` | device-local preferences (including WebDAV, CalDAV and AI config), OS-keychain credential access and the synced settings model | hold task data |
 | `ai/` | prompt/context building, provider interface, report polish/retrospective, one-sentence task parsing, `_ai/` output | import React or write into the store |
 | `src-tauri/` | plugins, file commands, raw WebDAV transport, window | contain product rules |
 
@@ -73,10 +73,12 @@ Settings are deliberately split:
   assessment month start day, assessment year start month, numbering, scan
   interval, report signature name. These describe the plan, so a report
   generated on either machine matches.
-- **Device-local** (`localStorage`): the `dataDir` path only. The same synced
-  folder has a different absolute path on each machine, so the path can never
-  live inside the folder — that would be circular and would fight the sync
-  client.
+- **Device-local** (`localStorage` and the OS credential store): the `dataDir`
+  path, WebDAV/CalDAV/AI configuration, and their passwords/API key. The same
+  synced folder has a different absolute path on each machine, so the path can
+  never live inside the folder — that would be circular and would fight the
+  sync client. Credentials live in the OS credential store when available,
+  with a small device-local fallback; they are never written into the folder.
 
 `_settings.md` carries a human-readable bullet list and a machine-readable
 `<!-- daymark settings {...} -->` comment. The parser prefers the JSON and falls
