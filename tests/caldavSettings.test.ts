@@ -54,6 +54,7 @@ describe("CalDAV settings", () => {
       },
       ignoredUids: ["detached-1"],
       refreshMinutes: 30,
+      importOnLaunch: true,
     };
     saveCalDavSettings(settings);
     expect(loadCalDavSettings()).toEqual(settings);
@@ -72,6 +73,7 @@ describe("CalDAV settings", () => {
           state: { calendars: { "/c/": { ctag: 9, uids: ["a", 1, null], syncedAt: 3 } } },
           ignoredUids: "nope",
           refreshMinutes: 7,
+          importOnLaunch: "yes",
         }),
       }),
     );
@@ -86,6 +88,7 @@ describe("CalDAV settings", () => {
     });
     expect(loaded.ignoredUids).toEqual([]);
     expect(loaded.refreshMinutes).toBe(0);
+    expect(loaded.importOnLaunch).toBe(false);
   });
 
   it("keeps a preset automatic-import interval", () => {

@@ -201,8 +201,9 @@ is no restore button in 0.1.0; you can set `"archived": false` by hand in
 ### WebDAV sync
 
 The WebDAV card uploads the same Markdown files to a WebDAV folder, for when a
-desktop sync client is not available. Sync runs when you press **Sync now**, or
-on the optional in-app timer; nothing runs while Daymark is closed.
+desktop sync client is not available. Sync runs when you press **Sync now**,
+once at startup if you enable it, or on the optional in-app timer; nothing runs
+while Daymark is closed.
 
 1. Enter the server URL (for example `https://dav.jianguoyun.com/dav`), the
    remote folder (default `/daymark/`, created on first sync) and your
@@ -212,7 +213,9 @@ on the optional in-app timer; nothing runs while Daymark is closed.
 3. Press **Sync now**. The status line shows the phase and file count; the
    result line reports how many files were uploaded, downloaded, merged, and
    left unresolved.
-4. Optional: set **Automatic sync** to every 15, 30 or 60 minutes. The timer
+4. Optional: tick **Sync when Daymark opens** to run one sync after the data
+   folder loads, so a short session still picks up changes from other devices.
+5. Optional: set **Automatic sync** to every 15, 30 or 60 minutes. The timer
    runs only while the app is open; closing Daymark stops it, and the next
    launch waits for the interval again. Unresolved conflicts still wait for
    you in this card either way.
@@ -256,7 +259,7 @@ devices or into backups. Use an app-specific password when the server offers
 one.
 
 **中文要点：** WebDAV 可手动同步，也可开启应用内定时同步：填地址、远端目录和
-账号，先测试连接，再点“立即同步”或把“自动同步”设为 15/30/60 分钟。两边都改过时先自动合并：日文件和待办文件按任务合并（只有一边改过
+账号，先测试连接，再点“立即同步”，或勾选“打开 Daymark 时同步”、把“自动同步”设为 15/30/60 分钟。两边都改过时先自动合并：日文件和待办文件按任务合并（只有一边改过
 的保留，同一任务版本号高者、再比更新时间的胜出，完成优先于重开）；设置和分类按
 键/字段合并，以最后一次同步时两边相同的文本为基准，因此改不同设置或不同分类
 不会冲突。能干净合并时两份文件都会被合并结果替换。无法判定先后的改动（同版本
@@ -282,9 +285,10 @@ back to the server.
    reports how many events were created, updated, deleted and left unchanged,
    plus the last sync time.
 4. Press **Import now** again whenever you want to pick up changes. The import
-   is manual by default; **Automatic import** can instead run it every 15, 30
-   or 60 minutes while Daymark is open. Nothing runs once the app is closed. If
-   the server's `getctag` has not changed, that calendar is skipped without
+   is manual by default; **Import when Daymark opens** runs it once after the
+   app starts, and **Automatic import** can instead run it every 15, 30 or 60
+   minutes while Daymark is open. Nothing runs once the app is closed. If the
+   server's `getctag` has not changed, that calendar is skipped without
    downloading it.
 
 How imported events appear:
@@ -463,14 +467,14 @@ choose the copied folder on first launch.
 | Reopening clears completion metadata | The task's earlier completion date is lost. |
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
-| CalDAV is import-only | No write-back, VTODO, event editing, OS background sync or push. Automatic import runs only while the app is open. Detached-series memory is per device. |
-| WebDAV sync is first-version | Optional in-app timer only, no OS background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Uploads are conditional on the remote ETag, so a concurrent edit is reported rather than overwritten. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
+| CalDAV is import-only | No write-back, VTODO, event editing, OS background sync or push. Import can run once at startup or on an in-app timer; both run only while the app is open. Detached-series memory is per device. |
+| WebDAV sync is first-version | Optional startup sync and in-app timer only, no OS background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Uploads are conditional on the remote ETag, so a concurrent edit is reported rather than overwritten. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
 | AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
-**中文要点：** 0.1.0 的 WebDAV 支持手动同步和可选的定时同步（仅在应用打开时
-运行，没有系统级后台同步），同步不删除文件（任务删除以标记
+**中文要点：** 0.1.0 的 WebDAV 支持手动同步、打开时同步和可选的定时同步（都
+仅在应用打开时运行，没有系统级后台同步），同步不删除文件（任务删除以标记
 注释的形式同步）；上传以远端 ETag 为条件，期间对方的新修改会被报告而不会被
 覆盖；无法自动排序的冲突在设置页选择“保留我的 / 保留对方的 / 两者
 都保留”。CalDAV 只读导入，不能写回或编辑事件，也没有后台同步；AI 助手需要联网

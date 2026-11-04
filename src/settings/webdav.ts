@@ -8,6 +8,7 @@ export const DEFAULT_WEBDAV: WebDavConfig = {
   username: "",
   password: "",
   autoSyncMinutes: 0,
+  syncOnLaunch: false,
 };
 
 /** Intervals offered in Settings; any stored value outside this set is off. */
@@ -37,6 +38,7 @@ export function loadWebDavSettings(): WebDavConfig {
       username: typeof parsed.username === "string" ? parsed.username : "",
       password: typeof parsed.password === "string" ? parsed.password : "",
       autoSyncMinutes: normalizeWebDavSyncMinutes(parsed.autoSyncMinutes),
+      syncOnLaunch: parsed.syncOnLaunch === true,
     };
   } catch {
     return { ...DEFAULT_WEBDAV };

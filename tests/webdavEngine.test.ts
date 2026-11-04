@@ -34,6 +34,7 @@ const config: WebDavConfig = {
   username: "user",
   password: "secret",
   autoSyncMinutes: 0,
+  syncOnLaunch: false,
 };
 
 const categories: Category[] = [];

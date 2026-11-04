@@ -77,6 +77,8 @@ export default function App() {
   const [webdavConflicts, setWebdavConflicts] = useState<SyncConflict[]>([]);
   const webdavBusyRef = useRef(false);
   const webdavSyncRef = useRef<(() => Promise<void>) | null>(null);
+  /** Data folder whose launch sync already ran this session. */
+  const webdavLaunchedRef = useRef<string | null>(null);
   const [ai, setAi] = useState<AiConfig>(() => loadAiSettings());
   const [caldav, setCaldav] = useState<CalDavSettings>(() => loadCalDavSettings());
   const [caldavBusy, setCaldavBusy] = useState(false);
@@ -84,6 +86,7 @@ export default function App() {
   const [caldavFound, setCaldavFound] = useState<CalDavCalendar[] | null>(null);
   const caldavBusyRef = useRef(false);
   const caldavSyncRef = useRef<(() => Promise<void>) | null>(null);
+  const caldavLaunchedRef = useRef(false);
   const bootedRef = useRef(false);
   const scannerRef = useRef<FolderScanner | null>(null);
 
@@ -207,6 +210,15 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [ready, caldav.refreshMinutes, caldav.config]);
 
+  // One import at startup, so a short session still picks up calendar changes.
+  // It runs at most once per session, after the store is ready.
+  useEffect(() => {
+    if (!ready || !caldav.importOnLaunch || !isCalDavReady(caldav.config)) return;
+    if (caldavLaunchedRef.current) return;
+    caldavLaunchedRef.current = true;
+    if (!caldavBusyRef.current) void caldavSyncRef.current?.();
+  }, [ready, caldav.importOnLaunch, caldav.config]);
+
   // WebDAV works the same way: the latest closure, an opt-in interval, and one
   // sync at a time. Closing the window stops automatic syncs.
   useEffect(() => {
@@ -220,6 +232,17 @@ export default function App() {
       if (!webdavBusyRef.current) void webdavSyncRef.current?.();
     }, webdav.autoSyncMinutes * 60_000);
     return () => window.clearInterval(timer);
+  }, [ready, settings.dataDir, webdav]);
+
+  // The optional startup sync runs once per data folder per session. Keeping
+  // the folder in the guard means switching folders can sync the new one,
+  // while ordinary settings edits do not start extra syncs.
+  useEffect(() => {
+    if (!ready || !settings.dataDir) return;
+    if (!webdav.syncOnLaunch || !isWebDavConfigured(webdav)) return;
+    if (webdavLaunchedRef.current === settings.dataDir) return;
+    webdavLaunchedRef.current = settings.dataDir;
+    if (!webdavBusyRef.current) void webdavSyncRef.current?.();
   }, [ready, settings.dataDir, webdav]);
 
   async function chooseFolder() {
@@ -354,6 +377,17 @@ export default function App() {
     });
   }, []);
 
+  const setWebdavSyncOnLaunch = useCallback(
+    (enabled: boolean) => {
+      setWebdav((current) => {
+        const next = { ...current, syncOnLaunch: enabled };
+        saveWebDavSettings(next);
+        return next;
+      });
+    },
+    [],
+  );
+
   const patchCalDav = useCallback((patch: Partial<CalDavConfig>) => {
     // Calendars belong to a server; a new URL invalidates the old selection
     // and the discovery list, so they are not synced by mistake.
@@ -372,6 +406,14 @@ export default function App() {
   const setCalDavRefresh = useCallback((minutes: number) => {
     setCaldav((current) => {
       const next = { ...current, refreshMinutes: normalizeRefreshMinutes(minutes) };
+      saveCalDavSettings(next);
+      return next;
+    });
+  }, []);
+
+  const setCalDavImportOnLaunch = useCallback((enabled: boolean) => {
+    setCaldav((current) => {
+      const next = { ...current, importOnLaunch: enabled };
       saveCalDavSettings(next);
       return next;
     });
@@ -741,16 +783,19 @@ export default function App() {
               caldavBusy={caldavBusy}
               caldavStatus={caldavStatus}
               caldavRefreshMinutes={caldav.refreshMinutes}
+              caldavImportOnLaunch={caldav.importOnLaunch}
               onWebdavPatch={patchWebdav}
               onWebdavTest={testWebdav}
               onWebdavSync={runWebdavSync}
               onWebdavAutoSync={setWebdavAutoSync}
+              onWebdavSyncOnLaunch={setWebdavSyncOnLaunch}
               onWebdavResolve={resolveWebdavConflict}
               onCalDavPatch={patchCalDav}
               onCalDavDiscover={discoverCalDavCalendars}
               onCalDavToggle={toggleCalDavCalendar}
               onCalDavSync={runCalDavSync}
               onCalDavRefresh={setCalDavRefresh}
+              onCalDavImportOnLaunch={setCalDavImportOnLaunch}
               onAiPatch={patchAi}
               onLanguage={changeLanguage}
               onChangeFolder={chooseFolder}
