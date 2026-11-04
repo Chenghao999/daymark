@@ -510,6 +510,7 @@ interface WebDavConfig {
   username: string;
   password: string;                   // device-local only, never in _settings.md
   autoSyncMinutes: number;            // in-app timer while open; 0 = manual only
+  syncOnLaunch: boolean;              // one sync after the data folder opens
 }
 
 normalizeRemotePath(path: string): string
@@ -647,6 +648,9 @@ Contract:
    exist so tests can run the whole engine against in-memory ports. The app
    passes none of them; the defaults are the real client, the Tauri file
    commands and `localStorage`.
+9. `syncOnLaunch` is device-local like the interval. The app runs at most one
+   startup sync per data folder per session, after the store is ready, and the
+   busy guard still prevents it from overlapping another sync.
 
 ### CalDAV import (`src/sync/caldav/`, `src/settings/caldav.ts`)
 
@@ -672,6 +676,7 @@ interface CalDavSettings {
   state: CalDavState;
   ignoredUids: string[];               // detached series, never re-imported
   refreshMinutes: number;              // 0 = manual; 15 / 30 / 60 while open
+  importOnLaunch: boolean;             // one import after the app starts
 }
 
 interface CalDavEvent {
@@ -744,11 +749,13 @@ Rules:
 6. `syncCalDav` is read-only against the server and does not touch React state;
    the caller saves `nextState` and reloads the store when anything changed.
    Per-calendar errors are collected in `errors`, not thrown. The optional
-   `refreshMinutes` timer lives in the UI layer, not in the engine.
+   `refreshMinutes` timer and the one-shot `importOnLaunch` live in the UI
+   layer, not in the engine.
 7. The deterministic task id (`caldav-<two FNV-1a hex>` of `externalUid`) is
    what lets two devices importing the same event merge into one task.
 8. `loadCalDavSettings` accepts only `0`, `15`, `30` or `60` for
-   `refreshMinutes`; any other stored value means manual only.
+   `refreshMinutes`; any other stored value means manual only. `importOnLaunch`
+   is kept only when it is exactly `true`.
 
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 

@@ -84,8 +84,8 @@ macOS needs right-click → Open and Windows shows SmartScreen. Details:
 [`docs/10-build-distribution.md`](docs/10-build-distribution.md) §7–8.
 
 WebDAV sync is deliberately conservative: it never deletes a file. Run it with
-**Sync now**, or opt into an in-app timer (15/30/60 minutes) that only runs
-while Daymark is open. When both sides changed the same file, it merges the two copies first — tasks by
+**Sync now**, opt into one sync each time Daymark opens, or an in-app timer
+(15/30/60 minutes) that only runs while Daymark is open. When both sides changed the same file, it merges the two copies first — tasks by
 id and version, `_settings.md` and `_categories.md` key by key against the text
 both sides had after the last sync. Only a change it cannot order is saved as a
 `(conflict …)` file, listed in Settings so you can choose keep mine, keep theirs
@@ -93,7 +93,7 @@ or keep both. Uploads are conditional: a remote file is overwritten only while
 its ETag is unchanged, so an edit made on another device in the meantime is
 never silently lost. A deleted task leaves a one-line `daymark deleted` marker in its
 file, so the other device drops it instead of re-adding it; an edit made after
-the deletion wins. WebDAV 同步为保守实现：可点“立即同步”，也可开启应用内定时（15/30/60 分钟，仅在打开时运行）；不删除文件，两边都改过时先自动
+the deletion wins. WebDAV 同步为保守实现：可点“立即同步”，也可开启“打开时同步”或应用内定时（15/30/60 分钟，仅在打开时运行）；不删除文件，两边都改过时先自动
 合并——任务按 id 与版本合并，设置和分类按上一次同步的共同文本逐键合并；无法判定
 先后的改动才生成冲突副本，并在设置页提供“保留我的 / 保留对方的 / 两者都保留”
 的选择。上传带条件：只有远端 ETag 未变时才覆盖，另一台设备期间所做的修改
@@ -101,7 +101,8 @@ the deletion wins. WebDAV 同步为保守实现：可点“立即同步”，也
 该任务；若对方在删除后修改过它，则以修改为准。尚未针对所有 WebDAV 服务端做验证。
 
 CalDAV import is read-only. Enter a server URL and an app-specific password in
-Settings, find and tick calendars, then press Import now; an optional timer can
+Settings, find and tick calendars, then press Import now; an optional import
+can run each time the app opens, and an optional timer can
 re-import every 15/30/60 minutes while the app is open. Events
 appear in the day/week/month views as read-only tasks with a ◆ marker; they
 cannot be completed or edited, are excluded from reports and AI, and are
@@ -111,7 +112,7 @@ series so it is not imported again. Recurring events are expanded for the past
 year and the next two years, including moved, cancelled or “this and future”
 occurrences. Nothing is ever written back to the calendar server, and the
 credentials stay on this device. CalDAV 为只读导入：设置页填入服务器地址与专用密码，
-查找并勾选日历后点“立即导入”；也可选择在应用打开时每 15/30/60 分钟自动导入。
+查找并勾选日历后点“立即导入”；也可选择在打开应用时导入一次，或每 15/30/60 分钟自动导入。
 事件在日/周/月视图中
 以带 ◆ 的只读任务显示，不能完成或编辑，也不进入报告和 AI；日历变化时按 ctag
 重新导入。打开事件可“转为本地任务”，之后按普通任务处理，并记住该系列不再重复

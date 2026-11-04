@@ -16,6 +16,11 @@ export interface WebDavConfig {
    * user presses "Sync now". Device-local, like the rest of this config.
    */
   autoSyncMinutes: number;
+  /**
+   * Run one sync when the data folder opens, before the interval's first tick.
+   * Useful for short sessions; conflicts still wait for the user either way.
+   */
+  syncOnLaunch: boolean;
 }
 
 export interface RemoteEntry {

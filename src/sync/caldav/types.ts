@@ -56,6 +56,11 @@ export interface CalDavSettings {
    * user runs "Import now" manually. Device-local, like the rest of this file.
    */
   refreshMinutes: number;
+  /**
+   * Run one import when the app opens, before the interval's first tick.
+   * Device-local, like `refreshMinutes`.
+   */
+  importOnLaunch: boolean;
 }
 
 export interface CalDavRequest {

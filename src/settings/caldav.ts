@@ -23,6 +23,7 @@ export const DEFAULT_CALDAV_SETTINGS: CalDavSettings = {
   state: { calendars: {} },
   ignoredUids: [],
   refreshMinutes: 0,
+  importOnLaunch: false,
 };
 
 /** Intervals offered in Settings; any stored value outside this set is off. */
@@ -45,6 +46,7 @@ export function loadCalDavSettings(): CalDavSettings {
       state?: CalDavState;
       ignoredUids?: unknown;
       refreshMinutes?: unknown;
+      importOnLaunch?: unknown;
     };
     return {
       config: {
@@ -56,6 +58,7 @@ export function loadCalDavSettings(): CalDavSettings {
       state: stateOf(parsed.state),
       ignoredUids: stringList(parsed.ignoredUids),
       refreshMinutes: normalizeRefreshMinutes(parsed.refreshMinutes),
+      importOnLaunch: parsed.importOnLaunch === true,
     };
   } catch {
     return cloneDefault();
@@ -84,6 +87,7 @@ function cloneDefault(): CalDavSettings {
     state: { calendars: {} },
     ignoredUids: [],
     refreshMinutes: 0,
+    importOnLaunch: false,
   };
 }
 

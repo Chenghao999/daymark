@@ -32,7 +32,7 @@ describe("WebDAV settings", () => {
     expect(isWebDavConfigured(DEFAULT_WEBDAV)).toBe(false);
   });
 
-  it("round-trips credentials and the automatic-sync interval", () => {
+  it("round-trips credentials, the automatic-sync interval and startup sync", () => {
     vi.stubGlobal("localStorage", fakeStorage());
     const config = {
       url: "https://dav.jianguoyun.com/dav",
@@ -40,6 +40,7 @@ describe("WebDAV settings", () => {
       username: "me",
       password: "app-password",
       autoSyncMinutes: 30,
+      syncOnLaunch: true,
     };
     saveWebDavSettings(config);
     expect(loadWebDavSettings()).toEqual(config);
@@ -78,7 +79,7 @@ describe("WebDAV settings", () => {
     vi.stubGlobal(
       "localStorage",
       fakeStorage({
-        "daymark.webdav.v1": JSON.stringify({ url: 42, autoSyncMinutes: "often" }),
+        "daymark.webdav.v1": JSON.stringify({ url: 42, autoSyncMinutes: "often", syncOnLaunch: "yes" }),
       }),
     );
     expect(loadWebDavSettings()).toEqual(DEFAULT_WEBDAV);

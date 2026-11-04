@@ -25,6 +25,7 @@ interface SettingsViewProps {
   caldavBusy: boolean;
   caldavStatus: string | null;
   caldavRefreshMinutes: number;
+  caldavImportOnLaunch: boolean;
   onLanguage: (language: AppLanguage) => Promise<void>;
   onChangeFolder: () => Promise<void>;
   onPatch: (patch: Partial<AppSettings>) => void;
@@ -34,6 +35,7 @@ interface SettingsViewProps {
   onWebdavTest: () => Promise<void>;
   onWebdavSync: () => Promise<void>;
   onWebdavAutoSync: (minutes: number) => void;
+  onWebdavSyncOnLaunch: (enabled: boolean) => void;
   onWebdavResolve: (conflict: SyncConflict, decisions: MergeDecisions) => Promise<void>;
   onAiPatch: (patch: Partial<AiConfig>) => void;
   onCalDavPatch: (patch: Partial<CalDavConfig>) => void;
@@ -41,6 +43,7 @@ interface SettingsViewProps {
   onCalDavToggle: (calendar: CalDavCalendar, selected: boolean) => void;
   onCalDavSync: () => Promise<void>;
   onCalDavRefresh: (minutes: number) => void;
+  onCalDavImportOnLaunch: (enabled: boolean) => void;
 }
 
 const COLORS = ["#5b8def", "#e0a03a", "#7f8c9a", "#4bb37a", "#c96b9b", "#8a6bd1", "#4aa3a3", "#c0574f"];
@@ -61,6 +64,7 @@ export default function SettingsView({
   caldavBusy,
   caldavStatus,
   caldavRefreshMinutes,
+  caldavImportOnLaunch,
   onLanguage,
   onChangeFolder,
   onPatch,
@@ -70,6 +74,7 @@ export default function SettingsView({
   onWebdavTest,
   onWebdavSync,
   onWebdavAutoSync,
+  onWebdavSyncOnLaunch,
   onWebdavResolve,
   onAiPatch,
   onCalDavPatch,
@@ -77,6 +82,7 @@ export default function SettingsView({
   onCalDavToggle,
   onCalDavSync,
   onCalDavRefresh,
+  onCalDavImportOnLaunch,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [nameEn, setNameEn] = useState("");
@@ -328,6 +334,15 @@ export default function SettingsView({
           </select>
         </label>
         <p className="muted small">{t("settings.webdavAutoSyncHint")}</p>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={webdav.syncOnLaunch}
+            onChange={(event) => onWebdavSyncOnLaunch(event.currentTarget.checked)}
+          />
+          {t("settings.webdavSyncOnLaunch")}
+        </label>
+        <p className="muted small">{t("settings.webdavSyncOnLaunchHint")}</p>
 
         {webdavStatus ? <p className="muted small">{webdavStatus}</p> : null}
 
@@ -475,6 +490,15 @@ export default function SettingsView({
           </select>
         </label>
         <p className="muted small">{t("settings.caldavRefreshHint")}</p>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={caldavImportOnLaunch}
+            onChange={(event) => onCalDavImportOnLaunch(event.currentTarget.checked)}
+          />
+          {t("settings.caldavImportOnLaunch")}
+        </label>
+        <p className="muted small">{t("settings.caldavImportOnLaunchHint")}</p>
 
         {caldavFound && caldavFound.length > 0 ? (
           <div>

@@ -133,9 +133,10 @@ Settings shows only "configured / not configured" and never echoes the password.
 Conditional requests close the gap between listing and uploading: an upload
 never overwrites a file that changed or appeared on the remote in between, and
 conflict resolution refuses a snapshot the remote has already moved past.
-OS-level scheduling remains for v2; the user presses "Sync now", or enables an
-in-app timer (15/30/60 minutes) that runs only while Daymark is open. The timer
-skips a tick while a sync is already in flight and stops with the window. M6
+OS-level scheduling remains for v2; the user presses "Sync now", enables one
+sync at startup, or enables an in-app timer (15/30/60 minutes) that runs only
+while Daymark is open. The timer skips a tick while a sync is already in flight
+and stops with the window. M6
 (§3.9) added automatic merge, a conflict-resolution UI and task deletion
 tombstones; v2 adds OS-level scheduled sync.
 
@@ -195,8 +196,8 @@ Shipped (2026-10-23):
 |---|---|
 | Transport | `src-tauri/src/http.rs`, a single command `webdav_request` (later joined by `ai_request`), `reqwest` + rustls, 45 s timeout; HTTP errors returned as data |
 | Front-end modules | `src/sync/webdav/{types,client,manifest,plan,baseline,engine}.ts`; settings in `src/settings/webdav.ts` |
-| UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, Automatic sync interval, progress, result, conflict list |
-| Automatic sync | Optional device-local timer (15/30/60 minutes) while the app is open, off by default; skipped while another sync or conflict resolution is running, and stopped when the window closes |
+| UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, startup sync, Automatic sync interval, progress, result, conflict list |
+| Automatic sync | Optional startup sync and optional device-local timer (15/30/60 minutes) while the app is open, off by default; the startup run happens once per data folder per session, both are skipped while another sync or conflict resolution is running, and both stop when the window closes |
 | Decision | Three-way comparison (local / remote / baseline), pure function `planSync`; **never deletes, never silently overwrites** |
 | Conditional writes | `If-Match` with the listed ETag overwrites, `If-None-Match: *` creates; a 412 reports the path and keeps the old baseline. Weak or missing ETags fall back to temp-file + `MOVE`. Resolution re-reads the remote and refuses a stale conflict snapshot |
 | Security | Password stored only in local localStorage, never written to `_settings.md`; Basic auth is sent only when a username is filled in |
@@ -206,8 +207,8 @@ First-version boundaries (deliberate, not defects):
 
 - Syncs only files Daymark knows about; other files the user puts in the folder
   are not mirrored.
-- Manual trigger or an opt-in in-app timer only; no OS-level background
-  schedule and no sync at login.
+- Manual trigger, an opt-in startup sync, or an opt-in in-app timer; no OS-level
+  background schedule, and nothing runs once the window closes.
 - Conflict copies stay as the last fallback; since M6 (§3.9) unresolved items are
   answered in Settings rather than by editing copies.
 - Not yet validated end to end against a real WebDAV service (the §3.7
@@ -266,7 +267,7 @@ suite and the production build pass.
 | Mapping | Title, notes, start/end, all-day, category by English/Chinese name; `source = "caldav"`, `externalUid` set |
 | Import engine | Pure plan → `applyExternalImport`; creates/updates/deletes per `externalUid`; a per-calendar occurrence-key cursor removes occurrences that vanish from the listing; deterministic ids so two devices merge to one task |
 | Read-only UI | No checkbox/complete/delete; the editor is disabled and offers **Turn into local task**, which sets `source = "local"` and records the series in device-local `ignoredUids` |
-| Automatic import | Optional device-local timer (15/30/60 minutes) while the app is open; off by default, skips a run while another import is in flight, and stops with the window |
+| Automatic import | Optional startup import and optional device-local timer (15/30/60 minutes) while the app is open; off by default, the startup run happens once per session, both skip a run while another import is in flight, and both stop with the window |
 | Reports/AI | Calendar events are filtered out of report generation and AI context |
 | Credentials | URL, password, calendar selection and cursor in `localStorage["daymark.caldav.v1"]`; never in `_settings.md` or the data folder; nothing is written back to the server |
 | Tests | 44 CalDAV unit tests: parsing (including single and this-and-future overrides), discovery/REPORT, import planning, settings sanitisation |
@@ -274,7 +275,7 @@ suite and the production build pass.
 First-version boundaries (deliberate, not defects):
 
 - No write-back, no VTODO, no event editing, no OS-level background sync or
-  push (an optional timer runs only while the app is open).
+  push (an optional startup import and timer run only while the app is open).
 - `RANGE=THISANDPRIOR` overrides are ignored; `THISANDFUTURE` and single
   occurrences are applied.
 - Detaching is per device: `ignoredUids` is not synced, so another device that

@@ -21,6 +21,7 @@ const CONFIG: WebDavConfig = {
   username: "user",
   password: "secret",
   autoSyncMinutes: 0,
+  syncOnLaunch: false,
 };
 
 function recorder(statuses: number[] = []) {
