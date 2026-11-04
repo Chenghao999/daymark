@@ -263,29 +263,29 @@ suite and the production build pass.
 | Transport | Reuses the Rust `webdav_request` command; no new IPC command or capability |
 | Incremental sync | `getctag` per calendar; unchanged ctag skips the REPORT, a server without ctag does a full fetch |
 | Parsing | Hand-written iCalendar parser: line unfolding, DATE/UTC/TZID/floating time → local wall clock, `DURATION`, `RRULE` (daily/weekly/monthly/yearly with interval, count, until, by-day, by-month-day), `EXDATE`, `RECURRENCE-ID` overrides, nested `VALARM` skipped |
-| Recurrence window | Past 366 days / future 731 days; occurrences keyed `uid#occ=<start>`; a single override replaces or cancels one occurrence; `THISANDFUTURE` shifts/cancels later ones and the closest override wins; a cancelled series deletes its occurrences |
+| Recurrence window | Past 366 days / future 731 days; occurrences keyed `uid#occ=<start>`; a single override replaces or cancels one occurrence; `THISANDFUTURE` shifts/cancels later ones, `THISANDPRIOR` earlier ones, and the nearest boundary wins; a cancelled series deletes its occurrences |
 | Mapping | Title, notes, start/end, all-day, category by English/Chinese name; `source = "caldav"`, `externalUid` set |
 | Import engine | Pure plan → `applyExternalImport`; creates/updates/deletes per `externalUid`; a per-calendar occurrence-key cursor removes occurrences that vanish from the listing; deterministic ids so two devices merge to one task |
 | Read-only UI | No checkbox/complete/delete; the editor is disabled and offers **Turn into local task**, which sets `source = "local"` and records the series in device-local `ignoredUids` |
 | Automatic import | Optional startup import and optional device-local timer (15/30/60 minutes) while the app is open; off by default, the startup run happens once per session, both skip a run while another import is in flight, and both stop with the window |
 | Reports/AI | Calendar events are filtered out of report generation and AI context |
 | Credentials | URL, password, calendar selection and cursor in `localStorage["daymark.caldav.v1"]`; never in `_settings.md` or the data folder; nothing is written back to the server |
-| Tests | 44 CalDAV unit tests: parsing (including single and this-and-future overrides), discovery/REPORT, import planning, settings sanitisation |
+| Tests | 49 CalDAV unit tests: parsing (including single, this-and-future and this-and-prior overrides), discovery/REPORT, import planning, settings sanitisation |
 
 First-version boundaries (deliberate, not defects):
 
 - No write-back, no VTODO, no event editing, no OS-level background sync or
   push (an optional startup import and timer run only while the app is open).
-- `RANGE=THISANDPRIOR` overrides are ignored; `THISANDFUTURE` and single
-  occurrences are applied.
+- `THISANDFUTURE` and `THISANDPRIOR` range overrides and single occurrences
+  are applied; overlapping ranges of both kinds use the nearest boundary.
 - Detaching is per device: `ignoredUids` is not synced, so another device that
   imports the same calendar still creates its read-only copy; a detached local
   task is not removed by a later calendar deletion.
 - Not yet validated against a live iCloud/Nextcloud/Fastmail account; the test
   suite uses canned multistatus and `.ics` documents.
 
-Next (CalDAV v2): OS keychain, OS-level background refresh, `THISANDPRIOR`
-overrides, and optionally write-back as VEVENT/VTODO (F-20).
+Next (CalDAV v2): OS keychain, OS-level background refresh, and optionally
+write-back as VEVENT/VTODO (F-20).
 
 ---
 

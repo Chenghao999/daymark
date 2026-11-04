@@ -83,8 +83,11 @@ idle → PROPFIND getctag → unchanged → idle
   instance keeps the task keyed by its original recurrence start), and a
   cancelled override removes just that occurrence. An override with
   `RANGE=THISANDFUTURE` shifts or cancels that occurrence and every later one;
-  a closer override, a single-occurrence override or an `EXDATE` still wins. A
-  cancelled series deletes all of its imported occurrences.
+  `RANGE=THISANDPRIOR` does the same for that occurrence and every earlier one.
+  A closer range boundary, a single-occurrence override or an `EXDATE` still
+  wins; if a future and a prior range both cover an instance, the nearer
+  boundary is used. A cancelled series deletes all of its imported
+  occurrences.
 - The per-calendar import cursor stores both the series UIDs and the occurrence
   keys from the previous listing. An occurrence that disappears from the
   listing (EXDATE, dropped out of the window, deleted on the server) deletes
@@ -127,8 +130,9 @@ file or the synced data folder.
 - No OS-level background sync and no push. The user runs "Import now", opts
   into one import at startup, or an in-app timer (15/30/60 minutes) that only
   runs while the app is open.
-- `RANGE=THISANDPRIOR` is not supported; only `THISANDFUTURE` and single
-  occurrences are applied.
+- Overlapping `THISANDFUTURE` and `THISANDPRIOR` ranges are not defined by
+  iCalendar; Daymark applies the boundary nearest each occurrence (a tie goes
+  to the future range).
 - Detaching is per device: `ignoredUids` is not synced, so another device that
   imports the same series will still create its read-only tasks. The detached
   copy is a local task and is not removed by a later calendar deletion.

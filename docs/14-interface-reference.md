@@ -739,7 +739,8 @@ Rules:
    A `RECURRENCE-ID` override replaces the occurrence it names (keyed by the
    original recurrence start); a cancelled override or an `EXDATE` emits a
    cancelled occurrence. A `RANGE=THISANDFUTURE` override shifts or cancels
-   that occurrence and later ones, and a closer override or exact `EXDATE`
+   that occurrence and later ones; `RANGE=THISANDPRIOR` does the same for that
+   occurrence and earlier ones. A closer range boundary or exact `EXDATE`
    wins. Nested `VALARM` blocks are skipped.
 5. `planCalendarImport` is pure: it matches categories case-insensitively
    against `nameEn`/`nameZh`, compares title/notes/category/start/end/all-day,
