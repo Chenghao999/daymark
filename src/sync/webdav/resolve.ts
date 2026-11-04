@@ -11,7 +11,7 @@ import {
   type MergeDecisions,
   type MergeOutcome,
 } from "../merge";
-import { WebDavClient, ensureRemoteDirectory } from "./client";
+import { WebDavClient, ensureRemoteDirectory, strongEtag } from "./client";
 import { REAL_SYNC_IO, baselineStore } from "./io";
 import { sha256 } from "./manifest";
 import type {
@@ -124,6 +124,29 @@ export async function resolveConflict(
 
   const text = outcome.text;
   let written = false;
+  // The conflict copy (or the text read above) is a snapshot. If the remote
+  // moved on since, this merge does not cover its latest edit: stop and let
+  // the next sync build a fresh conflict instead of overwriting that edit.
+  let etag: string | null = null;
+  if (client.getTextWithEtag) {
+    let current: { text: string; etag: string | null };
+    try {
+      current = await client.getTextWithEtag(conflict.path);
+    } catch (error) {
+      return { resolved: false, remaining: conflict.items, written: false, error: message(error) };
+    }
+    if (current.text !== remoteText) {
+      return {
+        resolved: false,
+        remaining: conflict.items,
+        written: false,
+        error: `${conflict.path} changed on the remote; sync again before resolving`,
+      };
+    }
+    etag = strongEtag(current.etag);
+  } else if (client.etag) {
+    etag = strongEtag(await client.etag(conflict.path).catch(() => null));
+  }
   try {
     // Local first, like the sync itself: if the upload fails, the merged text is
     // on disk and the next sync sees "local changed" and uploads it. The
@@ -132,7 +155,7 @@ export async function resolveConflict(
     await io.writeTextFile(`${root}/${conflict.path}`, text);
     written = true;
     await ensureRemoteDirectory(client, conflict.path);
-    await client.putText(conflict.path, text);
+    await client.putText(conflict.path, text, etag ? { ifMatch: etag } : {});
   } catch (error) {
     // The answers stay open so the user can try again.
     return { resolved: false, remaining: conflict.items, written, error: message(error) };

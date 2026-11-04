@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { RemoteClient, RemoteEntry, WebDavConfig } from "./types";
-
-interface WebDavResponse {
-  status: number;
-  body: string;
-  etag: string | null;
-  lastModified: string | null;
-}
+import type {
+  PutOptions,
+  RemoteClient,
+  RemoteEntry,
+  WebDavConfig,
+  WebDavHttpResponse,
+  WebDavTransport,
+} from "./types";
 
 interface ParsedEntry {
   href: string;
@@ -155,13 +155,23 @@ function pathOfUrl(url: string): string | null {
   }
 }
 
+/** `If-Match` requires a strong validator; a weak ETag is not usable there. */
+export function strongEtag(etag: string | null | undefined): string | null {
+  if (!etag) return null;
+  const trimmed = etag.trim();
+  return trimmed.length > 0 && !/^W\//i.test(trimmed) ? trimmed : null;
+}
+
 /**
  * Thin wrapper over the Rust `webdav_request` command. All methods throw
  * `WebDavError` for an HTTP status the caller did not expect; network failures
  * arrive as a plain `Error` from the command.
  */
 export class WebDavClient {
-  constructor(private readonly config: WebDavConfig) {}
+  constructor(
+    private readonly config: WebDavConfig,
+    private readonly transport: WebDavTransport = TAURI_WEBDAV_TRANSPORT,
+  ) {}
 
   rootUrl(): string {
     return remoteRootUrl(this.config);
@@ -226,6 +236,13 @@ export class WebDavClient {
     return response.body;
   }
 
+  /** GET's body together with the ETag that belonged to it. */
+  async getTextWithEtag(path: string): Promise<{ text: string; etag: string | null }> {
+    const response = await this.request("GET", this.fileUrl(path));
+    if (response.status !== 200) throw failure(response, `GET ${path}`);
+    return { text: response.body, etag: response.etag };
+  }
+
   async mkcol(path = ""): Promise<void> {
     const response = await this.request("MKCOL", path ? this.fileUrl(path, true) : this.rootUrl());
     // 405 means it already exists; both outcomes leave a usable collection.
@@ -235,10 +252,46 @@ export class WebDavClient {
   }
 
   /**
+   * Current ETag of a file, or null when the server does not expose one.
+   * Conflict resolution reads it just before rewriting the remote copy.
+   */
+  async etag(path: string): Promise<string | null> {
+    const response = await this.request("PROPFIND", this.fileUrl(path), {
+      depth: "0",
+      headers: { "Content-Type": "application/xml; charset=utf-8" },
+      body: PROPFIND_BODY,
+    });
+    if (response.status !== 207 && response.status !== 200) return null;
+    return parsePropfind(response.body)[0]?.etag ?? null;
+  }
+
+  /**
    * Uploads through a temporary name and moves it into place, so readers never
    * see half a file. Servers without MOVE fall back to a direct PUT.
+   *
+   * With a precondition, the write goes straight to the target with
+   * `If-Match` / `If-None-Match`: those apply to the target URL, whereas a
+   * MOVE's `If-Match` would test the temporary file. A 412 means someone
+   * changed the remote after it was listed; nothing is overwritten.
    */
-  async putText(path: string, contents: string): Promise<void> {
+  async putText(path: string, contents: string, options: PutOptions = {}): Promise<void> {
+    if (options.ifMatch || options.ifNoneMatch) {
+      const headers: Record<string, string> = { "Content-Type": "text/markdown; charset=utf-8" };
+      if (options.ifMatch) headers["If-Match"] = options.ifMatch;
+      if (options.ifNoneMatch) headers["If-None-Match"] = "*";
+      const response = await this.request("PUT", this.fileUrl(path), { headers, body: contents });
+      if (response.status === 412) {
+        throw new WebDavError(
+          412,
+          `PUT ${path} failed: 412 — the remote file changed after it was read; sync again`,
+        );
+      }
+      if (response.status !== 201 && response.status !== 200 && response.status !== 204) {
+        throw failure(response, `PUT ${path}`);
+      }
+      return;
+    }
+
     const tempPath = `${path}.daymark-tmp`;
     const put = await this.request("PUT", this.fileUrl(tempPath), {
       headers: { "Content-Type": "text/markdown; charset=utf-8" },
@@ -267,8 +320,8 @@ export class WebDavClient {
     method: string,
     url: string,
     options: { body?: string; depth?: string; headers?: Record<string, string> } = {},
-  ): Promise<WebDavResponse> {
-    return invoke<WebDavResponse>("webdav_request", {
+  ): Promise<WebDavHttpResponse> {
+    return this.transport({
       method,
       url,
       username: this.config.username || null,
@@ -279,6 +332,17 @@ export class WebDavClient {
     });
   }
 }
+
+const TAURI_WEBDAV_TRANSPORT: WebDavTransport = (request) =>
+  invoke<WebDavHttpResponse>("webdav_request", {
+    method: request.method,
+    url: request.url,
+    username: request.username ?? null,
+    password: request.password ?? null,
+    body: request.body ?? null,
+    depth: request.depth ?? null,
+    headers: request.headers ?? null,
+  });
 
 /** Creates the parent folder of `path`; a folder that already exists is fine. */
 export async function ensureRemoteDirectory(
@@ -295,7 +359,7 @@ export async function ensureRemoteDirectory(
   }
 }
 
-function failure(response: WebDavResponse, action: string): WebDavError {
+function failure(response: WebDavHttpResponse, action: string): WebDavError {
   const detail = response.body.trim().slice(0, 300);
   return new WebDavError(
     response.status,

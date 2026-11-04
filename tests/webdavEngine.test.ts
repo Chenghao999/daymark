@@ -14,6 +14,7 @@ import { resolveConflict } from "../src/sync/webdav/resolve";
 import type {
   Baseline,
   BaselineStore,
+  PutOptions,
   RemoteClient,
   RemoteEntry,
   SyncIo,
@@ -114,10 +115,17 @@ class MemoryFolder implements SyncIo {
 /** In-memory WebDAV server: one flat folder, PUT/MKCOL recorded. */
 class MemoryRemote implements RemoteClient {
   readonly files = new Map<string, string>();
+  readonly etags = new Map<string, string>();
   readonly puts: string[] = [];
+  readonly putCalls: { path: string; options?: PutOptions }[] = [];
   rootExists = false;
   /** Path whose GET throws, to exercise the abort-before-write path. */
   failRead: string | null = null;
+  /** Path whose PUT is rejected with 412, simulating a concurrent remote edit. */
+  failPrecondition: string | null = null;
+  /** Some servers do not return an ETag; this exercises the fallback. */
+  exposeEtags = true;
+  private revision = 0;
 
   async listTree(): Promise<RemoteEntry[]> {
     if (!this.rootExists) throw new WebDavError(404, "remote root missing");
@@ -125,7 +133,7 @@ class MemoryRemote implements RemoteClient {
       path,
       isDirectory: false,
       size: null,
-      etag: null,
+      etag: this.exposeEtags ? (this.etags.get(path) ?? null) : null,
       lastModified: null,
     }));
   }
@@ -137,9 +145,30 @@ class MemoryRemote implements RemoteClient {
     return text;
   }
 
-  async putText(path: string, contents: string): Promise<void> {
+  async putText(path: string, contents: string, options?: PutOptions): Promise<void> {
+    this.putCalls.push({ path, options });
+    if (path === this.failPrecondition) {
+      throw new WebDavError(412, `precondition failed for ${path}`);
+    }
+    const current = this.etags.get(path) ?? null;
+    if (options?.ifMatch && current !== options.ifMatch) {
+      throw new WebDavError(412, `etag mismatch for ${path}`);
+    }
+    if (options?.ifNoneMatch && this.files.has(path)) {
+      throw new WebDavError(412, `already exists: ${path}`);
+    }
     this.files.set(path, contents);
+    this.revision += 1;
+    this.etags.set(path, `"r${this.revision}"`);
     this.puts.push(path);
+  }
+
+  async etag(path: string): Promise<string | null> {
+    return this.exposeEtags ? (this.etags.get(path) ?? null) : null;
+  }
+
+  async getTextWithEtag(path: string): Promise<{ text: string; etag: string | null }> {
+    return { text: await this.getText(path), etag: await this.etag(path) };
   }
 
   async mkcol(): Promise<void> {
@@ -215,6 +244,96 @@ describe("WebDAV sync engine", () => {
     expect(result.conflicts).toEqual([]);
     expect(target.remote.puts.sort()).toEqual([BACKLOG_PATH, DAY_PATH].sort());
     expect(target.baseline.value[DAY_PATH].local).toBe(target.baseline.value[DAY_PATH].remote);
+  });
+
+  it("creates a new remote file only if it did not appear meanwhile", async () => {
+    const target = world();
+    target.folder.write(
+      BACKLOG_PATH,
+      serializeMarkdown(null, [], categories, [], {
+        updatedAt: "2026-10-29T00:00:00.000Z",
+        deviceId: DEVICE,
+      }),
+    );
+    target.folder.write(DAY_PATH, dayText([entry(task())]));
+
+    await sync(target);
+
+    expect(target.remote.putCalls).toHaveLength(2);
+    for (const call of target.remote.putCalls) {
+      expect(call.options).toEqual({ ifNoneMatch: true });
+    }
+  });
+
+  it("overwrites only while the remote ETag is unchanged", async () => {
+    const target = world();
+    target.folder.write(DAY_PATH, dayText([entry(task())]));
+    await sync(target);
+
+    const etag = target.remote.etags.get(DAY_PATH);
+    expect(etag).toBeTruthy();
+    target.folder.write(DAY_PATH, dayText([entry(task({ title: "Local edit", rowVersion: 2 }))]));
+    target.remote.putCalls.length = 0;
+
+    const result = await sync(target);
+
+    expect(result.uploaded).toBe(1);
+    expect(target.remote.putCalls).toEqual([{ path: DAY_PATH, options: { ifMatch: etag } }]);
+    expect(target.remote.read(DAY_PATH)).toBe(target.folder.read(DAY_PATH));
+  });
+
+  it("keeps both copies when the remote changed after it was listed", async () => {
+    const target = world();
+    target.folder.write(DAY_PATH, dayText([entry(task())]));
+    await sync(target);
+
+    target.folder.write(DAY_PATH, dayText([entry(task({ title: "Local edit", rowVersion: 2 }))]));
+    const localText = target.folder.read(DAY_PATH);
+    const remoteText = target.remote.read(DAY_PATH);
+    const baselineBefore = JSON.stringify(target.baseline.value);
+    // The server now rejects the conditional PUT as if another client had
+    // written the file between PROPFIND and PUT.
+    target.remote.failPrecondition = DAY_PATH;
+
+    const result = await sync(target);
+
+    expect(result.uploaded).toBe(0);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain(DAY_PATH);
+    expect(target.remote.read(DAY_PATH)).toBe(remoteText);
+    expect(target.folder.read(DAY_PATH)).toBe(localText);
+    // The failed path keeps its old baseline, so the next run tries again.
+    expect(JSON.stringify(target.baseline.value)).toBe(baselineBefore);
+  });
+
+  it("uploads without a precondition when the server hides ETags", async () => {
+    const target = world();
+    target.remote.exposeEtags = false;
+    target.folder.write(DAY_PATH, dayText([entry(task())]));
+    await sync(target);
+
+    target.folder.write(DAY_PATH, dayText([entry(task({ title: "Local edit", rowVersion: 2 }))]));
+    target.remote.putCalls.length = 0;
+
+    const result = await sync(target);
+
+    expect(result.uploaded).toBe(1);
+    expect(target.remote.putCalls).toEqual([{ path: DAY_PATH, options: {} }]);
+  });
+
+  it("ignores a weak ETag, which If-Match cannot use", async () => {
+    const target = world();
+    target.folder.write(DAY_PATH, dayText([entry(task())]));
+    await sync(target);
+
+    target.remote.etags.set(DAY_PATH, 'W/"weak"');
+    target.folder.write(DAY_PATH, dayText([entry(task({ title: "Local edit", rowVersion: 2 }))]));
+    target.remote.putCalls.length = 0;
+
+    const result = await sync(target);
+
+    expect(result.uploaded).toBe(1);
+    expect(target.remote.putCalls).toEqual([{ path: DAY_PATH, options: {} }]);
   });
 
   it("downloads a file that only changed on the remote", async () => {
@@ -324,6 +443,39 @@ describe("WebDAV sync engine", () => {
     expect(resolved.written).toBe(false);
     expect(resolved.remaining).toHaveLength(1);
     expect(target.folder.read(DAY_PATH)).toContain("Local title");
+  });
+
+  it("refuses to resolve a conflict whose remote copy changed again", async () => {
+    const target = world();
+    target.folder.write(DAY_PATH, dayText([entry(task())]));
+    await sync(target);
+
+    const sameVersion = { rowVersion: 2, updatedAt: `${DAY}T10:00:00.000Z` };
+    const localText = dayText([entry(task({ title: "Local title", ...sameVersion }))]);
+    target.folder.write(DAY_PATH, localText);
+    target.remote.files.set(
+      DAY_PATH,
+      dayText([entry(task({ title: "Remote title", ...sameVersion }))]),
+    );
+    const result = await sync(target);
+
+    // The remote is edited again after the conflict copy was saved.
+    const newer = dayText([entry(task({ title: "Newer remote", rowVersion: 3 }))]);
+    target.remote.files.set(DAY_PATH, newer);
+
+    const resolved = await resolveConflict(
+      config,
+      ROOT,
+      result.conflicts[0],
+      { "task-1": "remote" },
+      { client: target.remote, io: target.folder, baseline: target.baseline, device: DEVICE, now },
+    );
+
+    expect(resolved.resolved).toBe(false);
+    expect(resolved.written).toBe(false);
+    expect(resolved.error).toContain("changed on the remote");
+    expect(target.remote.read(DAY_PATH)).toBe(newer);
+    expect(target.folder.read(DAY_PATH)).toBe(localText);
   });
 
   it("merges settings changed on different keys against the last synced text", async () => {

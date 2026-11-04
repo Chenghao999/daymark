@@ -234,7 +234,11 @@ How a sync decides:
   other side edited the task after the deletion, the edit wins and the task
   comes back.
 - A file that exists on both sides with different content on the very first
-  sync is also a conflict; Daymark never guesses which side is newer.
+  sync is also a conflict. Uploads are conditional: if the remote file changes
+  between the moment Daymark lists it and the moment it uploads, the upload is
+  refused and reported in the status line instead of overwriting that change.
+  Press **Sync now** again to merge or see the new conflict. Resolving a
+  conflict whose remote copy has changed again is also refused; sync first.
 - **Nothing is ever deleted** by a sync. Deleting a whole file on one side does
   not delete it on the other; only an individual task deletion travels, as that
   marker.
@@ -453,14 +457,15 @@ choose the copied folder on first launch.
 | Archived categories cannot be restored in the UI | Edit `_categories.md` by hand if needed. |
 | No duration blocks in the week grid | Tasks show as items; the start time appears in the day view. |
 | CalDAV is import-only | No write-back, VTODO, event editing, OS background sync or push. Automatic import runs only while the app is open. Detached-series memory is per device. |
-| WebDAV sync is first-version | Optional in-app timer only, no OS background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
+| WebDAV sync is first-version | Optional in-app timer only, no OS background sync, and sync never deletes files; an individual task deletion travels as a marker comment. Uploads are conditional on the remote ETag, so a concurrent edit is reported rather than overwritten. Unresolved conflicts are settled in Settings, and the conflict copy stays on disk as a backup. It has not been tested against every WebDAV server. |
 | AI assistant is first-version and online | Requires a network connection and an API key from the chosen provider; no local model; the key is in local app storage, not the OS keychain yet. |
 | No search, tags, reminders or notifications | Not part of 0.1.0. |
 | No automatic backup | Backups are the user's responsibility. |
 
 **中文要点：** 0.1.0 的 WebDAV 支持手动同步和可选的定时同步（仅在应用打开时
 运行，没有系统级后台同步），同步不删除文件（任务删除以标记
-注释的形式同步）；无法自动排序的冲突在设置页选择“保留我的 / 保留对方的 / 两者
+注释的形式同步）；上传以远端 ETag 为条件，期间对方的新修改会被报告而不会被
+覆盖；无法自动排序的冲突在设置页选择“保留我的 / 保留对方的 / 两者
 都保留”。CalDAV 只读导入，不能写回或编辑事件，也没有后台同步；AI 助手需要联网
 和所选服务商的 API Key；重新打开任务会清除其完成时间；归档分类需要在文件里
 手工恢复。

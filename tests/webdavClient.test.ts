@@ -1,11 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
+  WebDavClient,
+  WebDavError,
   normalizeRemotePath,
   parsePropfind,
   relativeHref,
   remoteFileUrl,
   remoteRootUrl,
+  strongEtag,
 } from "../src/sync/webdav/client";
+import type {
+  WebDavConfig,
+  WebDavHttpResponse,
+  WebDavRequest,
+} from "../src/sync/webdav/types";
+
+const CONFIG: WebDavConfig = {
+  url: "https://dav.example.com/dav",
+  remotePath: "daymark/",
+  username: "user",
+  password: "secret",
+  autoSyncMinutes: 0,
+};
+
+function recorder(statuses: number[] = []) {
+  const calls: WebDavRequest[] = [];
+  return {
+    calls,
+    transport: async (request: WebDavRequest): Promise<WebDavHttpResponse> => {
+      calls.push(request);
+      return {
+        status: statuses[calls.length - 1] ?? 200,
+        body: "",
+        etag: null,
+        lastModified: null,
+      };
+    },
+  };
+}
 
 describe("WebDAV URLs", () => {
   it("normalizes the remote folder to a leading and trailing slash", () => {
@@ -104,5 +136,103 @@ describe("PROPFIND parsing", () => {
   it("decodes XML entities in hrefs", () => {
     const escaped = "<response><href>/a&amp;b.md</href><prop><resourcetype/></prop></response>";
     expect(parsePropfind(escaped)[0].href).toBe("/a&b.md");
+  });
+});
+
+describe("WebDAV conditional writes", () => {
+  const FILE_URL = "https://dav.example.com/dav/daymark/2026-10/a%20b.md";
+
+  it("sends If-Match straight to the target instead of MOVE", async () => {
+    const { calls, transport } = recorder([204]);
+    const client = new WebDavClient(CONFIG, transport);
+
+    await client.putText("2026-10/a b.md", "text", { ifMatch: '"abc"' });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: "PUT",
+      url: FILE_URL,
+      body: "text",
+      headers: { "If-Match": '"abc"', "Content-Type": "text/markdown; charset=utf-8" },
+    });
+  });
+
+  it("sends If-None-Match when creating a file", async () => {
+    const { calls, transport } = recorder([201]);
+    const client = new WebDavClient(CONFIG, transport);
+
+    await client.putText("2026-10/a b.md", "text", { ifNoneMatch: true });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      method: "PUT",
+      url: FILE_URL,
+      headers: { "If-None-Match": "*" },
+    });
+  });
+
+  it("reports a 412 as a changed remote, not a generic HTTP error", async () => {
+    const { transport } = recorder([412]);
+    const client = new WebDavClient(CONFIG, transport);
+
+    const failure = client.putText("2026-10/a b.md", "text", { ifMatch: '"old"' });
+
+    await expect(failure).rejects.toBeInstanceOf(WebDavError);
+    await expect(failure).rejects.toMatchObject({ status: 412 });
+    await expect(failure).rejects.toThrow(/changed after it was read/);
+  });
+
+  it("keeps the temporary-file upload when there is no precondition", async () => {
+    const { calls, transport } = recorder([201, 201]);
+    const client = new WebDavClient(CONFIG, transport);
+
+    await client.putText("2026-10/a b.md", "text");
+
+    expect(calls.map((call) => call.method)).toEqual(["PUT", "MOVE"]);
+    expect(calls[0].url).toBe(`${FILE_URL}.daymark-tmp`);
+    expect(calls[1]).toMatchObject({ headers: { Destination: FILE_URL, Overwrite: "T" } });
+  });
+
+  it("reads a file's ETag with PROPFIND depth 0", async () => {
+    const calls: WebDavRequest[] = [];
+    const client = new WebDavClient(CONFIG, async (request) => {
+      calls.push(request);
+      return {
+        status: 207,
+        body: '<multistatus><response><href>/dav/daymark/a.md</href><prop><getetag>"abc"</getetag></prop></response></multistatus>',
+        etag: null,
+        lastModified: null,
+      };
+    });
+
+    await expect(client.etag("a.md")).resolves.toBe('"abc"');
+    expect(calls[0]).toMatchObject({ method: "PROPFIND", depth: "0" });
+  });
+});
+
+describe("strong ETags", () => {
+  it("keeps strong validators and rejects weak or empty ones", () => {
+    expect(strongEtag('"abc"')).toBe('"abc"');
+    expect(strongEtag('  "abc"  ')).toBe('"abc"');
+    expect(strongEtag('W/"abc"')).toBeNull();
+    expect(strongEtag('w/"abc"')).toBeNull();
+    expect(strongEtag("")).toBeNull();
+    expect(strongEtag(null)).toBeNull();
+  });
+});
+
+describe("WebDAV reads", () => {
+  it("returns the GET body with the ETag that belonged to it", async () => {
+    const client = new WebDavClient(CONFIG, async () => ({
+      status: 200,
+      body: "# note",
+      etag: '"v1"',
+      lastModified: null,
+    }));
+
+    await expect(client.getTextWithEtag("a.md")).resolves.toEqual({
+      text: "# note",
+      etag: '"v1"',
+    });
   });
 });

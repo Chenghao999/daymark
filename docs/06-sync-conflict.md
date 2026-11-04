@@ -120,6 +120,13 @@ baseline advances.
   edits to different categories do not collide.
 - If the folder signature changes during a merge, abort and ask the user to
   reload rather than retrying blindly.
+- Every upload is a conditional write once the server exposes ETags: an
+  existing file is overwritten with `If-Match` against the ETag seen in the
+  listing, and a new file is created with `If-None-Match: *`. If either file
+  changed or appeared between read and write, the server answers 412, both
+  copies stay as they are, the path is reported and its old baseline is kept.
+  Resolution re-reads the remote first, so answering a stale conflict copy is
+  refused instead of overwriting an edit that never joined the merge.
 
 ### Implementation status (v1, 2026-10-29)
 
@@ -147,14 +154,14 @@ then records the base for next time.
 
 ## 5. Roadmap
 
-Manual WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
+WebDAV sync (first version) is implemented in `src/sync/webdav/`: it uses
 a per-device baseline and merges day/backlog files task by task and
 `_settings.md` / `_categories.md` key by key before falling back to conflict
 copies. Unresolved items are answered in Settings (§4); the conflict copy stays
 on disk as a backup after resolution. CalDAV read-only import is implemented in
 `src/sync/caldav/` with a manual `getctag`-based fetch (doc 07); it never writes
-back and its credentials are device-local. Background sync is still a roadmap
-item; the AI assistant is implemented separately in `src/ai/`. See
+back and its credentials are device-local. OS-level background sync is still a
+roadmap item; the AI assistant is implemented separately in `src/ai/`. See
 `19-roadmap.md` §3.8, §3.10 and §4.
 
 ## 6. Non-goals

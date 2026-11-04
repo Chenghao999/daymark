@@ -27,6 +27,35 @@ export interface RemoteEntry {
   lastModified: string | null;
 }
 
+/** Optional conditional-write guard for one upload. */
+export interface PutOptions {
+  /** Overwrite only while the remote ETag still matches (`If-Match`). */
+  ifMatch?: string | null;
+  /** Create only, failing if the file appeared meanwhile (`If-None-Match: *`). */
+  ifNoneMatch?: boolean;
+}
+
+/** A single request to the Rust `webdav_request` command. */
+export interface WebDavRequest {
+  method: string;
+  url: string;
+  username?: string | null;
+  password?: string | null;
+  depth?: string | null;
+  headers?: Record<string, string> | null;
+  body?: string | null;
+}
+
+export interface WebDavHttpResponse {
+  status: number;
+  body: string;
+  etag: string | null;
+  lastModified: string | null;
+}
+
+/** Transport seam: `WebDavClient` normally goes through Tauri. */
+export type WebDavTransport = (request: WebDavRequest) => Promise<WebDavHttpResponse>;
+
 /** Content hash recorded for both sides at the last successful sync. */
 export interface BaselineEntry {
   local: string;
@@ -48,8 +77,12 @@ export type Baseline = Record<string, BaselineEntry>;
 export interface RemoteClient {
   listTree(): Promise<RemoteEntry[]>;
   getText(path: string): Promise<string>;
-  putText(path: string, contents: string): Promise<void>;
+  putText(path: string, contents: string, options?: PutOptions): Promise<void>;
   mkcol(path?: string): Promise<void>;
+  /** Text and ETag from one GET, so a later write can test that exact copy. */
+  getTextWithEtag?(path: string): Promise<{ text: string; etag: string | null }>;
+  /** Current ETag of a file, used before overwriting during conflict resolution. */
+  etag?(path: string): Promise<string | null>;
 }
 
 export type SyncOperationKind = "upload" | "download";

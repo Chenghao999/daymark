@@ -110,8 +110,12 @@ Settings shows only "configured / not configured" and never echoes the password.
    - both differ, but only one side changed since the baseline → the changed side wins
    - both changed since the baseline (or they differ on first sync) → `conflict`
 4. **Execute:**
-   - `upload`: `PUT` to `<name>.daymark-tmp`, then `MOVE` over the target; if the
-     server does not support `MOVE` (405/501), fall back to a direct `PUT`.
+   - `upload`: when a strong ETag was listed, `PUT` the target with
+     `If-Match` (412 → report and keep the old baseline). A file absent from
+     the listing uses `If-None-Match: *` so a concurrent creation is not
+     overwritten. Without a usable ETag, `PUT` to `<name>.daymark-tmp`, then
+     `MOVE` over the target; if the server does not support `MOVE` (405/501),
+     fall back to a direct `PUT`.
    - `download`: atomic local write (`.tmp` + rename).
    - `conflict`: **overwrite neither side**. The local copy keeps the original
      name; the remote version is written as
@@ -126,12 +130,14 @@ Settings shows only "configured / not configured" and never echoes the password.
    `reloadFromDisk()`; otherwise call `scanner.touch()`, so sync writes are not
    mistaken for external modifications.
 
-v1 does no OS-level scheduling and no `If-Match` conditional requests. The
-user presses "Sync now", or enables an in-app timer (15/30/60 minutes) that
-runs only while Daymark is open; the timer skips a tick while a sync is already
-in flight and stops with the window. M6 (§3.9) added automatic merge, a
-conflict-resolution UI and task deletion tombstones; v2 adds OS-level scheduled
-sync and ETag conditional requests.
+Conditional requests close the gap between listing and uploading: an upload
+never overwrites a file that changed or appeared on the remote in between, and
+conflict resolution refuses a snapshot the remote has already moved past.
+OS-level scheduling remains for v2; the user presses "Sync now", or enables an
+in-app timer (15/30/60 minutes) that runs only while Daymark is open. The timer
+skips a tick while a sync is already in flight and stops with the window. M6
+(§3.9) added automatic merge, a conflict-resolution UI and task deletion
+tombstones; v2 adds OS-level scheduled sync.
 
 ### 3.5 Module layout · 模块划分
 
@@ -192,8 +198,9 @@ Shipped (2026-10-23):
 | UI | Settings "WebDAV sync" card: address, remote directory, username, password, Test connection, Sync now, Automatic sync interval, progress, result, conflict list |
 | Automatic sync | Optional device-local timer (15/30/60 minutes) while the app is open, off by default; skipped while another sync or conflict resolution is running, and stopped when the window closes |
 | Decision | Three-way comparison (local / remote / baseline), pure function `planSync`; **never deletes, never silently overwrites** |
+| Conditional writes | `If-Match` with the listed ETag overwrites, `If-None-Match: *` creates; a 412 reports the path and keeps the old baseline. Weak or missing ETags fall back to temp-file + `MOVE`. Resolution re-reads the remote and refuses a stale conflict snapshot |
 | Security | Password stored only in local localStorage, never written to `_settings.md`; Basic auth is sent only when a username is filled in |
-| Tests | 35 unit tests across `webdavPlan`, `webdavClient`, `webdavManifest`, `webdavEngine` and `webdavSettings`; `npm run typecheck`, `npm run test`, `npm run build` and `cargo check` all pass |
+| Tests | 48 unit tests across `webdavPlan`, `webdavClient`, `webdavManifest`, `webdavEngine` and `webdavSettings`; `npm run typecheck`, `npm run test`, `npm run build` and `cargo check` all pass |
 
 First-version boundaries (deliberate, not defects):
 
@@ -210,10 +217,9 @@ First-version boundaries (deliberate, not defects):
   server's `PROPFIND` behaviour.
 - The password lives in localStorage, not yet in the system keychain.
 
-Next (M3 v2): keychain storage, `If-Match`/ETag overwrite protection,
-OS-level scheduled sync, and a manual smoke run against a real server (the
-in-memory engine suite already covers first sync, merge, conflict and
-resolution).
+Next (M3 v2): keychain storage, OS-level scheduled sync, and a manual smoke run
+against a real server (the in-memory engine suite already covers first sync,
+merge, conflict, conditional writes and resolution).
 
 ### 3.9 Automatic merge (M6, first version) · 自动合并
 
