@@ -255,6 +255,10 @@ extrasKey(dateKey: string | null): string
 isMonthFolder(name: string): boolean       // /^\d{4}-\d{2}$/
 isDayFile(name: string): boolean           // /^\d{4}-\d{2}-\d{2}\.md$/
 dateKeyOfFile(name: string): string        // first 10 characters
+
+detectSyncFolder(path: string): { id: SyncFolderId; name: string } | null
+// SyncFolderId = "icloud" | "dropbox" | "onedrive" | "googleDrive" | "nutstore" | "syncthing"
+// Pure path heuristic; Settings shows a short compatibility tip when it matches.
 ```
 
 `dateKeyOf` is the filing rule: start date, else due date, else `null`

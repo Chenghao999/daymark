@@ -14,6 +14,7 @@
 | `storage/markdown` | day-file round-trip, categories round-trip, extras preserved, hand-checked box gets noon, time range parsing |
 | `storage/settingsFile` | JSON comment wins over bullets, bullet fallback, malformed JSON tolerated, clamping |
 | `storage/tombstone` | marker round-trip, malformed markers ignored, dedupe by id, delete-vs-edit comparison, filtering stored tasks |
+| `storage/syncFolder` | iCloud, OneDrive (personal/business/CloudStorage), Google Drive, Dropbox (team), Nutstore (en/zh), Syncthing, case and separator handling, no partial-name matches |
 | `sync/webdav/plan` | upload/download only, unchanged, one-sided change wins, both-sided conflict, first sync, stale baseline, no deletions, deterministic order |
 | `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities, conditional PUT headers, 412 reporting, GET ETag |
 | `sync/webdav/manifest` | file whitelist, content hash changes with content, files disappearing mid-scan |
