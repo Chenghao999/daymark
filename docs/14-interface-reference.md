@@ -513,16 +513,25 @@ remoteRootUrl(config: WebDavConfig): string
 remoteFileUrl(config: WebDavConfig, path: string, directory?: boolean): string
 relativeHref(href: string, rootUrl: string): string | null
 parsePropfind(xml: string): { href, isDirectory, size, etag, lastModified }[]
+strongEtag(etag: string | null | undefined): string | null   // weak (`W/…`) values are unusable in If-Match
 
 class WebDavClient {
-  constructor(config: WebDavConfig);
+  constructor(config: WebDavConfig, transport?: WebDavTransport);
   test(): Promise<void>;
   list(path?: string): Promise<RemoteEntry[]>;
   listTree(): Promise<RemoteEntry[]>;
   getText(path: string): Promise<string>;
+  getTextWithEtag(path: string): Promise<{ text: string; etag: string | null }>;
+  etag(path: string): Promise<string | null>;
   mkcol(path?: string): Promise<void>;
-  putText(path: string, text: string): Promise<void>;
+  putText(path: string, text: string, options?: PutOptions): Promise<void>;
 }
+
+interface PutOptions {
+  ifMatch?: string | null;            // overwrite only while the ETag matches
+  ifNoneMatch?: boolean;              // create only; fails if the file appeared
+}
+type WebDavTransport = (request: WebDavRequest) => Promise<WebDavHttpResponse>  // default: Tauri command
 
 sha256(text: string): Promise<string>
 localManifest(root: string, io?: ManifestIo): Promise<{ hashes: Map<string,string>; texts: Map<string,string> }>
@@ -563,7 +572,14 @@ interface ResolveOptions {
   baseline?: BaselineStore;
 }
 
-interface RemoteClient { listTree(): Promise<RemoteEntry[]>; getText(path: string): Promise<string>; putText(path: string, contents: string): Promise<void>; mkcol(path?: string): Promise<void> }
+interface RemoteClient {
+  listTree(): Promise<RemoteEntry[]>;
+  getText(path: string): Promise<string>;
+  getTextWithEtag?(path: string): Promise<{ text: string; etag: string | null }>;
+  etag?(path: string): Promise<string | null>;
+  putText(path: string, contents: string, options?: PutOptions): Promise<void>;
+  mkcol(path?: string): Promise<void>;
+}
 interface SyncIo { listDir(path: string): Promise<{ name: string; isDirectory: boolean }[]>; readTextFile(path: string): Promise<string | null>; writeTextFile(path: string, text: string): Promise<void>; pathExists(path: string): Promise<boolean> }
 interface BaselineStore { load(): Baseline; save(baseline: Baseline): void }
 interface ResolveResult { resolved: boolean; remaining: MergeConflict[]; written: boolean; error?: string }

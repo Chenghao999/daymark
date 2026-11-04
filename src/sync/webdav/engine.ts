@@ -9,7 +9,7 @@ import {
   mergeableDateKey,
   type MergeConflict,
 } from "../merge";
-import { WebDavClient, WebDavError, ensureRemoteDirectory } from "./client";
+import { WebDavClient, WebDavError, ensureRemoteDirectory, strongEtag } from "./client";
 import { REAL_SYNC_IO, baselineStore } from "./io";
 import { localManifest, sha256 } from "./manifest";
 import { planSync } from "./plan";
@@ -18,6 +18,7 @@ import type {
   BaselineEntry,
   BaselineStore,
   ConflictKind,
+  PutOptions,
   RemoteClient,
   SyncConflict,
   SyncIo,
@@ -60,6 +61,11 @@ export async function syncWebDav(
   const client = options.client ?? new WebDavClient(config);
   const remoteEntries = await listRemote(client);
   progress({ phase: "remote", done: 0, total: remoteEntries.length });
+
+  // Conditional writes close the gap between listing and uploading: an upload
+  // never overwrites a file that changed (or appeared) on the remote meanwhile.
+  const remoteEtags = new Map<string, string | null>();
+  for (const entry of remoteEntries) remoteEtags.set(entry.path, entry.etag);
 
   const remoteTexts = new Map<string, string>();
   const remoteHashes = new Map<string, string>();
@@ -119,7 +125,7 @@ export async function syncWebDav(
     // would let the next edit overwrite this merge.
     merged += 1;
     await ensureRemoteDirectory(client, path);
-    await client.putText(path, text);
+    await client.putText(path, text, overwriteGuard(path, remoteEtags));
     const hash = await sha256(text);
     nextBaseline[path] = entryFor(path, text, hash);
   };
@@ -143,7 +149,7 @@ export async function syncWebDav(
     if (text === undefined) continue;
     try {
       await ensureRemoteDirectory(client, operation.path);
-      await client.putText(operation.path, text);
+      await client.putText(operation.path, text, overwriteGuard(operation.path, remoteEtags));
       const hash = local.hashes.get(operation.path) as string;
       nextBaseline[operation.path] = entryFor(operation.path, text, hash);
       uploaded += 1;
@@ -234,8 +240,18 @@ export async function syncWebDav(
   };
 }
 
-async function listRemote(client: RemoteClient) {
-  try {
+/**
+ * The guard for one upload: existing file → overwrite only while its ETag is
+ * unchanged; absent file → create only. A server that hides ETags gives no
+ * usable value, so that upload keeps the unconditional temp-file path.
+ */
+function overwriteGuard(path: string, etags: Map<string, string | null>): PutOptions {
+  if (!etags.has(path)) return { ifNoneMatch: true };
+  const etag = strongEtag(etags.get(path));
+  return etag ? { ifMatch: etag } : {};
+}
+
+async function listRemote(client: RemoteClient) {  try {
     return await client.listTree();
   } catch (error) {
     if (error instanceof WebDavError && error.status === 404) {

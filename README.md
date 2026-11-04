@@ -89,12 +89,15 @@ while Daymark is open. When both sides changed the same file, it merges the two 
 id and version, `_settings.md` and `_categories.md` key by key against the text
 both sides had after the last sync. Only a change it cannot order is saved as a
 `(conflict …)` file, listed in Settings so you can choose keep mine, keep theirs
-or keep both. A deleted task leaves a one-line `daymark deleted` marker in its
+or keep both. Uploads are conditional: a remote file is overwritten only while
+its ETag is unchanged, so an edit made on another device in the meantime is
+never silently lost. A deleted task leaves a one-line `daymark deleted` marker in its
 file, so the other device drops it instead of re-adding it; an edit made after
 the deletion wins. WebDAV 同步为保守实现：可点“立即同步”，也可开启应用内定时（15/30/60 分钟，仅在打开时运行）；不删除文件，两边都改过时先自动
 合并——任务按 id 与版本合并，设置和分类按上一次同步的共同文本逐键合并；无法判定
 先后的改动才生成冲突副本，并在设置页提供“保留我的 / 保留对方的 / 两者都保留”
-的选择。删除任务会在文件里留下一行 `daymark deleted` 标记，另一台设备据此删除
+的选择。上传带条件：只有远端 ETag 未变时才覆盖，另一台设备期间所做的修改
+不会被悄悄丢掉。删除任务会在文件里留下一行 `daymark deleted` 标记，另一台设备据此删除
 该任务；若对方在删除后修改过它，则以修改为准。尚未针对所有 WebDAV 服务端做验证。
 
 CalDAV import is read-only. Enter a server URL and an app-specific password in

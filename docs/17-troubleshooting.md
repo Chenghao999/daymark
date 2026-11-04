@@ -77,12 +77,14 @@ comments and is useful in every sync report.
 | A deleted task comes back after a sync | The other device edited it after the deletion, or the file holding its `<!-- daymark deleted … -->` marker was removed | Check the task's `updatedAt` against the marker's `deletedAt`; delete it again; restore a removed marker file from backup if needed. |
 | `daymark.db.migrated-*` appears on every device | The legacy file was left in the synced folder after migration | Move it out of the synced folder; keep one copy as a backup. |
 | `*.tmp` files appear briefly | Atomic writes in progress | Harmless; they are renamed immediately. |
+| WebDAV says `412 — the remote file changed after it was read` | Another client wrote the same file between the listing and the upload | Press **Sync now** again: the new remote version is merged or listed as a conflict. Nothing was overwritten; the conditional write refused it. |
 | Last edits from one device are gone | Two devices edited the same day (last-writer-wins) | Restore from backup or the sync client's version history; follow doc 16 §4 afterwards. |
 
 The full safe procedure is `16-data-sync-operations.md`.
 
 **中文要点：** 多设备问题的根因几乎都是“同一天两台同时编辑”或“同步没完成”。
-先停手，确认文件状态，再决定是否恢复备份。
+先停手，确认文件状态，再决定是否恢复备份。WebDAV 报 412 表示上传前远端文件
+又被改过，Daymark 没有覆盖它；再同步一次即可合并或显示冲突。
 
 ### CalDAV
 

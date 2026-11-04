@@ -15,9 +15,9 @@
 | `storage/settingsFile` | JSON comment wins over bullets, bullet fallback, malformed JSON tolerated, clamping |
 | `storage/tombstone` | marker round-trip, malformed markers ignored, dedupe by id, delete-vs-edit comparison, filtering stored tasks |
 | `sync/webdav/plan` | upload/download only, unchanged, one-sided change wins, both-sided conflict, first sync, stale baseline, no deletions, deterministic order |
-| `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities |
+| `sync/webdav/client` | remote path normalisation, URL encoding (`space`, `#`, `%`), href resolution, PROPFIND with and without namespaces, XML entities, conditional PUT headers, 412 reporting, GET ETag |
 | `sync/webdav/manifest` | file whitelist, content hash changes with content, files disappearing mid-scan |
-| `sync/webdav/engine` | whole `syncWebDav` / `resolveConflict` against in-memory IO, client and baseline: first sync, download, task and settings merges, conflict copy, deletion marker, abort when a remote read fails, decisions and baseline advancement |
+| `sync/webdav/engine` | whole `syncWebDav` / `resolveConflict` against in-memory IO, client and baseline: first sync, download, task and settings merges, conflict copy, deletion marker, abort when a remote read fails, decisions and baseline advancement, `If-Match`/`If-None-Match` guards, 412 keeps the old baseline, weak or missing ETag fallback, stale conflict refusal |
 | `sync/merge/tasks` | added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, explicit decisions, extras, deletion markers, backlog |
 | `sync/merge/files` | settings per-key and categories per-field three-way merge, with and without a base, deletions, explicit decisions |
 | `sync/caldav/ics` | all-day/UTC/`TZID`/floating time, folded lines, weekly `BYDAY` + `EXDATE` + `COUNT`, daily `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE` shift/cancel/closest-wins, unknown TZID fallback, missing `UID`/`DTSTART` |

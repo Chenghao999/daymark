@@ -148,7 +148,7 @@ doc 14; the table below is the map of who may call what.
 | `sync/scanner.ts` | `startFolderScanner(options) → { stop, touch }` | `App.tsx` | inject a recording `onExternalChange` |
 | `sync/webdav/engine.ts` | `syncWebDav(config, root, options) → SyncResult` | `App.tsx` | fake `WebDavClient`/`ManifestIo`, or unit-test `planSync` alone |
 | `sync/webdav/plan.ts` | `planSync(local, remote, baseline) → SyncPlan` | `engine.ts`, tests | pure maps in, plan out |
-| `sync/webdav/client.ts` | `WebDavClient` and the URL/PROPFIND helpers | `engine.ts`, `App.tsx` (test button), tests | unit-test helpers; network goes through `webdav_request` |
+| `sync/webdav/client.ts` | `WebDavClient` (with an injectable `WebDavTransport`, conditional `putText`) and the URL/PROPFIND helpers | `engine.ts`, `App.tsx` (test button), tests | unit-test helpers; network goes through `webdav_request` |
 | `sync/webdav/manifest.ts` | `localManifest(root, io?)`, `sha256` | `engine.ts`, tests | inject `ManifestIo` |
 | `settings/webdav.ts` | `loadWebDavSettings`, `saveWebDavSettings`, `isWebDavConfigured`, `normalizeWebDavSyncMinutes` | `App.tsx` | stub `localStorage` |
 | `sync/caldav/engine.ts` | `syncCalDav(settings, options) → CalDavSyncResult` | `App.tsx` | fake `CalDavClient`, or unit-test `planCalendarImport` alone |
