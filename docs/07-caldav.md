@@ -112,17 +112,23 @@ idle → PROPFIND getctag → unchanged → idle
 
 | Data | Where | Synced? |
 |---|---|---|
-| Server URL, username, password | `localStorage["daymark.caldav.v1"]` | No |
+| Server URL, username | `localStorage["daymark.caldav.v1"]` | No |
+| Password | OS credential store (`daymark` service, `caldav.password` account); device-local fallback in `localStorage["daymark.secret.caldav.password"]` until the keychain write succeeds | No |
 | Selected calendars, selection names | same key | No |
 | Per-calendar ctag, last UID set and occurrence-key set, `syncedAt` | same key | No |
 | Automatic import interval and startup-import flag | same key | No |
 | Detached (ignored) series UIDs | same key | No |
 | Imported tasks | Markdown day files | Yes, via the data folder |
 
-The credentials are device-local rather than in the OS keychain: the app has no
-keychain dependency today, and `localStorage` is no weaker than the WebDAV and
-AI credentials already stored there. They never enter `_settings.md`, a day
-file or the synced data folder.
+The credentials are device-local. The password is stored in the OS credential
+store (macOS Keychain, Windows Credential Manager, or Secret Service on Linux)
+through the Rust `secret_get` / `secret_set` commands. The front end keeps a
+device-local fallback copy so a save survives a crash and the app still works
+when no credential store is available (for example a browser build, or a
+locked keychain); the fallback is removed once the keychain confirms the write.
+A password saved by an older build is migrated on the next launch and the old
+field is blanked. Nothing here ever enters `_settings.md`, a day file or the
+synced data folder.
 
 ## 7. Known limitations
 

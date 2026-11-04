@@ -150,12 +150,13 @@ doc 14; the table below is the map of who may call what.
 | `sync/webdav/plan.ts` | `planSync(local, remote, baseline) → SyncPlan` | `engine.ts`, tests | pure maps in, plan out |
 | `sync/webdav/client.ts` | `WebDavClient` (with an injectable `WebDavTransport`, conditional `putText`) and the URL/PROPFIND helpers | `engine.ts`, `App.tsx` (test button), tests | unit-test helpers; network goes through `webdav_request` |
 | `sync/webdav/manifest.ts` | `localManifest(root, io?)`, `sha256` | `engine.ts`, tests | inject `ManifestIo` |
-| `settings/webdav.ts` | `loadWebDavSettings`, `saveWebDavSettings`, `isWebDavConfigured`, `normalizeWebDavSyncMinutes` | `App.tsx` | stub `localStorage` |
+| `settings/webdav.ts` | `loadWebDavSettings`, `saveWebDavSettings`, `scrubWebDavPassword`, `isWebDavConfigured`, `normalizeWebDavSyncMinutes` | `App.tsx` | stub `localStorage` |
+| `settings/secrets.ts` | `readSecret`, `writeSecret`, `queueSecret`, `hydrateSecret`, `readLocalSecret`, `localSecretOf`, `scrubStoredSecret` | the three settings modules, `App.tsx` | mock `@tauri-apps/api/core`; stub `localStorage` |
 | `sync/caldav/engine.ts` | `syncCalDav(settings, options) → CalDavSyncResult` | `App.tsx` | fake `CalDavClient`, or unit-test `planCalendarImport` alone |
 | `sync/caldav/client.ts` | `CalDavClient` (`discover`, `ctag`, `events`) and the URL/multistatus helpers | `engine.ts`, `App.tsx` (discover button), tests | unit-test helpers; network goes through `webdav_request` |
 | `sync/caldav/ics.ts` | `parseCalendarData(text, options?) → CalDavEvent[]` | `engine.ts`, tests | a fixed `.ics` string in, events out |
 | `sync/caldav/import.ts` | `planCalendarImport(input) → ExternalImportPlan`, `seriesUidOf` | `engine.ts`, tests | pure: events/tasks/categories in, plan out |
-| `settings/caldav.ts` | `loadCalDavSettings`, `saveCalDavSettings`, `isCalDavConfigured`, `isCalDavReady` | `App.tsx` | stub `localStorage` |
+| `settings/caldav.ts` | `loadCalDavSettings`, `saveCalDavSettings`, `scrubCalDavPassword`, `isCalDavConfigured`, `isCalDavReady` | `App.tsx` | stub `localStorage` |
 | `ai/index.ts` | `createAiProvider`, `buildPrompt`, `buildTaskPrompt`, `parseTaskResponse`, `reportOutline`, `aiContextSummary`, `saveAiOutput`, preset exports, types | `AiPanel.tsx`, `TaskEditor.tsx` | fake provider object; test the pure helpers alone |
 | `ai/presets.ts` | `AI_PROVIDER_PRESETS`, `findPreset`, `inferProvider`, `normalizeProvider`, `protocolFor`, `baseUrlFor`, `modelsFor`, `defaultModelFor` | `ai/index.ts`, `settings/ai.ts`, `SettingsView.tsx`, tests | pure config in, id/endpoint out |
 | `ai/prompts.ts` | `buildPrompt(request) → {system,user}` | `ai/index.ts`, tests | fixed `ReportDocument` in, strings out |
@@ -166,7 +167,7 @@ doc 14; the table below is the map of who may call what.
 | `ai/transport.ts` | `defaultTransport`, `tauriTransport` (`invoke("ai_request")`), `fetchTransport`, `HttpTransport` | `providers/openai.ts` | fake transport in; request/response out |
 | `ai/output.ts` | `aiOutputPath`, `saveAiOutput` | `AiPanel.tsx` | `aiOutputPath` is pure; write via a temp folder |
 | `ai/usage.ts` | `estimateTokens`, `estimatePrompt` | `AiPanel.tsx`, tests | pure strings in, token counts out |
-| `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `isAiConfigured`, `normalizeProtocol`, `normalizeModel`, `normalizeBaseUrl` | `App.tsx`, `ReportsView` | stub `localStorage` |
+| `settings/ai.ts` | `loadAiSettings`, `saveAiSettings`, `scrubAiApiKey`, `isAiConfigured`, `normalizeProtocol`, `normalizeModel`, `normalizeBaseUrl` | `App.tsx`, `ReportsView` | stub `localStorage` |
 | `settings/store.ts` | `AppSettings`, `SyncedSettings`, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart` | `App.tsx`, `i18n`, `SettingsView`, `storage/settingsFile.ts` | stub `localStorage` |
 
 Rules that keep this useful:

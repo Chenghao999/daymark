@@ -508,7 +508,7 @@ interface WebDavConfig {
   url: string;                        // server base, no trailing slash required
   remotePath: string;                 // normalised to "/…/"; default "/daymark/"
   username: string;
-  password: string;                   // device-local only, never in _settings.md
+  password: string;                   // OS keychain; device-local fallback only, never in _settings.md
   autoSyncMinutes: number;            // in-app timer while open; 0 = manual only
   syncOnLaunch: boolean;              // one sync after the data folder opens
 }
@@ -602,6 +602,7 @@ interface MergeConflict { id: string; label: string; fields: string[]; local: st
 
 loadWebDavSettings(): WebDavConfig
 saveWebDavSettings(config: WebDavConfig): void
+scrubWebDavPassword(): void          // blank the legacy field after hydration
 isWebDavConfigured(config: WebDavConfig): boolean
 normalizeWebDavSyncMinutes(value: unknown): number  // presets 0 | 15 | 30 | 60; anything else → 0
 ```
@@ -651,6 +652,9 @@ Contract:
 9. `syncOnLaunch` is device-local like the interval. The app runs at most one
    startup sync per data folder per session, after the store is ready, and the
    busy guard still prevents it from overlapping another sync.
+10. The password itself is not in the settings object on disk: saves blank it
+   and write it through `settings/secrets.ts`; startup hydration restores it
+   into memory before the ready flag (and therefore before the startup sync).
 
 ### CalDAV import (`src/sync/caldav/`, `src/settings/caldav.ts`)
 
@@ -721,6 +725,7 @@ syncCalDav(settings: CalDavSettings, options?: {
 DEFAULT_CALDAV_SETTINGS: CalDavSettings
 loadCalDavSettings(): CalDavSettings          // localStorage "daymark.caldav.v1"
 saveCalDavSettings(settings: CalDavSettings): void
+scrubCalDavPassword(): void                   // blank the legacy field after hydration
 isCalDavConfigured(config: CalDavConfig): boolean   // URL + username + password
 isCalDavReady(config: CalDavConfig): boolean        // at least one calendar selected
 ```
@@ -757,6 +762,9 @@ Rules:
 8. `loadCalDavSettings` accepts only `0`, `15`, `30` or `60` for
    `refreshMinutes`; any other stored value means manual only. `importOnLaunch`
    is kept only when it is exactly `true`.
+9. The password is stored through `settings/secrets.ts` (OS keychain with a
+   device-local fallback), not in the saved settings JSON; startup hydration
+   restores it before the app reports ready.
 
 ### AI assistant (`src/ai/`, `src/settings/ai.ts`)
 
@@ -770,7 +778,7 @@ interface AiConfig {
   enabled: boolean;                   // opt-in; default false
   provider: AiProviderId;             // vendor preset; "custom" = relay
   protocol: AiProtocol;               // /v1/messages or /v1/chat/completions
-  apiKey: string;                     // device-local only
+  apiKey: string;                     // OS keychain; device-local fallback only
   model: string;                      // any non-empty name
   baseUrl: string;                    // "" = the provider preset's default
 }
@@ -835,6 +843,7 @@ defaultModelFor(provider: AiProviderId): string
 DEFAULT_AI: AiConfig
 loadAiSettings(): AiConfig
 saveAiSettings(config: AiConfig): void
+scrubAiApiKey(): void
 isAiConfigured(config: AiConfig): boolean
 normalizeProtocol(value: unknown): AiProtocol
 normalizeModel(value: unknown, fallback?: string): string
@@ -880,9 +889,10 @@ Contract:
    `_ai/YYYY-MM-DD-<kind>-HHmmss.md`; the timestamp keeps every answer.
 7. `_ai/` is **not** part of the WebDAV manifest, so AI notes are not uploaded
    by the sync button.
-8. The API key lives in `localStorage` on this device, never in
-   `_settings.md`. `isAiConfigured` is true only when the assistant is enabled
-   and a non-empty key exists.
+8. The API key lives in the OS credential store on this device, with a
+   device-local fallback only while a keychain write is pending or unavailable;
+   it is never in `_settings.md`. `isAiConfigured` is true only when the
+   assistant is enabled and a non-empty key exists.
 9. `completeJson` is used only for structured answers; the schema is sent with
    the request (`output_config.format`), so no "reply with JSON only" prompt
    text is needed.
@@ -897,10 +907,11 @@ Contract:
 
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 
-All twelve commands are registered in one `generate_handler!` list. Rust structs
+All fourteen commands are registered in one `generate_handler!` list. Rust structs
 are serialised with `#[serde(rename_all = "camelCase")]`, so the TypeScript side
-sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. Each has a typed wrapper in
-`src/storage/fs.ts` (§5).
+sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. The file commands
+have typed wrappers in `src/storage/fs.ts` (§5); `secret_get` / `secret_set` are
+wrapped by `src/settings/secrets.ts` (§16).
 
 | Command | Request | Response | Notes |
 |---|---|---|---|
@@ -914,6 +925,8 @@ sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. Each has a type
 | `remove_file` | `{ path: string }` | `null` | A missing file is also success; used when a day file becomes empty. |
 | `rename_path` | `{ from: string, to: string }` | `null` | Used to retire the legacy database. |
 | `file_mtime_ms` | `{ path: string }` | `number \| null` | Kept for compatibility; never errors. New code uses `tree_signature`. |
+| `secret_get` | `{ account: string }` | `string \| null` | Reads from the OS credential store under service `daymark`; `null` when the item does not exist, an error when the store is unavailable. |
+| `secret_set` | `{ account: string, value: string }` | `null` | Writes the item; an empty `value` deletes it (falling back to storing an empty secret if deletion is refused). |
 | `webdav_request` | `{ method: string, url: string, username?: string, password?: string, body?: string, depth?: string, headers?: Record<string,string> }` | `{ status: number, body: string, etag: string \| null, lastModified: string \| null }` | WebDAV **and CalDAV** transport in `src-tauri/src/http.rs`; 45 s timeout, Basic auth only when a username is given. Non-2xx statuses are returned as data, not errors. Called by `sync/webdav/client.ts` and `sync/caldav/client.ts`. |
 | `ai_request` | `{ url: string, headers?: Record<string,string>, body?: string }` | `{ status: number, body: string, etag: string \| null, lastModified: string \| null }` | OpenAI-compatible AI transport in `src-tauri/src/http.rs`; always `POST`, 120 s timeout, Bearer key passed through `headers`. Exists because DeepSeek, Qwen and similar vendors do not send CORS headers a WebView `fetch` needs. Non-2xx statuses are data, not errors. Called by `ai/transport.ts`. |
 
@@ -954,21 +967,55 @@ Rules:
 | `invoke("list_dir" / "path_exists" / "create_dir_all" / "remove_file" / "rename_path")` | `storage/fs.ts` | Store loading and cleanup. |
 | `invoke("webdav_request")` | `sync/webdav/client.ts`, `sync/caldav/client.ts` | WebDAV `PROPFIND`/`GET`/`PUT`/`MOVE`/`MKCOL` and CalDAV `PROPFIND`/`REPORT` transport. |
 | `invoke("ai_request")` | `ai/transport.ts` | OpenAI-compatible AI `POST`; bypasses WebView CORS and allows 120 s. |
+| `invoke("secret_get" / "secret_set")` | `settings/secrets.ts` | OS credential store for the WebDAV/CalDAV passwords and the AI API key. An empty value deletes the item. |
 | `Database.load/select/close` | `storage/migrate.ts` | One-time legacy migration only. |
 
 ## 16. Browser storage keys
+
+### Credential access (`src/settings/secrets.ts`)
+
+```ts
+type SecretName = "webdav.password" | "caldav.password" | "ai.apiKey";
+type SecretSource = "keychain" | "local" | "none";
+interface ResolvedSecret { value: string; source: SecretSource }
+
+readLocalSecret(name: SecretName): string          // synchronous, for settings loaders
+localSecretOf(name: SecretName): string | null     // null = never saved; "" = cleared
+readSecret(name: SecretName): Promise<ResolvedSecret>   // never throws
+writeSecret(name: SecretName, value: string): Promise<boolean>
+queueSecret(name: SecretName, value: string): void      // debounced keychain write
+hydrateSecret(name: SecretName, legacyValue: string): Promise<string>
+scrubStoredSecret(storageKey: string, path: readonly string[]): void
+```
+
+Reads prefer a non-empty local copy (the newest value) and treat an empty local
+copy as a clear-tombstone that hides a stale keychain item. Writes put the
+local copy down first, then push to the keychain; the copy is removed only
+after the keychain confirms. `hydrateSecret` migrates a legacy value and
+`App.tsx` calls it before `setReady(true)`.
 
 | Key | Written by | Content | Synced? |
 |---|---|---|---|
 | `daymark.settings.v1` | `settings/store.ts` | JSON `AppSettings` including `dataDir` | No — device-local |
 | `daymark.deviceId` | `storage/device.ts` | UUID string | No — device-local |
-| `daymark.webdav.v1` | `settings/webdav.ts` | JSON `WebDavConfig`, including the password | No — device-local, never in `_settings.md` |
+| `daymark.webdav.v1` | `settings/webdav.ts` | JSON `WebDavConfig`; the `password` field is always `""` in new writes | No — device-local, never in `_settings.md` |
 | `daymark.webdav.baseline.v1` | `sync/webdav/baseline.ts` | JSON `Baseline` keyed by URL + remote path; entries may carry `baseText` for `_settings.md` / `_categories.md` | No — per-device merge state |
-| `daymark.ai.v1` | `settings/ai.ts` | JSON `AiConfig`, including the provider preset, base URL and API key | No — device-local, never in `_settings.md` |
-| `daymark.caldav.v1` | `settings/caldav.ts` | JSON `CalDavSettings`: URL, credentials, selected calendars, per-calendar ctag/UID cursor and detached series UIDs | No — device-local, never in `_settings.md` |
+| `daymark.ai.v1` | `settings/ai.ts` | JSON `AiConfig`: provider preset, base URL, model, enabled; the `apiKey` field is always `""` in new writes | No — device-local, never in `_settings.md` |
+| `daymark.caldav.v1` | `settings/caldav.ts` | JSON `CalDavSettings`: URL, username, selected calendars, per-calendar ctag/UID cursor and detached series UIDs; `config.password` is always `""` in new writes | No — device-local, never in `_settings.md` |
+| `daymark.secret.webdav.password` | `settings/secrets.ts` | WebDAV password fallback | No — removed after the keychain accepts the value; an empty string is a clear-tombstone |
+| `daymark.secret.caldav.password` | `settings/secrets.ts` | CalDAV password fallback | No — same |
+| `daymark.secret.ai.apiKey` | `settings/secrets.ts` | AI API key fallback | No — same |
 
-Clearing site data resets the device ID and the chosen folder. The data folder
-itself is unaffected.
+Credentials normally live in the OS credential store under service `daymark`
+and accounts `webdav.password`, `caldav.password` and `ai.apiKey`. Reading the
+keychain happens before the app reports ready; a keychain that is locked or
+does not answer within 3 s falls back to the local copy without blocking
+startup. Clearing a password deletes the keychain item; if deletion fails, an
+empty secret is stored instead so `secret_get` cannot return the old value.
+
+Clearing site data resets the device ID, the chosen folder and the local
+credential fallbacks; keychain items survive (delete them in the OS credential
+manager if needed). The data folder itself is unaffected.
 
 ## 17. Data format and state contracts
 

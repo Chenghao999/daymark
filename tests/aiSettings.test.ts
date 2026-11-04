@@ -7,6 +7,7 @@ import {
   loadAiSettings,
   normalizeBaseUrl,
   saveAiSettings,
+  scrubAiApiKey,
 } from "../src/settings/ai";
 
 function fakeStorage(initial: Record<string, string> = {}) {
@@ -35,7 +36,8 @@ describe("AI settings", () => {
   });
 
   it("round-trips a saved configuration", () => {
-    vi.stubGlobal("localStorage", fakeStorage());
+    const storage = fakeStorage();
+    vi.stubGlobal("localStorage", storage);
     const config = {
       enabled: true,
       provider: "deepseek" as const,
@@ -46,6 +48,39 @@ describe("AI settings", () => {
     };
     saveAiSettings(config);
     expect(loadAiSettings()).toEqual(config);
+    // The API key has its own slot and never sits in the general config.
+    expect(JSON.parse(storage.getItem("daymark.ai.v1") ?? "{}").apiKey).toBe(
+      "",
+    );
+    expect(storage.getItem("daymark.secret.ai.apiKey")).toBe("sk-test");
+  });
+
+  it("scrubs an API key saved by an older build after hydration", () => {
+    const storage = fakeStorage({
+      "daymark.ai.v1": JSON.stringify({
+        enabled: true,
+        protocol: "openai",
+        apiKey: "sk-old",
+        baseUrl: "https://api.deepseek.com/v1",
+      }),
+    });
+    vi.stubGlobal("localStorage", storage);
+    expect(loadAiSettings().apiKey).toBe("sk-old");
+    scrubAiApiKey();
+    const stored = JSON.parse(storage.getItem("daymark.ai.v1") ?? "{}");
+    expect(stored.apiKey).toBe("");
+    expect(stored.baseUrl).toBe("https://api.deepseek.com/v1");
+  });
+
+  it("does not resurrect a legacy key after the user cleared it", () => {
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({ apiKey: "sk-old" }),
+        "daymark.secret.ai.apiKey": "",
+      }),
+    );
+    expect(loadAiSettings().apiKey).toBe("");
   });
 
   it("maps a configuration saved before presets to the right provider", () => {

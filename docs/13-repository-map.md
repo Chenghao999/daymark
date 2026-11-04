@@ -45,7 +45,7 @@ dependencies (`node_modules/`) and generated Tauri schemas
 | Storage | `src/storage/` | Markdown parse/serialize, paths, in-memory store, repository, migration | report rules, UI state |
 | Sync | `src/sync/` | folder-signature polling, external-change signal, WebDAV sync, CalDAV read-only import, merge of two copies (tasks, settings, categories) | React state, store mutation |
 | AI | `src/ai/` | provider interface, prompt/context builders, `_ai/` output | React state, store writes |
-| Device settings | `src/settings/` | device-local preferences (WebDAV, AI, CalDAV) and the synced settings model | shared task data |
+| Device settings | `src/settings/` | device-local preferences (WebDAV, AI, CalDAV), keychain-backed credentials and the synced settings model | shared task data |
 | Presentation | `src/components/`, `src/features/`, `src/App.tsx` | view state, interaction, layout | Markdown parsing, direct `invoke` calls |
 | i18n | `src/i18n/` | UI resources and i18next setup | product logic |
 | Desktop shell | `src-tauri/` | plugins, IPC commands, window and bundle config | product rules |
@@ -147,9 +147,10 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | File | Responsibility |
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
-| `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults, the optional in-app sync interval and `isWebDavConfigured`. The password never enters `_settings.md`. |
-| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset; the API key never enters `_settings.md`. |
-| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, credentials, selected calendars, per-calendar ctag/UID/occurrence-key cursor, detached series UIDs and the optional in-app import interval. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password never enters `_settings.md`. |
+| `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults, the optional in-app sync interval and `isWebDavConfigured`. The password is kept out of that key: it goes to the OS credential store (or `daymark.secret.webdav.password` until the keychain write succeeds) and never enters `_settings.md`. |
+| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset. The API key goes to the OS credential store (or `daymark.secret.ai.apiKey`), never into `_settings.md`. |
+| `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, username, selected calendars, per-calendar ctag/UID/occurrence-key cursor, detached series UIDs and the optional in-app import interval. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password goes to the OS credential store (or `daymark.secret.caldav.password`), never into `_settings.md`. |
+| `secrets.ts` | `readSecret`, `writeSecret`, `queueSecret`, `hydrateSecret`, `scrubStoredSecret`: OS-keychain access through `secret_get` / `secret_set`, a crash-safe device-local fallback, debounced writes while typing, migration of credentials saved by older builds, and scrubbing the old field. |
 
 ### 3.6 UI (`src/components/`, `src/features/`)
 
@@ -194,7 +195,8 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE`/`THISANDPRIOR` shift/cancel/closest-wins, unknown TZID, missing `UID`/`DTSTART`. |
 | `caldavClient.test.ts` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT body/content-type/depth, typed 401. |
 | `caldavImport.test.ts` | Create/update/unchanged/delete planning, category match by name, recurring occurrence retention, series deletion, cancelled series vs cancelled occurrence, vanished occurrence via `previousKeys`, missing cursor, detached series, `seriesUidOf`. |
-| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip including occurrence keys, automatic-import interval presets, malformed-entry sanitisation, unreadable JSON. |
+| `caldavSettings.test.ts` | Defaults, credential/cursor round-trip including occurrence keys, automatic-import interval presets, malformed-entry sanitisation, unreadable JSON, keychain migration and scrubbing of a legacy password. |
+| `secrets.test.ts` | Local fallback read/write, keychain read and unavailable-keychain fallback, clear tombstone, keychain-write success/failure retention, hydration migration, debounced typing writes, nested settings scrubbing. |
 
 Tests import only `src/domain/*`, `src/storage/*`, `src/sync/webdav/*`,
 `src/sync/caldav/*` and `src/settings/*` modules;
@@ -211,7 +213,7 @@ test files are **not** included by `tsconfig.json`; `npm run typecheck` checks
 | `Cargo.lock` | Committed so desktop builds are reproducible. |
 | `build.rs` | Standard `tauri_build::build()`. |
 | `src/main.rs` | Calls `daymark_lib::run()`. |
-| `src/lib.rs` | Plugin registration, the file IPC commands (`file_mtime_ms`, `read_text_file`, `write_text_file`, `write_file_bytes`, `create_dir_all`, `list_dir`, `path_exists`, `remove_file`, `rename_path`, `tree_signature`) and the HTTP commands. Keep this file small. |
+| `src/lib.rs` | Plugin registration, the file IPC commands (`file_mtime_ms`, `read_text_file`, `write_text_file`, `write_file_bytes`, `create_dir_all`, `list_dir`, `path_exists`, `remove_file`, `rename_path`, `tree_signature`), the OS keychain commands (`secret_get`, `secret_set`) and the HTTP commands. Keep this file small. |
 | `src/http.rs` | Shared `reqwest` transport: `webdav_request(method, url, …)` with a 45 s timeout and optional Basic auth, and `ai_request(url, headers, body)` with a 120 s POST. HTTP errors are returned to the caller. No sync or AI logic. |
 | `tauri.conf.json` | Product name, identifier, window size, dev URL, bundle targets and icons. |
 | `capabilities/default.json` | The permission allow-list for the main window. `sql:*` remains only for the one-time migration. |
