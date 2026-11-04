@@ -309,7 +309,8 @@ How imported events appear:
   (`RECURRENCE-ID`) replaces only that occurrence in Daymark, and a cancelled
   occurrence disappears without affecting the rest of the series. An edit
   applied to “this and future” events shifts or cancels that occurrence and
-  every later one. Deleting a series or marking it cancelled
+  every later one, and “this and prior” changes that occurrence and every
+  earlier one. Deleting a series or marking it cancelled
   removes its imported occurrences.
 - An event deleted on the server is removed from Daymark on the next import,
   and so is an occurrence that no longer appears in the listing (for example

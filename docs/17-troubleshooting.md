@@ -102,7 +102,8 @@ The full safe procedure is `16-data-sync-operations.md`.
 **中文要点：** CalDAV 报 401 通常是密码问题——iCloud 等服务商要求 App 专用密码。
 事件不显示时先看是否在“过去一年、未来两年”的展开窗口内，或该系列已在本机
 “转为本地任务”。单次调整的 `RECURRENCE-ID` 实例会覆盖对应的一次事件，
-`RANGE=THISANDFUTURE` 的“此次及以后”调整也会一并应用。日历事件不能直接完成或
+`RANGE=THISANDFUTURE` 的“此次及以后”和 `THISANDPRIOR` 的“此次及之前”调整
+也会一并应用。日历事件不能直接完成或
 进入报告，需先“转为本地任务”。导入默认手动，也可勾选“打开 Daymark 时导入”，
 或设为在应用打开时每 15/30/60 分钟自动导入；关闭应用后不会同步。
 
@@ -198,7 +199,7 @@ Read `15-user-guide.md` §11 before filing an issue:
   and never deletes;
 - the AI assistant is opt-in, needs an API key and a network connection;
 - CalDAV is read-only (import runs manually, at startup or on an in-app timer;
-  no write-back, VTODO, OS background sync or `THISANDPRIOR` overrides);
+  no write-back, VTODO, or OS background sync);
 - no reminders, search or tags yet;
 - no duration blocks in the week grid;
 - reports use built-in Word styles.

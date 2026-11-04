@@ -323,6 +323,158 @@ describe("iCalendar parsing", () => {
     ]);
   });
 
+  it("shifts this and prior occurrences with a THISANDPRIOR override", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-4p",
+        "DTSTART:20261102T090000",
+        "DTEND:20261102T100000",
+        "RRULE:FREQ=WEEKLY;COUNT=3",
+        "SUMMARY:Weekly",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4p",
+        "RECURRENCE-ID;RANGE=THISANDPRIOR:20261109T090000",
+        "DTSTART:20261109T100000",
+        "SUMMARY:Earlier shifted",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.title])).toEqual([
+      ["series-4p#occ=2026-11-02T09:00", "2026-11-02T10:00", "Earlier shifted"],
+      ["series-4p#occ=2026-11-09T09:00", "2026-11-09T10:00", "Earlier shifted"],
+      ["series-4p#occ=2026-11-16T09:00", "2026-11-16T09:00", "Weekly"],
+    ]);
+    expect(events[0].endAt).toBe("2026-11-02T11:00");
+  });
+
+  it("cancels this and prior occurrences with a THISANDPRIOR override", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-4c",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=DAILY;COUNT=4",
+        "SUMMARY:Daily",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4c",
+        "RECURRENCE-ID;RANGE=THISANDPRIOR:20261104T090000",
+        "DTSTART:20261104T090000",
+        "STATUS:CANCELLED",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.filter((event) => !event.cancelled).map((event) => event.startAt)).toEqual([
+      "2026-11-05T09:00",
+    ]);
+    expect(events.filter((event) => event.cancelled).map((event) => event.key)).toEqual([
+      "series-4c#occ=2026-11-02T09:00",
+      "series-4c#occ=2026-11-03T09:00",
+      "series-4c#occ=2026-11-04T09:00",
+    ]);
+  });
+
+  it("lets the closest THISANDPRIOR override win", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-4n",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=DAILY;COUNT=5",
+        "SUMMARY:Daily",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4n",
+        "RECURRENCE-ID;RANGE=THISANDPRIOR:20261103T090000",
+        "DTSTART:20261103T100000",
+        "SUMMARY:Ten",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4n",
+        "RECURRENCE-ID;RANGE=THISANDPRIOR:20261104T090000",
+        "DTSTART:20261104T110000",
+        "SUMMARY:Eleven",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.title])).toEqual([
+      ["series-4n#occ=2026-11-02T09:00", "2026-11-02T10:00", "Ten"],
+      ["series-4n#occ=2026-11-03T09:00", "2026-11-03T10:00", "Ten"],
+      ["series-4n#occ=2026-11-04T09:00", "2026-11-04T11:00", "Eleven"],
+      ["series-4n#occ=2026-11-05T09:00", "2026-11-05T09:00", "Daily"],
+      ["series-4n#occ=2026-11-06T09:00", "2026-11-06T09:00", "Daily"],
+    ]);
+  });
+
+  it("lets a single occurrence override win over a prior range shift", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-4s",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "SUMMARY:Daily",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4s",
+        "RECURRENCE-ID;RANGE=THISANDPRIOR:20261103T090000",
+        "DTSTART:20261103T100000",
+        "SUMMARY:Shifted",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4s",
+        "RECURRENCE-ID:20261102T090000",
+        "DTSTART:20261102T120000",
+        "SUMMARY:Special",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.title])).toEqual([
+      ["series-4s#occ=2026-11-02T09:00", "2026-11-02T12:00", "Special"],
+      ["series-4s#occ=2026-11-03T09:00", "2026-11-03T10:00", "Shifted"],
+      ["series-4s#occ=2026-11-04T09:00", "2026-11-04T09:00", "Daily"],
+    ]);
+  });
+
+  it("uses the nearest boundary when future and prior ranges overlap", () => {
+    const events = parseCalendarData(
+      calendar(
+        "BEGIN:VEVENT",
+        "UID:series-4m",
+        "DTSTART:20261102T090000",
+        "RRULE:FREQ=DAILY;COUNT=5",
+        "SUMMARY:Daily",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4m",
+        "RECURRENCE-ID;RANGE=THISANDFUTURE:20261103T090000",
+        "DTSTART:20261103T100000",
+        "SUMMARY:Future",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:series-4m",
+        "RECURRENCE-ID;RANGE=THISANDPRIOR:20261105T090000",
+        "DTSTART:20261105T110000",
+        "SUMMARY:Prior",
+        "END:VEVENT",
+      ),
+      { now },
+    );
+    expect(events.map((event) => [event.key, event.startAt, event.title])).toEqual([
+      ["series-4m#occ=2026-11-02T09:00", "2026-11-02T11:00", "Prior"],
+      ["series-4m#occ=2026-11-03T09:00", "2026-11-03T10:00", "Future"],
+      ["series-4m#occ=2026-11-04T09:00", "2026-11-04T10:00", "Future"],
+      ["series-4m#occ=2026-11-05T09:00", "2026-11-05T11:00", "Prior"],
+      ["series-4m#occ=2026-11-06T09:00", "2026-11-06T10:00", "Future"],
+    ]);
+  });
+
   it("lets a single-occurrence override win over an earlier range shift", () => {
     const events = parseCalendarData(
       calendar(

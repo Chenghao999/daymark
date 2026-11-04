@@ -10,7 +10,9 @@ import type { CalDavEvent } from "./types";
  * local time. Recurring series are expanded for a window around today; a
  * `RECURRENCE-ID` override replaces that one occurrence, and an override marked
  * cancelled removes it. An override with `RANGE=THISANDFUTURE` shifts (or
- * cancels) that occurrence and every later one until a closer override wins.
+ * cancels) that occurrence and every later one, while `RANGE=THISANDPRIOR`
+ * shifts (or cancels) that occurrence and every earlier one; the nearest
+ * boundary wins until a single-occurrence override replaces one instance.
  */
 
 const DAY_MS = 86_400_000;
@@ -52,8 +54,11 @@ interface ParsedEvent {
   uid: string;
   /** Set on a `RECURRENCE-ID` override; the original occurrence start. */
   recurrenceId: Moment | null;
-  /** `RECURRENCE-ID;RANGE=THISANDFUTURE`: apply the change to later instances. */
-  range: boolean;
+  /**
+   * `RECURRENCE-ID;RANGE=…`: `"future"` applies the change to later
+   * instances, `"prior"` to earlier ones. `null` is a single instance.
+   */
+  range: "future" | "prior" | null;
   start: Moment;
   summary: string;
   notes: string;
@@ -120,14 +125,17 @@ export function parseCalendarData(text: string, options: ParseCalendarOptions = 
     // An override only makes sense for a recurring master; a one-off event
     // with a RECURRENCE-ID is malformed and the master is kept unchanged.
     const exactByKey = new Map<string, ParsedEvent>();
-    const rangeOverrides: ParsedEvent[] = [];
+    const futureOverrides: ParsedEvent[] = [];
+    const priorOverrides: ParsedEvent[] = [];
     for (const override of master.rule ? list : []) {
-      if (override.range) rangeOverrides.push(override);
+      if (override.range === "future") futureOverrides.push(override);
+      else if (override.range === "prior") priorOverrides.push(override);
       else exactByKey.set(occurrenceKey(uid, override.recurrenceId!.dateKey), override);
     }
-    rangeOverrides.sort(
-      (a, b) => a.recurrenceId!.instant.getTime() - b.recurrenceId!.instant.getTime(),
-    );
+    const byRecurrenceStart = (a: ParsedEvent, b: ParsedEvent) =>
+      a.recurrenceId!.instant.getTime() - b.recurrenceId!.instant.getTime();
+    futureOverrides.sort(byRecurrenceStart);
+    priorOverrides.sort(byRecurrenceStart);
 
     const windowStart = startOfLocalDay(addDays(now, -(options.pastDays ?? 366)));
     const windowEnd = endOfLocalDay(addDays(now, options.futureDays ?? 731));
@@ -139,7 +147,7 @@ export function parseCalendarData(text: string, options: ParseCalendarOptions = 
       Math.ceil(
         Math.max(
           0,
-          ...rangeOverrides.map((override) =>
+          ...[...futureOverrides, ...priorOverrides].map((override) =>
             Math.abs(override.start.instant.getTime() - override.recurrenceId!.instant.getTime()),
           ),
         ) / DAY_MS,
@@ -168,7 +176,7 @@ export function parseCalendarData(text: string, options: ParseCalendarOptions = 
         continue;
       }
 
-      const range = rangeFor(rangeOverrides, occurrence);
+      const range = rangeFor(futureOverrides, priorOverrides, occurrence);
       if (range) {
         const shifted = shiftedMoment(range, occurrence);
         if (!withinWindow(shifted, windowStart, windowEnd)) continue;
@@ -193,9 +201,9 @@ export function parseCalendarData(text: string, options: ParseCalendarOptions = 
     }
 
     // A range override whose own occurrence was not expanded (it lies before
-    // the window, or EXDATE removed it) still has to appear. Its first shifted
+    // the window, or EXDATE removed it) still has to appear. Its boundary
     // instance is emitted like a single override.
-    for (const override of rangeOverrides) {
+    for (const override of [...futureOverrides, ...priorOverrides].sort(byRecurrenceStart)) {
       const key = occurrenceKey(uid, override.recurrenceId!.dateKey);
       if (emitted.has(key)) continue;
       emitted.add(key);
@@ -264,7 +272,7 @@ function parseEvent(lines: string[]): ParsedEvent | null {
   return {
     uid,
     recurrenceId,
-    range: (recurrenceProp?.params.RANGE ?? "").toUpperCase() === "THISANDFUTURE",
+    range: parseRange(recurrenceProp),
     start,
     summary,
     notes,
@@ -280,14 +288,42 @@ function occurrenceKey(uid: string, dateKey: string): string {
   return `${uid}#occ=${dateKey}`;
 }
 
-/** The latest range override at or before an occurrence's original start. */
-function rangeFor(ranges: ParsedEvent[], occurrence: Moment): ParsedEvent | null {
-  let match: ParsedEvent | null = null;
-  for (const range of ranges) {
+function parseRange(prop: Property | undefined): "future" | "prior" | null {
+  const value = (prop?.params.RANGE ?? "").toUpperCase();
+  if (value === "THISANDFUTURE") return "future";
+  if (value === "THISANDPRIOR") return "prior";
+  return null;
+}
+
+/**
+ * The range override covering an occurrence: the latest `THISANDFUTURE`
+ * boundary at or before it, or the earliest `THISANDPRIOR` boundary at or
+ * after it. When both cover the same instance, the closer boundary wins (a
+ * tie goes to the future range).
+ */
+function rangeFor(
+  future: ParsedEvent[],
+  prior: ParsedEvent[],
+  occurrence: Moment,
+): ParsedEvent | null {
+  let after: ParsedEvent | null = null;
+  for (const range of future) {
     if (range.recurrenceId!.instant.getTime() > occurrence.instant.getTime()) break;
-    match = range;
+    after = range;
   }
-  return match;
+
+  let before: ParsedEvent | null = null;
+  for (let index = prior.length - 1; index >= 0; index -= 1) {
+    const range = prior[index];
+    if (range.recurrenceId!.instant.getTime() < occurrence.instant.getTime()) break;
+    before = range;
+  }
+
+  if (!after) return before;
+  if (!before) return after;
+  const afterDistance = occurrence.instant.getTime() - after.recurrenceId!.instant.getTime();
+  const beforeDistance = before.recurrenceId!.instant.getTime() - occurrence.instant.getTime();
+  return beforeDistance < afterDistance ? before : after;
 }
 
 /** Apply a range override's start shift to one later occurrence. */
