@@ -432,7 +432,7 @@ Shipped (2026-10-23):
 | Provider | `AiProvider` interface; `AnthropicProvider` uses the official `@anthropic-ai/sdk`, default model `claude-opus-5-5`, adaptive thinking, streaming, `finalMessage()`; the SDK is imported dynamically and stays out of the startup bundle |
 | Context | Pure functions `reportOutline` / `buildPrompt`; only the report title, period, counts, category names, task titles and dates |
 | Privacy | Off by default; the panel shows entry count, character count and input-token estimate, and can expand to preview the exact text sent; the key is stored in the OS credential store (device-local fallback only) |
-| Output | The result is editable; only "Save to `_ai/`" writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md`, never overwriting older files; `_ai/` does not participate in WebDAV sync |
+| Output | The result is editable; "Save to `_ai/`" writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md`, never overwriting older files; "Use in export" appends the reviewed text to the next DOCX as a separate `AI assistant` section after a page break (with a review note), and the pending appendix is cleared when the period or report type changes; `_ai/` does not participate in WebDAV sync |
 | UI | Settings "AI assistant" card (switch, key, model); Reports page "AI assistant" button → polish / period review |
 | Tests | Unit tests for `aiPrompt`, `aiSettings` and `aiUsage`; 99 tests in total; typecheck and build pass |
 
@@ -449,11 +449,17 @@ Differences from the plan / acceptance criteria:
 - A rough token estimate is shown before sending; the server's actual
   input/output token counts (`AiUsage`) are shown afterwards, but no price —
   model pricing changes, so avoid quoting stale amounts.
-- Offline detection and automatic retry are not done yet (§4.7).
+- Offline detection is done: the Generate and Fill-fields buttons are disabled
+  with a message. A failed request is not retried automatically; the panel keeps
+  the error and the button becomes **Try again**.
+- Export integration shipped 2026-11-05: the answer can be appended to a DOCX
+  as a clearly labelled appendix instead of only being copied or saved to
+  `_ai/`. Markdown headings and bullets map to Word styles; inline markers are
+  stripped.
 
-Next (M4 v2): token/cost estimation, offline detection and
-retry, and inserting polished text into report exports instead of only writing
-`_ai/`. Keychain storage shipped in M9.
+Next (M4 v2): optional cost estimates from user-supplied pricing and automatic
+retry with backoff. Keychain storage shipped in M9 and export integration is
+done.
 
 ### 4.10 Natural-language task entry (first version) · M5 第一版实现状态
 

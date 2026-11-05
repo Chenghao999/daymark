@@ -45,6 +45,7 @@ export default function ReportsView({
   const [status, setStatus] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState<string | null>(null);
 
   const period = useMemo(() => {
     const options: PeriodOptions = {
@@ -64,6 +65,13 @@ export default function ReportsView({
     }
     return { start, end, label };
   }, [anchor, kind, weekStartsOn, assessmentMonthStartDay, assessmentYearStartMonth]);
+
+  // An AI answer belongs to one report period; keeping it across a period
+  // change would silently export prose about different work.
+  const periodKey = `${kind}:${period.start.toISOString()}:${period.end.toISOString()}`;
+  useEffect(() => {
+    setAiText(null);
+  }, [periodKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +110,7 @@ export default function ReportsView({
     setExporting(true);
     setStatus(null);
     try {
-      const path = await exportReportDocx(report, language);
+      const path = await exportReportDocx(report, language, aiText);
       setStatus(path ? t("reports.exported", { path }) : null);
     } catch (cause) {
       setStatus(t("reports.exportFailed", { message: cause instanceof Error ? cause.message : String(cause) }));
@@ -143,6 +151,21 @@ export default function ReportsView({
           {t("actions.export")}
         </button>
       </div>
+
+      {aiText && (
+        <div className="ai-export">
+          <p className="muted small">
+            {t("reports.aiIncluded")}{" "}
+            <button className="ghost" onClick={() => setAiText(null)}>
+              {t("actions.remove")}
+            </button>
+          </p>
+          <details className="ai-preview">
+            <summary>{t("reports.previewAi")}</summary>
+            <pre>{aiText}</pre>
+          </details>
+        </div>
+      )}
 
       {(kind === "monthly" || kind === "yearly") && (
         <p className="muted small">
@@ -195,6 +218,7 @@ export default function ReportsView({
           userName={userName}
           ai={ai}
           dataDir={dataDir}
+          onUseResult={setAiText}
           onClose={() => setAiOpen(false)}
         />
       )}
