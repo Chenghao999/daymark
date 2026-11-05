@@ -29,7 +29,8 @@
     "prev": "Previous",
     "next": "Next",
     "close": "Close",
-    "reload": "Reload"
+    "reload": "Reload",
+    "remove": "Remove"
   },
   "task": {
     "new": "New task",
@@ -81,6 +82,8 @@
     "assessmentHint": "Assessment month starts on day {{day}}; assessment year starts in month {{month}}. Change these in Settings.",
     "exported": "Saved to {{path}}",
     "exportFailed": "Export failed: {{message}}",
+    "aiIncluded": "AI text will be appended to the DOCX export.",
+    "previewAi": "Preview the AI text that will be appended",
     "generatedAt": "Generated {{date}}"
   },
   "settings": {
@@ -242,6 +245,7 @@
     "save": "Save to _ai/",
     "copy": "Copy",
     "copied": "Copied.",
+    "useInExport": "Use in export",
     "saved": "Saved to {{path}}",
     "error": "AI request failed: {{message}}"
   },

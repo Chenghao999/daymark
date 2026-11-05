@@ -29,7 +29,8 @@
     "prev": "上一页",
     "next": "下一页",
     "close": "关闭",
-    "reload": "重新载入"
+    "reload": "重新载入",
+    "remove": "移除"
   },
   "task": {
     "new": "新建任务",
@@ -81,6 +82,8 @@
     "assessmentHint": "考核月从每月 {{day}} 日开始，考核年从 {{month}} 月开始。可在设置中修改。",
     "exported": "已保存到 {{path}}",
     "exportFailed": "导出失败：{{message}}",
+    "aiIncluded": "AI 文本将附加到 DOCX 导出文件。",
+    "previewAi": "预览将附加的 AI 文本",
     "generatedAt": "生成于 {{date}}"
   },
   "settings": {
@@ -241,6 +244,7 @@
     "save": "保存到 _ai/",
     "copy": "复制",
     "copied": "已复制。",
+    "useInExport": "用于导出",
     "saved": "已保存到 {{path}}",
     "error": "AI 请求失败：{{message}}"
   },

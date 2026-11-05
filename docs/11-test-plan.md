@@ -28,6 +28,7 @@
 | `settings/webdav` | defaults, credential round-trip, automatic-sync interval presets, non-preset interval → manual, missing fields, unreadable JSON, keychain migration and scrubbing of a legacy password |
 | `settings/secrets` | local fallback read/write, keychain read, unavailable-keychain fallback, clear tombstone, write success/failure retention, hydration migration, debounced typing writes, nested scrubbing |
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
+| `ai/appendix` | AI answer Markdown → heading (depth clamped), bullet, blockquote, paragraph and blank blocks; inline emphasis/code/link markers removed; code fences and horizontal rules handled |
 | `ai/settings` | defaults, round-trip, provider-preset inference from legacy configs, preset/protocol consistency, endpoint resolution (typed URL wins), custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths |
 | `ai/tasks` | local-time prompt context and weekday, category id → name list, unknown category dropped, impossible dates and out-of-range times rejected, end before start dropped, all-day date-only, priority coercion, multiple tasks, 10-item cap, malformed JSON and wrong shape |
 | `ai/usage` | Latin and CJK rates, mixed scripts, prompt halves counted, rounding never fractional |
@@ -63,7 +64,7 @@ Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `aiPrompt.test.ts`, `aiSettings.test.ts`, `aiTasks.test.ts`, `aiUsage.test.ts`,
 `openaiProvider.test.ts`, `theme.test.ts`, `caldavIcs.test.ts`,
 `caldavClient.test.ts`, `caldavImport.test.ts`, `caldavSettings.test.ts`,
-`secrets.test.ts`.
+`secrets.test.ts`, `aiAppendix.test.ts`.
 
 AI provider calls are also **not** covered: tests cover prompt construction,
 settings parsing and output paths. Verifying the SDK/API path requires a real
@@ -96,6 +97,10 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
 6. Touch any `.md` file externally; confirm the banner appears within one
    interval and clears after Reload.
 7. Export a DOCX to a path containing spaces and Chinese characters.
+8. Generate an AI answer, edit it, press **Use in export**, then export: the
+   DOCX ends with a page-broken **AI assistant** section whose headings and
+   bullets follow Word styles; changing the report period removes the pending
+   appendix without touching the saved `_ai/` file.
 
 ## 3. Manual acceptance checklist
 

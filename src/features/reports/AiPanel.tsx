@@ -17,10 +17,11 @@ interface AiPanelProps {
   userName: string;
   ai: AiConfig;
   dataDir: string;
+  onUseResult: (text: string) => void;
   onClose: () => void;
 }
 
-export default function AiPanel({ report, language, userName, ai, dataDir, onClose }: AiPanelProps) {
+export default function AiPanel({ report, language, userName, ai, dataDir, onUseResult, onClose }: AiPanelProps) {
   const { t } = useTranslation();
   const online = useOnline();
   const [feature, setFeature] = useState<AiFeature>("polish");
@@ -83,6 +84,12 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
     } finally {
       setBusy(false);
     }
+  }
+
+  function useInExport() {
+    if (!result?.trim()) return;
+    onUseResult(result);
+    onClose();
   }
 
   return (
@@ -150,6 +157,9 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onClo
               </button>
               <button className="ghost" onClick={() => void copy()}>
                 {copied ? t("ai.copied") : t("ai.copy")}
+              </button>
+              <button className="ghost" onClick={useInExport} disabled={!result.trim()}>
+                {t("ai.useInExport")}
               </button>
               <button className="ghost" onClick={onClose} disabled={busy}>
                 {t("actions.close")}

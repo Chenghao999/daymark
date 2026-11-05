@@ -371,8 +371,15 @@ included — task notes, task ids and the data-folder path are not.
 The answer appears in an editable box. Nothing is written to disk until you
 press **Save to `_ai/`**, which creates a new timestamped Markdown file in the
 `_ai/` folder inside your data folder; **Copy** puts it on the clipboard. AI
-output is an ordinary note: it is not a task, it does not enter reports, and
-WebDAV sync does not upload `_ai/`.
+output is an ordinary note: it is not a task, it does not enter the report
+calculations, and WebDAV sync does not upload `_ai/`.
+
+**Use in export** keeps the reviewed answer with the current report and appends
+it to the next DOCX export as a separate **AI assistant** section after a page
+break, with an italic reminder to review it. The report page then shows what
+will be appended; **Remove** drops it, and changing the period or report type
+clears it automatically. The appendix exists only in that exported file — it is
+never written into day files, `_settings.md` or the synced WebDAV files.
 
 The API key is stored in this device's OS credential store, like the WebDAV
 password, with a device-local fallback. It is never written to `_settings.md`
@@ -388,7 +395,9 @@ OpenAI 兼容（`/v1/chat/completions`）。模型名可任意填写。
 随后报告页会出现“AI 助手”按钮：可以“润色报告”或生成“周期回顾”。发送前会显示
 分类/条目/字符数与 token 估算，并可预览完整文本；只发送报告标题、周期、分类和
 任务标题，不发送备注、任务 ID 和本地路径。结果可编辑，只有点“保存到 `_ai/`”
-才会写成新的 Markdown 文件。密钥优先存入系统钥匙串，不写入 `_settings.md`；请求直接发往
+才会写成新的 Markdown 文件；“用于导出”会把当前结果附加到下一次 DOCX 导出的
+独立“AI 助手”小节（分页、斜体提示需人工核对），切换报告周期或类型时自动清除。
+密钥优先存入系统钥匙串，不写入 `_settings.md`；请求直接发往
 你配置的接口，按你的账号计费，面板会显示本次实际使用的 token 数。离线时按钮
 禁用，失败后按钮变为“重试”。
 
@@ -506,7 +515,7 @@ choose the copied folder on first launch.
 | Settle a sync conflict | Settings → WebDAV sync → choose Keep mine / theirs / both → Apply. |
 | Import my calendar | Settings → CalDAV → enter the URL and app password → Find calendars → tick calendars → Import now. |
 | Turn a calendar event into a task | Open the event → Turn into local task. |
-| Polish this period's report | Reports → AI assistant → Polish report → Generate → Save to `_ai/`. |
+| Polish this period's report | Reports → AI assistant → Polish report → Generate → Save to `_ai/` or Use in export. |
 | Create a task from a sentence | New task → Describe it in one sentence → Fill fields → review → Save. |
 | Use a relay or Oppo AI | Settings → AI assistant → choose the protocol, enter the base URL and model, then Test. |
 | Change the theme | Settings → Appearance → Follow system / Light / Dark. |

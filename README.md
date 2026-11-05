@@ -53,7 +53,8 @@ on an in-app timer), read-only CalDAV import, an opt-in AI assistant for report
 polish, retrospectives and
 one-sentence task entry (built-in presets for Anthropic, OpenAI, DeepSeek, Qwen,
 Moonshot, Zhipu, Gemini and OpenRouter, plus custom Anthropic- or
-OpenAI-compatible relays), light/dark/system appearance, and a one-time
+OpenAI-compatible relays; reviewed AI text can also be appended to the DOCX
+export), light/dark/system appearance, and a one-time
 migration from the old `daymark.db`.
 
 `0.1.0` 已实现：Markdown 文件存储、日/周/月视图（周一或周日开头）、任务增删改与
@@ -63,7 +64,7 @@ migration from the old `daymark.db`.
 周期回顾与
 一句话建任务（内置 Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱、Gemini、
 OpenRouter 预设，也可自定义 Anthropic/OpenAI 兼容中转）、浅色/深色/跟随系统外观，
-以及从旧 `daymark.db` 的一次性迁移。
+以及从旧 `daymark.db` 的一次性迁移。AI 结果经人工确认后还可附加到 DOCX 导出文件。
 
 ## Try it · 如何体验
 
@@ -128,14 +129,17 @@ through the custom endpoint. The endpoint and model name stay editable, and the
 key stays on this device. OpenAI-compatible requests go through the app's native
 HTTP client, so vendors that do not send CORS headers work inside the app. It sends only the selected report's title, period, categories
 and task titles to the endpoint, shows the exact text before sending, and
-writes nothing until you press Save (into a new file under `_ai/`). The same
+writes nothing on its own: **Save** creates a new file under `_ai/`, while
+**Use in export** appends the reviewed answer to the next DOCX export as a
+separate, clearly labelled section. The same
 assistant can also turn one sentence into a task — or several tasks at once:
 the editor fills its fields (or you press “Create all”) and the save is still
 yours. AI 助手默认关闭，内置 Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱、
 Gemini、OpenRouter 服务商预设，其他 Anthropic/OpenAI 兼容中转可用自定义接口；
 接口地址与模型均可改，密钥只存本机；OpenAI 兼容请求走应用内置的 Rust HTTP
 客户端，未开 CORS 的服务商也能正常使用。只发送所选报告的分类与任务标题，发送前可
-预览，确认后才写入 `_ai/`；也可用一句话填好任务表单或一次创建多个任务，仍由你
+预览；保存才会写入 `_ai/`，“用于导出”可把审阅后的文本附加到下一次 DOCX 导出；
+也可用一句话填好任务表单或一次创建多个任务，仍由你
 确认保存。
 
 Not implemented yet / 尚未实现：background WebDAV sync and CalDAV write-back

@@ -1013,6 +1013,17 @@ h3 {
   word-break: break-word;
 }
 
+.ai-export {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.ai-export p {
+  margin: 0;
+}
+
 .ai-output {
   min-height: 220px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

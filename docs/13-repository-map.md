@@ -160,9 +160,10 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `features/calendar/WeekView.tsx` | Week grid that honours `weekStartsOn`. Exports `taskDateKey` and `tasksForDay`, reused by the other views. |
 | `features/calendar/DayView.tsx` | Single-day list grouped by status, plus the backlog. |
 | `features/calendar/MonthView.tsx` | Month grid with per-day task counts; honours `weekStartsOn`; clicking a day opens the day view. |
-| `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export, AI entry point. |
-| `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, generate, editable result, copy and save to `_ai/`. |
-| `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, asks for a path, writes via `write_file_bytes`. |
+| `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export, AI entry point, and the pending AI appendix for the next export. |
+| `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, generate, editable result, copy, save to `_ai/` and **Use in export**. |
+| `features/reports/aiAppendix.ts` | `parseAiMarkdown`: pure conversion of an AI answer into heading / bullet / paragraph / blank blocks, shared by the DOCX exporter. |
+| `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, optionally appends the reviewed AI answer as a labelled section after a page break, asks for a path, writes via `write_file_bytes`. |
 | `features/settings/SettingsView.tsx` | Language, appearance (system/light/dark), week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync/startup/interval, status, conflict list), AI card (provider preset, protocol for custom endpoints, base URL, key, model, privacy), CalDAV card (URL, credentials, discover/select calendars, import now/startup/interval, last sync, status, privacy), category add/archive, device ID display. |
 | `hooks/useOnline.ts` | `useOnline()`: `navigator.onLine` plus online/offline events; disables AI buttons while offline. |
 
@@ -191,6 +192,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `mergeTasks.test.ts` | Task-level merge: added tasks, `rowVersion`/`updatedAt` ordering, completion beats reopen, unresolvable ties, extras from both sides, hand-written lines, deletion markers, backlog, path classification. |
 | `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
+| `aiAppendix.test.ts` | AI answer Markdown → heading (clamped depth), bullet, blockquote, paragraph and blank blocks; inline markers removed; code fences and horizontal rules handled. |
 | `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
 | `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE`/`THISANDPRIOR` shift/cancel/closest-wins, unknown TZID, missing `UID`/`DTSTART`. |
 | `caldavClient.test.ts` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT body/content-type/depth, typed 401. |
