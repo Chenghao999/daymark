@@ -3,6 +3,7 @@ import {
   normalizeProvider,
   protocolFor,
 } from "../ai/presets";
+import { normalizePricing } from "../ai/pricing";
 import type { AiConfig, AiProtocol } from "../ai/types";
 import { localSecretOf, queueSecret, scrubStoredSecret } from "./secrets";
 
@@ -18,6 +19,7 @@ export const DEFAULT_AI: AiConfig = {
   apiKey: "",
   model: "claude-opus-5-5",
   baseUrl: "",
+  pricing: null,
 };
 
 /**
@@ -49,6 +51,9 @@ export function loadAiSettings(): AiConfig {
         (typeof parsed.apiKey === "string" ? parsed.apiKey : ""),
       model: normalizeModel(parsed.model, defaultModelFor(provider) || DEFAULT_AI.model),
       baseUrl,
+      // Prices are device-local like the endpoint; an old or malformed object
+      // simply turns estimates off.
+      pricing: normalizePricing(parsed.pricing),
     };
   } catch {
     return { ...DEFAULT_AI };

@@ -87,6 +87,7 @@ describe("OpenAI-compatible provider", () => {
       apiKey: "k",
       model: "deepseek-chat",
       baseUrl: "",
+      pricing: null,
     });
     await provider.complete({ system: "s", user: "u" });
 

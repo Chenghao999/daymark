@@ -1024,6 +1024,16 @@ h3 {
   margin: 0;
 }
 
+.ai-pricing-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-pricing-row input {
+  flex: 1;
+  min-width: 0;
+}
+
 .ai-output {
   min-height: 220px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

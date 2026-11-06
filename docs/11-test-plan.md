@@ -29,7 +29,9 @@
 | `settings/secrets` | local fallback read/write, keychain read, unavailable-keychain fallback, clear tombstone, write success/failure retention, hydration migration, debounced typing writes, nested scrubbing |
 | `ai/prompts` | outline rendering, counts, per-feature and per-language system text, author only when set, no ids or paths |
 | `ai/appendix` | AI answer Markdown → heading (depth clamped), bullet, blockquote, paragraph and blank blocks; inline emphasis/code/link markers removed; code fences and horizontal rules handled |
-| `ai/settings` | defaults, round-trip, provider-preset inference from legacy configs, preset/protocol consistency, endpoint resolution (typed URL wins), custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths |
+| `ai/pricing` | malformed, negative, NaN and out-of-range prices → no estimate; currency defaulting and capping; input/output/total cost; fractional-cent formatting |
+| `ai/retry` | success without delay; 5xx, 429 and network errors retried with exponential delays; 4xx not retried; delay cap; exhaustion; `completeJson`; `onRetry` progress; error classification |
+| `ai/settings` | defaults, round-trip, provider-preset inference from legacy configs, preset/protocol consistency, endpoint resolution (typed URL wins), custom model and protocol, base URL normalization, malformed JSON, opt-in + key rule, unique output paths, pricing normalization and invalid-price fallback |
 | `ai/tasks` | local-time prompt context and weekday, category id → name list, unknown category dropped, impossible dates and out-of-range times rejected, end before start dropped, all-day date-only, priority coercion, multiple tasks, 10-item cap, malformed JSON and wrong shape |
 | `ai/usage` | Latin and CJK rates, mixed scripts, prompt halves counted, rounding never fractional |
 | `ai/providers/openai` | URL and bearer header, message body, usage mapping, preset endpoint resolution, injected transport, `json_schema` → `json_object` retry on 4xx, `max_tokens` → `max_completion_tokens` retry, HTTP status in the error, empty answer rejected |
@@ -64,7 +66,8 @@ Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `aiPrompt.test.ts`, `aiSettings.test.ts`, `aiTasks.test.ts`, `aiUsage.test.ts`,
 `openaiProvider.test.ts`, `theme.test.ts`, `caldavIcs.test.ts`,
 `caldavClient.test.ts`, `caldavImport.test.ts`, `caldavSettings.test.ts`,
-`secrets.test.ts`, `aiAppendix.test.ts`.
+`secrets.test.ts`, `aiAppendix.test.ts`, `aiPricing.test.ts`,
+`aiRetry.test.ts`.
 
 AI provider calls are also **not** covered: tests cover prompt construction,
 settings parsing and output paths. Verifying the SDK/API path requires a real
@@ -101,6 +104,12 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
    DOCX ends with a page-broken **AI assistant** section whose headings and
    bullets follow Word styles; changing the report period removes the pending
    appendix without touching the saved `_ai/` file.
+9. With token prices filled in Settings, generate: an input-cost estimate
+   appears before sending and the total estimate after; clearing both prices
+   hides the estimates.
+10. With a wrong API key, the error appears immediately (no retry); while
+    offline or against a 500/429 endpoint, the panel shows the retry wait and
+    succeeds on a later attempt.
 
 ## 3. Manual acceptance checklist
 

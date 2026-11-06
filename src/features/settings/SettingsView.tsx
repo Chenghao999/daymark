@@ -7,6 +7,7 @@ import type { MergeDecision, MergeDecisions } from "../../sync/merge";
 import type { CalDavCalendar, CalDavConfig, CalDavState } from "../../sync/caldav/types";
 import { detectSyncFolder } from "../../storage/syncFolder";
 import { AI_PROVIDER_PRESETS, findPreset, modelsFor } from "../../ai/presets";
+import type { AiPricing } from "../../ai/pricing";
 import type { AiConfig, AiProviderId } from "../../ai/types";
 
 interface SettingsViewProps {
@@ -628,6 +629,10 @@ export default function SettingsView({
           </datalist>
         </label>
         <p className="muted small">{t("settings.aiModelHint")}</p>
+
+        <AiPricingFields pricing={ai.pricing} onPatch={onAiPatch} />
+        <p className="muted small">{t("settings.aiPricingHint")}</p>
+
         <p className="muted small">{t("settings.aiPrivacy")}</p>
       </section>
 
@@ -655,4 +660,98 @@ export default function SettingsView({
       </section>
     </div>
   );
+}
+
+/**
+ * Optional token prices. Kept as text while editing so a half-typed "0."
+ * survives; valid input and output prices are patched on every keystroke.
+ * Estimates need both sides — a one-sided price would show a false zero.
+ */
+function AiPricingFields({
+  pricing,
+  onPatch,
+}: {
+  pricing: AiPricing | null;
+  onPatch: (patch: Partial<AiConfig>) => void;
+}) {
+  const { t } = useTranslation();
+  const [input, setInput] = useState(pricing ? String(pricing.inputPerMillion) : "");
+  const [output, setOutput] = useState(pricing ? String(pricing.outputPerMillion) : "");
+  const [currency, setCurrency] = useState(pricing?.currency ?? "USD");
+
+  function commit(nextInput: string, nextOutput: string, nextCurrency: string) {
+    const inputPrice = parsePrice(nextInput);
+    const outputPrice = parsePrice(nextOutput);
+    // Invalid text only means "not committed yet"; keep what the user typed.
+    if (inputPrice === undefined || outputPrice === undefined) return;
+    // One blank side would show a misleading zero for that side, so estimates
+    // stay off until both prices are filled in.
+    if (inputPrice === null || outputPrice === null) {
+      onPatch({ pricing: null });
+      return;
+    }
+    onPatch({
+      pricing: {
+        inputPerMillion: inputPrice,
+        outputPerMillion: outputPrice,
+        currency: (nextCurrency.trim() || "USD").slice(0, 8),
+      },
+    });
+  }
+
+  return (
+    <div className="field">
+      <span>{t("settings.aiPricing")}</span>
+      <div className="ai-pricing-row">
+        <input
+          aria-label={t("settings.aiPriceInput")}
+          placeholder={t("settings.aiPriceInput")}
+          inputMode="decimal"
+          value={input}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setInput(value);
+            commit(value, output, currency);
+          }}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <input
+          aria-label={t("settings.aiPriceOutput")}
+          placeholder={t("settings.aiPriceOutput")}
+          inputMode="decimal"
+          value={output}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setOutput(value);
+            commit(input, value, currency);
+          }}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <input
+          aria-label={t("settings.aiCurrency")}
+          placeholder="USD"
+          maxLength={8}
+          value={currency}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setCurrency(value);
+            commit(input, output, value);
+          }}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** `null` = blank, `undefined` = not a usable number. */
+function parsePrice(value: string): number | null | undefined {
+  const text = value.trim().replace(/,/g, "");
+  if (!text) return null;
+  const number = Number(text);
+  if (!Number.isFinite(number) || number < 0) return undefined;
+  return number;
 }

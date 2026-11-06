@@ -131,7 +131,10 @@ HTTP client, so vendors that do not send CORS headers work inside the app. It se
 and task titles to the endpoint, shows the exact text before sending, and
 writes nothing on its own: **Save** creates a new file under `_ai/`, while
 **Use in export** appends the reviewed answer to the next DOCX export as a
-separate, clearly labelled section. The same
+separate, clearly labelled section. Optional user-supplied token prices show an
+estimated cost per call, and transient failures (rate limits, timeouts, server
+errors, dropped connections) are retried twice with backoff before an error is
+shown. The same
 assistant can also turn one sentence into a task — or several tasks at once:
 the editor fills its fields (or you press “Create all”) and the save is still
 yours. AI 助手默认关闭，内置 Anthropic、OpenAI、DeepSeek、通义千问、Kimi、智谱、
@@ -139,7 +142,8 @@ Gemini、OpenRouter 服务商预设，其他 Anthropic/OpenAI 兼容中转可用
 接口地址与模型均可改，密钥只存本机；OpenAI 兼容请求走应用内置的 Rust HTTP
 客户端，未开 CORS 的服务商也能正常使用。只发送所选报告的分类与任务标题，发送前可
 预览；保存才会写入 `_ai/`，“用于导出”可把审阅后的文本附加到下一次 DOCX 导出；
-也可用一句话填好任务表单或一次创建多个任务，仍由你
+填入服务商的 token 单价后可估算每次调用的费用，限流、超时、服务器错误或断网会
+自动重试两次；也可用一句话填好任务表单或一次创建多个任务，仍由你
 确认保存。
 
 Not implemented yet / 尚未实现：background WebDAV sync and CalDAV write-back

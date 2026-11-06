@@ -183,7 +183,7 @@ simply returns to the app. The suggested file name is
 | Scan for external changes | 30 s / 60 s / 300 s | Synced; how often the folder is polled. |
 | Data location | absolute folder | Device-local; **Change folder** opens another folder. |
 | WebDAV sync | server URL, remote folder, username, password | Device-local; the password is in the OS credential store (device-local fallback); nothing in this card is written to the data folder. |
-| AI assistant | enable, provider, base URL, API key, model | Device-local; off by default; the key is in the OS credential store (device-local fallback); only the report outline is sent. |
+| AI assistant | enable, provider, base URL, API key, model, optional token prices | Device-local; off by default; the key is in the OS credential store (device-local fallback); only the report outline is sent. |
 | CalDAV | server URL, username, app-specific password, calendars | Device-local; the password is in the OS credential store (device-local fallback); read-only import; nothing is written back to the server. |
 | Categories | add (English + Chinese names, colour) / archive | Shared, stored in `_categories.md`. |
 | Device ID | read-only UUID | Device-local; identifies this installation. |
@@ -355,6 +355,11 @@ assistant** button next to Export.
   provider preset except Anthropic uses the OpenAI-compatible protocol.
 - **Model name** — any model the endpoint accepts. The dropdown is a set of
   suggestions, not a whitelist.
+- **Token pricing** (optional) — copy the provider's current input and output
+  price per million tokens plus a currency label. Both prices are required;
+  Daymark uses them only to estimate the cost of each call, never fetches
+  prices, and the provider's invoice is authoritative. Leave them empty to hide
+  estimates.
 
 - **Polish report** rewrites the period's report as prose while keeping every
   category and every item.
@@ -364,7 +369,9 @@ assistant** button next to Export.
 Before anything leaves the machine, the panel states how many categories, items
 and characters will be sent, plus a rough input-token estimate. **Preview what
 will be sent** shows the exact text. After a request, the panel shows the
-provider's actual input/output token counts; no price is shown.
+provider's actual input/output token counts. If you entered token prices in
+Settings, the panel also estimates the input cost before sending and the total
+cost afterwards.
 Only the report title, period, counts, category names, task titles and dates are
 included — task notes, task ids and the data-folder path are not.
 
@@ -386,6 +393,12 @@ password, with a device-local fallback. It is never written to `_settings.md`
 or the data folder. Requests go directly from this app to the provider you
 configured and are billed to your account.
 
+A rate limit, timeout, server error or dropped connection is retried
+automatically twice with a short exponential backoff; the panel shows the wait
+and which attempt is running. Authentication and bad-request errors are
+reported immediately instead of being retried. When the retries are used up,
+the error stays visible and the button becomes **Try again**.
+
 **中文要点：** AI 助手默认关闭。启用后先选服务商：Anthropic（Claude）、
 OpenAI（GPT）、DeepSeek、通义千问、Moonshot（Kimi）、智谱（GLM）、Google
 Gemini、OpenRouter，或“自定义接口 / 中转”。选择服务商会自动填入接口地址并给出
@@ -398,8 +411,11 @@ OpenAI 兼容（`/v1/chat/completions`）。模型名可任意填写。
 才会写成新的 Markdown 文件；“用于导出”会把当前结果附加到下一次 DOCX 导出的
 独立“AI 助手”小节（分页、斜体提示需人工核对），切换报告周期或类型时自动清除。
 密钥优先存入系统钥匙串，不写入 `_settings.md`；请求直接发往
-你配置的接口，按你的账号计费，面板会显示本次实际使用的 token 数。离线时按钮
-禁用，失败后按钮变为“重试”。
+你配置的接口，按你的账号计费，面板会显示本次实际使用的 token 数。在设置里填好
+每百万 token 的输入/输出价格后，发送前会显示输入费用估算，完成后显示总费用估算
+（Daymark 不联网查询价格，以服务商账单为准）。限流、超时、服务器错误或断网会
+自动重试两次（指数退避），面板显示等待时间和当前次数；密钥错误等请求错误立即
+报出，不重试。重试用尽后按钮变为“重试”。离线时按钮禁用。
 
 ### Appearance
 

@@ -781,6 +781,31 @@ interface AiConfig {
   apiKey: string;                     // OS keychain; device-local fallback only
   model: string;                      // any non-empty name
   baseUrl: string;                    // "" = the provider preset's default
+  pricing: AiPricing | null;          // user-supplied, per million tokens
+}
+
+interface AiPricing {
+  inputPerMillion: number;
+  outputPerMillion: number;
+  currency: string;                   // display label only, e.g. "USD"
+}
+
+interface AiCost { input: number; output: number; total: number; currency: string }
+
+interface AiRetryInfo {
+  attempt: number;                    // the attempt that just failed, 1-based
+  totalAttempts: number;              // retries + 1
+  delayMs: number;
+  error: unknown;
+}
+
+interface AiRetryOptions {
+  retries?: number;                   // default 2
+  baseDelayMs?: number;               // default 800
+  maxDelayMs?: number;                // default 8000
+  sleep?: (ms: number) => Promise<void>;
+  random?: () => number;              // jitter source, injectable for tests
+  onRetry?: (info: AiRetryInfo) => void;
 }
 
 type AiFeature = "polish" | "review";
@@ -806,11 +831,21 @@ interface AiProvider {
 reportOutline(report: ReportDocument): string
 aiContextSummary(report: ReportDocument): { sectionCount; itemCount; characters }
 buildPrompt(request: AiRequest): AiPrompt
-createAiProvider(config: AiConfig): AiProvider
+createAiProvider(config: AiConfig, retry?: AiRetryOptions): AiProvider
 aiOutputPath(root: string, kind: ReportKind, date: Date): string
 saveAiOutput(root: string, kind: ReportKind, text: string, date?: Date): Promise<string>
 estimateTokens(text: string): number
 estimatePrompt(prompt: AiPrompt): { characters: number; inputTokens: number }
+
+// Optional cost estimates (`src/ai/pricing.ts`)
+normalizePricing(value: unknown): AiPricing | null
+costOf(usage: AiUsage | null | undefined, pricing: AiPricing | null | undefined): AiCost | null
+formatCost(cost: AiCost): string
+formatMoney(amount: number, currency: string): string
+
+// Automatic retry (`src/ai/retry.ts`)
+isRetryableAiError(cause: unknown): boolean
+withAiRetry(provider: AiProvider, options?: AiRetryOptions): AiProvider
 
 // Natural-language task entry (M5)
 interface TaskSuggestion {
@@ -873,7 +908,8 @@ Contract:
    and streaming (`messages.stream(...).finalMessage()`); the SDK is a dynamic
    import, so it is not in the startup bundle. `baseUrl` is passed through as
    the SDK's `baseURL`, so an Anthropic-compatible relay works unchanged;
-   `maxRetries` is 2.
+   SDK retries are off (`maxRetries: 0`) because the shared `withAiRetry`
+   wrapper owns the retry policy.
    The OpenAI-compatible provider sends its request through an `HttpTransport`
    (`ai/transport.ts`): inside Tauri that is `invoke("ai_request")`, because
    DeepSeek, Qwen and similar vendors send no CORS headers; outside Tauri it is
@@ -903,7 +939,22 @@ Contract:
 11. `estimatePrompt` is a deliberately rough pre-send estimate (Latin ≈ 4
     characters/token, CJK ≈ 1.5); the panel labels it as an estimate. After a
     request, `result.usage` carries the provider's exact token counts and the
-    panel shows them. No price is shown, because model pricing changes.
+    panel shows them.
+12. Pricing is never bundled or fetched. `normalizePricing` accepts only two
+    finite, non-negative prices per million tokens and a currency label; a
+    malformed stored object returns `null` (estimates hidden) rather than
+    zero. `costOf` needs both `usage` and `pricing`; `formatCost` keeps at
+    least two decimals and enough significant digits to show a fractional-cent
+    call. The UI labels every amount as an estimate.
+13. `createAiProvider` wraps the chosen provider in `withAiRetry`, so both
+    protocols share one policy. HTTP 408, 429 and 5xx plus network/transport
+    failures are retried twice (800 ms, then 1600 ms, ±20% jitter); auth,
+    bad-request, not-found and other 4xx errors surface immediately.
+    `Retry-After` is not parsed. The wrapper is injectable (`sleep`, `random`,
+    `onRetry`) so tests run instantly and the panel can show the wait. A retry
+    can produce a duplicate bill when the provider answered but the response
+    was lost; the alternative is losing the user's request to a transient
+    network failure, and two extra attempts are bounded.
 
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 

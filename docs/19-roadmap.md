@@ -6,16 +6,18 @@
 > tasks, settings and categories, plus the in-app conflict-resolution UI — has
 > shipped (§3.9); CalDAV read-only import has also shipped (§3.10). M9 — OS
 > keychain storage for the WebDAV/CalDAV passwords and the AI API key — has
-> shipped. Documents 01–18 are the source of truth for what exists; this
-> document records only the plan and its trade-offs. Date: 2026-11-04.
+> shipped, and M4 v2 added optional cost estimates and automatic retry.
+> Documents 01–18 are the source of truth for what exists; this
+> document records only the plan and its trade-offs. Date: 2026-11-06.
 > Baseline version `0.1.0`; storage has moved from SQLite to Markdown text.
 >
 > **中文摘要：** Daymark（日迹）的路线图。M0–M5 已落地（WebDAV 第一版见 §3.8，
 > AI 第一版见 §4.9，自然语言录入第一版见 §4.10）；自定义 AI 接口、暗色模式与
 > 自动打包也已完成（M7、M8）；M6 第一版（任务、设置与分类的自动合并，以及
 > 冲突解决界面）已落地（§3.9），CalDAV 只读导入也已完成（§3.10）。M9 的
-> 系统钥匙串存储（WebDAV/CalDAV 密码与 AI 密钥）已完成。已实现的
-> 模块以 01–18 号文档为准，本文只记录路线与取舍。日期：2026-11-04，基线版本
+> 系统钥匙串存储（WebDAV/CalDAV 密码与 AI 密钥）已完成，M4 v2 的
+> 可选费用估算与自动重试也已完成。已实现的
+> 模块以 01–18 号文档为准，本文只记录路线与取舍。日期：2026-11-06，基线版本
 > `0.1.0`，存储已从 SQLite 切换为 Markdown 文本。
 
 ---
@@ -45,7 +47,7 @@
 | M1 | Custom assessment period and annual report | M0 | Done: `src/domain/periods.ts`, year tab |
 | M2 | Week-start setting | M0 | Done: `weekStartsOn`, shared by the day/week/month views and weekly reports |
 | M3 | WebDAV sync | M0, M2 | v1 done: `src/sync/webdav/*`, "WebDAV sync" card in Settings (see §3.8) |
-| M4 | AI assistant (report polishing / period review) | M0, M1 | v1 done: `src/ai/*`, "AI assistant" on the Reports page (see §4.9) |
+| M4 | AI assistant (report polishing / period review) | M0, M1 | v1 done: `src/ai/*`, "AI assistant" on the Reports page (see §4.9); v2 cost estimates and automatic retry done |
 | M5 | AI natural-language entry | M4 | v1 done: `src/ai/tasks.ts`, "Fill fields" one-sentence entry in the task editor (see §4.10) |
 | M6 | Automatic merge and CalDAV | M3 | v1 done: automatic merge in `src/sync/merge/*`, applied by `syncWebDav`, and the keep-mine / keep-theirs / keep-both conflict UI in Settings (`src/sync/webdav/resolve.ts`); see §3.9. CalDAV read-only import in `src/sync/caldav/*`, see §3.10 |
 | M7 | AI providers + dark mode | M4 | Done: Anthropic, OpenAI, DeepSeek, Qwen, Moonshot, Zhipu, Gemini, OpenRouter and custom endpoints (§4.11); appearance follows the system or switches manually |
@@ -434,7 +436,7 @@ Shipped (2026-10-23):
 | Privacy | Off by default; the panel shows entry count, character count and input-token estimate, and can expand to preview the exact text sent; the key is stored in the OS credential store (device-local fallback only) |
 | Output | The result is editable; "Save to `_ai/`" writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md`, never overwriting older files; "Use in export" appends the reviewed text to the next DOCX as a separate `AI assistant` section after a page break (with a review note), and the pending appendix is cleared when the period or report type changes; `_ai/` does not participate in WebDAV sync |
 | UI | Settings "AI assistant" card (switch, key, model); Reports page "AI assistant" button → polish / period review |
-| Tests | Unit tests for `aiPrompt`, `aiSettings` and `aiUsage`; 99 tests in total; typecheck and build pass |
+| Tests | Unit tests for `aiPrompt`, `aiSettings`, `aiUsage`, `aiPricing` and `aiRetry`; typecheck and build pass |
 
 Differences from the plan / acceptance criteria:
 
@@ -447,19 +449,27 @@ Differences from the plan / acceptance criteria:
   tests, but the SDK's network path is unverified. On first use, configure a key
   in Settings, run a small report, and check the result and billing.
 - A rough token estimate is shown before sending; the server's actual
-  input/output token counts (`AiUsage`) are shown afterwards, but no price —
-  model pricing changes, so avoid quoting stale amounts.
+  input/output token counts (`AiUsage`) are shown afterwards. Cost estimates
+  are opt-in since 2026-11-06: the user copies the provider's current prices
+  per million tokens into Settings (device-local), and the panel shows the
+  estimated input cost before a call and the total afterwards. No price table
+  is bundled or fetched, because model pricing changes.
 - Offline detection is done: the Generate and Fill-fields buttons are disabled
-  with a message. A failed request is not retried automatically; the panel keeps
-  the error and the button becomes **Try again**.
+  with a message. Transient failures (408, 429, 5xx, network errors) are retried
+  automatically twice with exponential backoff and jitter; auth and
+  bad-request errors surface immediately. The panel shows the wait and attempt;
+  after the retries are used up the error stays and the button becomes
+  **Try again**.
 - Export integration shipped 2026-11-05: the answer can be appended to a DOCX
   as a clearly labelled appendix instead of only being copied or saved to
   `_ai/`. Markdown headings and bullets map to Word styles; inline markers are
   stripped.
 
-Next (M4 v2): optional cost estimates from user-supplied pricing and automatic
-retry with backoff. Keychain storage shipped in M9 and export integration is
-done.
+M4 v2 shipped (2026-11-06): optional cost estimates from user-supplied pricing
+in Settings, and automatic retry with exponential backoff. Both protocols share
+one retry policy in `src/ai/retry.ts`; the Anthropic SDK's own retries are off
+so attempts are not multiplied. Keychain storage shipped in M9 and export
+integration is done; M4 has no remaining planned work.
 
 ### 4.10 Natural-language task entry (first version) · M5 第一版实现状态
 

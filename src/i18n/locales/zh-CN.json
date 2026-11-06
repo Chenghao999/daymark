@@ -226,6 +226,11 @@
     "aiBaseUrlHint": "留空使用所选服务商的默认地址。使用中转或未列出的服务时填写其基础地址，应用会自动拼接 /v1/messages 或 /chat/completions。",
     "aiModel": "模型名称",
     "aiModelHint": "填写该接口支持的任意模型名；下拉列表只是建议。",
+    "aiPricing": "费用估算（可选）",
+    "aiPriceInput": "输入价格 / 百万 token",
+    "aiPriceOutput": "输出价格 / 百万 token",
+    "aiCurrency": "货币",
+    "aiPricingHint": "按服务商当前价格填写每百万 token 的输入和输出费用，每次调用后会显示估算值。两项都需填写，留空则不显示估算。Daymark 不收费，也不会联网查询价格，请以服务商账单为准。",
     "aiPrivacy": "只发送所选报告的标题、周期、分类和任务标题；备注、API 密钥和本地路径不会发送。在你点“保存”之前不会写入任何文件。"
   },
   "ai": {
@@ -234,7 +239,11 @@
     "featureReview": "周期回顾",
     "context": "将发送 {{sections}} 个分类、{{items}} 个条目（约 {{chars}} 字符）。",
     "estimate": "共 {{chars}} 字符，输入约 {{tokens}} tokens。",
+    "estimatedInputCost": "预计输入费用约 {{cost}}（尚未计入输出）。",
     "usage": "本次使用 {{input}} 个输入、{{output}} 个输出 tokens。",
+    "cost": "预计费用 {{total}}（输入 {{input}}，输出 {{output}}）。",
+    "costShort": "预计费用 {{cost}}。",
+    "retrying": "请求失败，{{seconds}} 秒后重试（第 {{attempt}}/{{total}} 次）…",
     "preview": "预览将要发送的内容",
     "generate": "生成",
     "retry": "重试",
