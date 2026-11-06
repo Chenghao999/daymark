@@ -31,7 +31,9 @@ export class AnthropicProvider implements AiProvider {
       this.client = new AnthropicClient({
         apiKey: this.options.apiKey,
         baseURL: this.options.baseUrl || undefined,
-        maxRetries: 2,
+        // Retries live in `withAiRetry` so both protocols share one policy;
+        // leaving the SDK's retries on would multiply attempts (3 × 3).
+        maxRetries: 0,
         dangerouslyAllowBrowser: true,
       });
     }

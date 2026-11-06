@@ -1,4 +1,5 @@
 import type { AppLanguage, ReportDocument } from "../domain/types";
+import type { AiPricing } from "./pricing";
 
 /**
  * Device-local AI configuration. Like the WebDAV password, the API key never
@@ -20,6 +21,11 @@ export interface AiConfig {
    * A non-empty value always wins over the preset default.
    */
   baseUrl: string;
+  /**
+   * User-supplied token prices (per million tokens) used only to show an
+   * estimate after a call. `null` hides cost estimates entirely.
+   */
+  pricing: AiPricing | null;
 }
 
 /**

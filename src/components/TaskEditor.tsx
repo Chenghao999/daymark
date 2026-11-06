@@ -4,7 +4,15 @@ import { format } from "date-fns";
 import type { Category, Task } from "../domain/types";
 import type { AiConfig } from "../ai/types";
 import type { TaskSuggestion } from "../ai/tasks";
-import { buildTaskPrompt, createAiProvider, parseTaskResponse, TASK_SUGGESTION_SCHEMA } from "../ai";
+import {
+  buildTaskPrompt,
+  costOf,
+  createAiProvider,
+  formatCost,
+  parseTaskResponse,
+  TASK_SUGGESTION_SCHEMA,
+} from "../ai";
+import type { AiCost } from "../ai";
 import { isAiConfigured } from "../settings/ai";
 import { useOnline } from "../hooks/useOnline";
 
@@ -83,6 +91,7 @@ export default function TaskEditor({
   const [quickText, setQuickText] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiCost, setAiCost] = useState<AiCost | null>(null);
   const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
 
   function applySuggestion(suggestion: TaskSuggestion) {
@@ -103,6 +112,7 @@ export default function TaskEditor({
     if (!text) return;
     setAiBusy(true);
     setAiError(null);
+    setAiCost(null);
     setSuggestions([]);
     try {
       const prompt = buildTaskPrompt({
@@ -116,6 +126,7 @@ export default function TaskEditor({
       });
       const answer = await createAiProvider(ai).completeJson(prompt, TASK_SUGGESTION_SCHEMA);
       const parsed = parseTaskResponse(answer.text, categories.map((category) => category.id));
+      setAiCost(costOf(answer.usage, ai.pricing));
       const [first, ...rest] = parsed;
       if (!first) {
         setAiError(t("task.aiNoTasks"));
@@ -251,6 +262,9 @@ export default function TaskEditor({
               </div>
             )}
             {aiError && <p className="error">{aiError}</p>}
+            {aiCost && (
+              <p className="muted small">{t("ai.costShort", { cost: formatCost(aiCost) })}</p>
+            )}
           </div>
         )}
 

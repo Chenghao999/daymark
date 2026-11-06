@@ -4,8 +4,11 @@ import type { AiConfig, AiFeature, AiUsage } from "../../ai/types";
 import {
   aiContextSummary,
   buildPrompt,
+  costOf,
   createAiProvider,
   estimatePrompt,
+  formatCost,
+  formatMoney,
   saveAiOutput,
 } from "../../ai";
 import type { AppLanguage, ReportDocument } from "../../domain/types";
@@ -31,6 +34,9 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onUse
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<AiUsage | null>(null);
+  const [retrying, setRetrying] = useState<{ attempt: number; total: number; seconds: string } | null>(
+    null,
+  );
 
   const prompt = useMemo(
     () => buildPrompt({ feature, language, report, userName }),
@@ -38,6 +44,11 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onUse
   );
   const summary = useMemo(() => aiContextSummary(report), [report]);
   const estimate = useMemo(() => estimatePrompt(prompt), [prompt]);
+  const inputCost = useMemo(
+    () => costOf({ inputTokens: estimate.inputTokens, outputTokens: 0 }, ai.pricing),
+    [estimate.inputTokens, ai.pricing],
+  );
+  const cost = costOf(usage, ai.pricing);
 
   function choose(next: AiFeature) {
     setFeature(next);
@@ -46,19 +57,29 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onUse
     setCopied(false);
     setError(null);
     setUsage(null);
+    setRetrying(null);
   }
 
   async function generate() {
     setBusy(true);
     setError(null);
     setSavedPath(null);
+    setRetrying(null);
     try {
-      const answer = await createAiProvider(ai).complete(prompt);
+      const answer = await createAiProvider(ai, {
+        onRetry: ({ attempt, totalAttempts, delayMs }) =>
+          setRetrying({
+            attempt,
+            total: totalAttempts,
+            seconds: delayMs % 1000 === 0 ? String(delayMs / 1000) : (delayMs / 1000).toFixed(1),
+          }),
+      }).complete(prompt);
       setResult(answer.text);
       setUsage(answer.usage ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
+      setRetrying(null);
       setBusy(false);
     }
   }
@@ -121,11 +142,26 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onUse
         <p className="muted small">
           {t("ai.estimate", { chars: estimate.characters, tokens: estimate.inputTokens })}
         </p>
+        {result === null && inputCost && (
+          <p className="muted small">
+            {t("ai.estimatedInputCost", { cost: formatCost(inputCost) })}
+          </p>
+        )}
 
         <details className="ai-preview">
           <summary>{t("ai.preview")}</summary>
           <pre>{prompt.user}</pre>
         </details>
+
+        {retrying && (
+          <p className="muted small">
+            {t("ai.retrying", {
+              seconds: retrying.seconds,
+              attempt: retrying.attempt,
+              total: retrying.total,
+            })}
+          </p>
+        )}
 
         {result === null ? (
           <div className="button-row">
@@ -169,6 +205,15 @@ export default function AiPanel({ report, language, userName, ai, dataDir, onUse
             {usage && (
               <p className="muted small">
                 {t("ai.usage", { input: usage.inputTokens, output: usage.outputTokens })}
+              </p>
+            )}
+            {cost && (
+              <p className="muted small">
+                {t("ai.cost", {
+                  total: formatCost(cost),
+                  input: formatMoney(cost.input, cost.currency),
+                  output: formatMoney(cost.output, cost.currency),
+                })}
               </p>
             )}
           </>

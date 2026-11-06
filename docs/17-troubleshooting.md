@@ -108,7 +108,23 @@ The full safe procedure is `16-data-sync-operations.md`.
 进入报告，需先“转为本地任务”。导入默认手动，也可勾选“打开 Daymark 时导入”，
 或设为在应用打开时每 15/30/60 分钟自动导入；关闭应用后不会同步。
 
-## 5. Reports and export
+## 5. AI assistant
+
+| Symptom | Cause | Action |
+|---|---|---|
+| The AI assistant button is missing | The assistant is disabled, or no API key is saved on this device | Enable it in Settings and paste a key; the key lives in the OS credential store (device-local fallback) and is not synced. |
+| HTTP 401 or 403 | Wrong or revoked key, or a relay that needs an extra header | Re-enter the key; check the base URL and model against the provider's documentation. Authentication errors are not retried. |
+| A request pauses and shows a countdown | A rate limit, timeout, server error or dropped connection; Daymark retries twice with exponential backoff | Wait for the retry. If it keeps failing, check your quota or the provider's status page; auth and bad-request errors fail immediately. |
+| No cost estimate appears | Token prices are empty in Settings | Enter the input and output price per million tokens. Daymark never fetches prices, so update them when the provider changes them. |
+| The estimate differs from the bill | Prices are out of date, cached or reasoning tokens are billed differently, or the provider applies a minimum | Correct the prices; the provider's usage page is authoritative. |
+| A generated answer is not in `_ai/` | **Save to `_ai/`** was not pressed, or the data folder changed | Press Save; check Settings → Data location. **Use in export** does not create an `_ai/` file. |
+
+**中文要点：** AI 按钮不出现通常是未启用或本机没有密钥。401/403 是密钥问题，
+不会自动重试；限流、超时、5xx 或断网会自动重试两次并显示倒计时。费用估算只在
+设置里填了 token 单价时出现，且不联网取价，以服务商账单为准。结果只有点
+“保存到 `_ai/`”才会落盘。
+
+## 6. Reports and export
 
 | Symptom | Cause | Action |
 |---|---|---|
@@ -126,7 +142,7 @@ The full safe procedure is `16-data-sync-operations.md`.
 **中文要点：** 报告边界由“周起始日/考核月起始日”决定；重新打开任务会清除完成
 时间，所以它不再出现在历史报告里。
 
-## 6. Language and labels
+## 7. Language and labels
 
 | Symptom | Cause | Action |
 |---|---|---|
@@ -138,7 +154,7 @@ The full safe procedure is `16-data-sync-operations.md`.
 **中文要点：** 出现英文兜底说明中文键缺失；两个语言文件的键集合必须完全一致。
 语言本身保存在 `_settings.md`，会随文件夹同步。
 
-## 7. Build and development
+## 8. Build and development
 
 | Error | Cause | Action |
 |---|---|---|
@@ -159,7 +175,7 @@ The full safe procedure is `16-data-sync-operations.md`.
 `/opt/homebrew/opt/rustup/bin` 在 `PATH` 最前面；`gen/schemas` 是生成物，改完
 权限要重新构建。
 
-## 8. Platform notes
+## 9. Platform notes
 
 ### macOS
 
@@ -186,7 +202,7 @@ The full safe procedure is `16-data-sync-operations.md`.
 **中文要点：** macOS 未签名需右键打开；Windows 需要 WebView2；数据文件夹不要
 放在网络共享盘上；`_settings.md` 与日期文件必须保存为 UTF-8。
 
-## 9. When it is a known limitation, not a bug
+## 10. When it is a known limitation, not a bug
 
 Read `15-user-guide.md` §11 before filing an issue:
 
@@ -205,7 +221,7 @@ Read `15-user-guide.md` §11 before filing an issue:
 - no duration blocks in the week grid;
 - reports use built-in Word styles.
 
-## 10. Reporting a problem
+## 11. Reporting a problem
 
 Include:
 

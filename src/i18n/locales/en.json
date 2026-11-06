@@ -227,6 +227,11 @@
     "aiBaseUrlHint": "Leave empty to use the provider's default endpoint. For a relay or a vendor not listed, enter its base address; the app appends /v1/messages or /chat/completions.",
     "aiModel": "Model name",
     "aiModelHint": "Any model name the endpoint accepts. Presets are suggestions only.",
+    "aiPricing": "Token pricing (optional)",
+    "aiPriceInput": "Input price / 1M tokens",
+    "aiPriceOutput": "Output price / 1M tokens",
+    "aiCurrency": "Currency",
+    "aiPricingHint": "Copy the provider's current input and output price per million tokens to see an estimate after each call. Both prices are needed; empty fields hide estimates. Daymark does not bill you or fetch prices; your provider's invoice is authoritative.",
     "aiPrivacy": "Only the selected report's title, period, categories and task titles are sent. Notes, the API key and local paths are never included. Nothing is written until you press Save."
   },
   "ai": {
@@ -235,7 +240,11 @@
     "featureReview": "Retrospective",
     "context": "Sends {{sections}} categories and {{items}} items (~{{chars}} characters).",
     "estimate": "{{chars}} characters in total — roughly {{tokens}} input tokens.",
+    "estimatedInputCost": "Estimated input cost: about {{cost}} (output not included yet).",
     "usage": "Used {{input}} input and {{output}} output tokens.",
+    "cost": "Estimated cost: {{total}} (input {{input}}, output {{output}}).",
+    "costShort": "Estimated cost: {{cost}}.",
+    "retrying": "The request failed; retrying in {{seconds}} s (attempt {{attempt}} of {{total}})…",
     "preview": "Preview what will be sent",
     "generate": "Generate",
     "retry": "Try again",

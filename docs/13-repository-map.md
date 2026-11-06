@@ -140,7 +140,9 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `transport.ts` | `HttpTransport`, `fetchTransport`, `tauriTransport` (`invoke("ai_request")`) and `defaultTransport()`. Keeps CORS and the long timeout out of the provider. |
 | `output.ts` | `aiOutputPath`, `saveAiOutput`: writes `_ai/YYYY-MM-DD-<kind>-HHmmss.md` in the data folder. |
 | `usage.ts` | `estimateTokens(text)`, `estimatePrompt(prompt)`: rough Latin/CJK character-based estimate shown before a request. Pure. |
-| `index.ts` | The public entry: `createAiProvider(config)` picks the provider and resolves the endpoint (`baseUrlFor`), plus re-exports of the pure helpers and types. |
+| `pricing.ts` | `AiPricing`, `normalizePricing`, `costOf`, `formatCost`, `formatMoney`: optional user-supplied per-million-token prices and the resulting estimate. No built-in price table and no network access. Pure. |
+| `retry.ts` | `withAiRetry`, `isRetryableAiError`: exponential backoff with jitter around any `AiProvider`; retries 408/429/5xx and network failures, never auth or bad-request errors. Injectable sleep/random/`onRetry`. |
+| `index.ts` | The public entry: `createAiProvider(config, retry?)` picks the provider, resolves the endpoint (`baseUrlFor`) and wraps it in the shared retry policy, plus re-exports of the pure helpers and types. |
 
 ### 3.5 Device settings (`src/settings/`)
 
@@ -148,7 +150,7 @@ when debugging. Keeping the surface small is what makes a module replaceable
 |---|---|
 | `store.ts` | `SyncedSettings`, `AppSettings`, defaults, `loadSettings`, `saveSettings`, `sanitize`, `syncedPart`. `dataDir` is device-local; the rest is mirrored to `_settings.md`. |
 | `webdav.ts` | Device-local `WebDavConfig` in `localStorage` (`daymark.webdav.v1`), defaults, the optional in-app sync interval and `isWebDavConfigured`. The password is kept out of that key: it goes to the OS credential store (or `daymark.secret.webdav.password` until the keychain write succeeds) and never enters `_settings.md`. |
-| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name and `isAiConfigured`. Old configs are mapped to the closest preset. The API key goes to the OS credential store (or `daymark.secret.ai.apiKey`), never into `_settings.md`. |
+| `ai.ts` | Device-local `AiConfig` in `localStorage` (`daymark.ai.v1`): provider preset, protocol, base URL, any model name, optional token prices and `isAiConfigured`. Old configs are mapped to the closest preset. The API key goes to the OS credential store (or `daymark.secret.ai.apiKey`), never into `_settings.md`; malformed prices turn estimates off. |
 | `caldav.ts` | Device-local `CalDavSettings` in `localStorage` (`daymark.caldav.v1`): URL, username, selected calendars, per-calendar ctag/UID/occurrence-key cursor, detached series UIDs and the optional in-app import interval. `isCalDavConfigured` / `isCalDavReady`. Sanitises malformed entries instead of throwing. The password goes to the OS credential store (or `daymark.secret.caldav.password`), never into `_settings.md`. |
 | `secrets.ts` | `readSecret`, `writeSecret`, `queueSecret`, `hydrateSecret`, `scrubStoredSecret`: OS-keychain access through `secret_get` / `secret_set`, a crash-safe device-local fallback, debounced writes while typing, migration of credentials saved by older builds, and scrubbing the old field. |
 
@@ -156,15 +158,15 @@ when debugging. Keeping the surface small is what makes a module replaceable
 
 | File | Responsibility |
 |---|---|
-| `components/TaskEditor.tsx` | Modal form for creating/editing a task; validates the title; emits a `TaskDraft`. When AI is configured it also shows the one-sentence quick fill (M5). A CalDAV task opens it read-only, with "turn into local task" instead of save/delete. |
+| `components/TaskEditor.tsx` | Modal form for creating/editing a task; validates the title; emits a `TaskDraft`. When AI is configured it also shows the one-sentence quick fill (M5) and, if prices are set, the estimated cost of the call. A CalDAV task opens it read-only, with "turn into local task" instead of save/delete. |
 | `features/calendar/WeekView.tsx` | Week grid that honours `weekStartsOn`. Exports `taskDateKey` and `tasksForDay`, reused by the other views. |
 | `features/calendar/DayView.tsx` | Single-day list grouped by status, plus the backlog. |
 | `features/calendar/MonthView.tsx` | Month grid with per-day task counts; honours `weekStartsOn`; clicking a day opens the day view. |
 | `features/reports/ReportsView.tsx` | Daily/Weekly/Monthly/Yearly tabs, assessment-period hint, live preview, numbering selector, DOCX export, AI entry point, and the pending AI appendix for the next export. |
-| `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, generate, editable result, copy, save to `_ai/` and **Use in export**. |
+| `features/reports/AiPanel.tsx` | AI modal: feature switch, context summary, exact-text preview, input-cost estimate, generate with a visible retry wait, editable result, token usage and estimated cost, copy, save to `_ai/` and **Use in export**. |
 | `features/reports/aiAppendix.ts` | `parseAiMarkdown`: pure conversion of an AI answer into heading / bullet / paragraph / blank blocks, shared by the DOCX exporter. |
 | `features/reports/exportDocx.ts` | Builds a `docx` document from a `ReportDocument`, optionally appends the reviewed AI answer as a labelled section after a page break, asks for a path, writes via `write_file_bytes`. |
-| `features/settings/SettingsView.tsx` | Language, appearance (system/light/dark), week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync/startup/interval, status, conflict list), AI card (provider preset, protocol for custom endpoints, base URL, key, model, privacy), CalDAV card (URL, credentials, discover/select calendars, import now/startup/interval, last sync, status, privacy), category add/archive, device ID display. |
+| `features/settings/SettingsView.tsx` | Language, appearance (system/light/dark), week start, assessment month start day, assessment year start month, report signature name, numbering, scan interval, data folder, WebDAV card (URL, remote folder, credentials, test/sync/startup/interval, status, conflict list), AI card (provider preset, protocol for custom endpoints, base URL, key, model, optional token prices, privacy), CalDAV card (URL, credentials, discover/select calendars, import now/startup/interval, last sync, status, privacy), category add/archive, device ID display. |
 | `hooks/useOnline.ts` | `useOnline()`: `navigator.onLine` plus online/offline events; disables AI buttons while offline. |
 
 ### 3.7 Internationalisation (`src/i18n/`)
@@ -193,7 +195,9 @@ when debugging. Keeping the surface small is what makes a module replaceable
 | `mergeFiles.test.ts` | Settings per-key three-way merge with and without a base; category edits, additions, deletions and delete-vs-edit. |
 | `aiPrompt.test.ts` | Outline rendering, context counts, prompt per feature/language, author inclusion, no ids or paths. |
 | `aiAppendix.test.ts` | AI answer Markdown → heading (clamped depth), bullet, blockquote, paragraph and blank blocks; inline markers removed; code fences and horizontal rules handled. |
-| `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths. |
+| `aiSettings.test.ts` | Defaults, round-trip, unknown model, malformed JSON, opt-in + key rule, unique output paths, pricing normalization and invalid-price fallback. |
+| `aiPricing.test.ts` | Price validation (missing/negative/NaN/out-of-range), currency defaulting and capping, input/output/total cost, and formatting of fractional-cent amounts. |
+| `aiRetry.test.ts` | Retry after 5xx/429/network errors, no retry on 4xx, exponential delays, cap, exhaustion, `completeJson`, `onRetry` progress and error classification. |
 | `caldavIcs.test.ts` | iCalendar parsing: all-day, UTC, `TZID`, floating time, folding, `RRULE` + `EXDATE` + `COUNT`, all-day `UNTIL`, cancelled, `RECURRENCE-ID` replacement/cancellation, orphan override, `THISANDFUTURE`/`THISANDPRIOR` shift/cancel/closest-wins, unknown TZID, missing `UID`/`DTSTART`. |
 | `caldavClient.test.ts` | URL normalisation, href resolution, namespace-less multistatus, CDATA, discovery chain, ctag fallback, REPORT body/content-type/depth, typed 401. |
 | `caldavImport.test.ts` | Create/update/unchanged/delete planning, category match by name, recurring occurrence retention, series deletion, cancelled series vs cancelled occurrence, vanished occurrence via `previousKeys`, missing cursor, detached series, `seriesUidOf`. |

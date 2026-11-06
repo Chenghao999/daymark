@@ -45,6 +45,7 @@ describe("AI settings", () => {
       apiKey: "sk-test",
       model: "deepseek-chat",
       baseUrl: "https://ai.example.com/v1",
+      pricing: { inputPerMillion: 0.27, outputPerMillion: 1.1, currency: "USD" },
     };
     saveAiSettings(config);
     expect(loadAiSettings()).toEqual(config);
@@ -53,6 +54,41 @@ describe("AI settings", () => {
       "",
     );
     expect(storage.getItem("daymark.secret.ai.apiKey")).toBe("sk-test");
+  });
+
+  it("normalizes stored pricing and ignores malformed prices", () => {
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          provider: "openai",
+          pricing: { inputPerMillion: 0.27, outputPerMillion: 1.1, currency: " cny " },
+        }),
+      }),
+    );
+    expect(loadAiSettings().pricing).toEqual({
+      inputPerMillion: 0.27,
+      outputPerMillion: 1.1,
+      currency: "cny",
+    });
+
+    // A bad price disables estimates; it never silently becomes zero.
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({
+        "daymark.ai.v1": JSON.stringify({
+          pricing: { inputPerMillion: -1, outputPerMillion: 1.1 },
+        }),
+      }),
+    );
+    expect(loadAiSettings().pricing).toBeNull();
+
+    // Configs saved before pricing existed simply have none.
+    vi.stubGlobal(
+      "localStorage",
+      fakeStorage({ "daymark.ai.v1": JSON.stringify({ provider: "openai" }) }),
+    );
+    expect(loadAiSettings().pricing).toBeNull();
   });
 
   it("scrubs an API key saved by an older build after hydration", () => {
@@ -209,6 +245,7 @@ describe("AI settings", () => {
       protocol: "anthropic" as const,
       baseUrl: "",
       model: DEFAULT_AI.model,
+      pricing: null,
     };
     expect(isAiConfigured({ ...base, enabled: false, apiKey: "k" })).toBe(false);
     expect(isAiConfigured({ ...base, enabled: true, apiKey: "  " })).toBe(false);
