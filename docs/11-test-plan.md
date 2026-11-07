@@ -36,7 +36,7 @@
 | `ai/usage` | Latin and CJK rates, mixed scripts, prompt halves counted, rounding never fractional |
 | `ai/providers/openai` | URL and bearer header, message body, usage mapping, preset endpoint resolution, injected transport, `json_schema` → `json_object` retry on 4xx, `max_tokens` → `max_completion_tokens` retry, HTTP status in the error, empty answer rejected |
 | `settings/store` | theme normalization (system/light/dark, junk → system) and that the theme is not part of the synced file |
-| Template validation (P1) | missing required placeholder, unknown placeholder, empty sections |
+| `reports/template` | language-specific template path and local timestamp; known/unknown placeholder detection; missing `{{sections}}` rejected; inline placeholders replaced, including a placeholder split across runs by Word; `{{sections}}` replaced by the generated headings and bullets while template text around it is kept; unknown placeholders left as text and reported; AI appendix appended after the sections; 20 MB cap |
 
 WebDAV network behaviour is **not** covered by unit tests: `webdav_request` and
 real servers must be exercised by hand (or by a future `rclone serve webdav`
@@ -67,7 +67,7 @@ Current suites: `numbering.test.ts`, `reports.test.ts`, `periods.test.ts`,
 `openaiProvider.test.ts`, `theme.test.ts`, `caldavIcs.test.ts`,
 `caldavClient.test.ts`, `caldavImport.test.ts`, `caldavSettings.test.ts`,
 `secrets.test.ts`, `aiAppendix.test.ts`, `aiPricing.test.ts`,
-`aiRetry.test.ts`.
+`aiRetry.test.ts`, `reportTemplate.test.ts`.
 
 AI provider calls are also **not** covered: tests cover prompt construction,
 settings parsing and output paths. Verifying the SDK/API path requires a real
@@ -110,6 +110,17 @@ Rust 侧跑 `cargo check`。CI 未通过不得合并，本地用 `npm run verify
 10. With a wrong API key, the error appears immediately (no retry); while
     offline or against a 500/429 endpoint, the panel shows the retry wait and
     succeeds on a later attempt.
+11. Put a `report.en.docx` into `<data folder>/templates/` with a title, a
+    paragraph using `{{title}}`/`{{period}}`/`{{completed_count}}`, and a
+    paragraph containing only `{{sections}}`; export: the saved file keeps the
+    template's styles, headers and images, the placeholders are replaced and the
+    sections appear where `{{sections}}` stood.
+12. Rename the template to `report.zh-CN.docx` while the UI stays English: the
+    export silently uses the built-in layout (there is no English template).
+    Delete the template: same silent fallback. Add `{{brand_colour}}` to a
+    template: it stays as text and the status line lists it. Replace the
+    template with a non-DOCX file: the export falls back to the built-in layout
+    and the status says the template was ignored.
 
 ## 3. Manual acceptance checklist
 

@@ -167,6 +167,52 @@ simply returns to the app. The suggested file name is
 `<report title>-<period>.docx`, with characters `\ / : * ? " < > |` replaced by
 `-`.
 
+### Custom DOCX template
+
+You can export into your own Word design instead of the built-in layout:
+
+1. Export a report once and open the `.docx` in Word (or start from any
+   document). Keep the fonts, styles, header, footer and images you want.
+2. Add these placeholders as ordinary text:
+
+   | Placeholder | Replaced with |
+   |---|---|
+   | `{{title}}` | the report title |
+   | `{{period}}` | the period label, e.g. `2026-11-02 ~ 2026-11-08` |
+   | `{{generated_at}}` | export time, `YYYY-MM-DD HH:mm` |
+   | `{{completed_count}}` | number of completed items |
+   | `{{planned_count}}` | number of planned items |
+   | `{{sections}}` | every category heading and its bullet items |
+
+   `{{sections}}` must be alone in its own paragraph; that paragraph is replaced
+   by the generated list. The other placeholders can sit inside sentences.
+3. Save the file as `<data folder>/templates/report.en.docx` for English or
+   `report.zh-CN.docx` for Simplified Chinese. The `templates` folder is created
+   by hand; Daymark never writes or overwrites it.
+4. Export again. Word's styles are preserved, so the report inherits the
+   template's look; the AI appendix (if **Use in export** was pressed) appears
+   after the sections.
+
+Behaviour and limits:
+
+- A missing template is normal: export silently uses the built-in layout.
+- A template that cannot be read, is not a valid `.docx`, is larger than 20 MB,
+  or has no `{{sections}}` placeholder is ignored; the status line says the
+  built-in layout was used.
+- Unrecognised placeholders (for example `{{brand_colour}}`) are left in the
+  document as text and listed in the status line, so a typo is visible.
+- Only the placeholders above are supported in 0.1. The structure of the
+  sections is generated as a whole: there are no per-item placeholders and no
+  paragraph repetition.
+- Templates travel with the data folder if you keep it in a sync location.
+
+**中文要点：** 想用自己的 Word 版式，可把导出的 DOCX 改好样式、放入
+`{{title}}`、`{{period}}`、`{{generated_at}}`、`{{completed_count}}`、
+`{{planned_count}}`，并单独一段放 `{{sections}}`，保存为
+`<数据文件夹>/templates/report.zh-CN.docx`（英文用 `report.en.docx`）。
+模板缺失或无法读取时自动退回内置版式；未知占位符会原样保留并在状态栏提示。
+0.1 不支持逐条目占位符或段落重复。
+
 **中文要点：** 报告完全由任务和完成记录推导。已完成=周期内有完成时间；计划中=
 周期内排期且未完成。周起始日、考核月起始日、考核年起始月都在设置里配置。
 
@@ -521,6 +567,7 @@ choose the copied folder on first launch.
 | See only one day | Click the day header in the week view, or a day in the month view. |
 | Mark work done | Click the circle next to the task, or change `[ ]` to `[x]` in the file. |
 | Generate this week's report | Reports → Weekly → check the period → Export DOCX. |
+| Export with your own Word design | Save a template as `<data folder>/templates/report.<language>.docx` (see §7). |
 | Use another language | Settings → Language. |
 | Change the week start | Settings → Week starts on. |
 | Change report boundaries | Settings → Assessment month / Assessment year. |

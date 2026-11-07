@@ -136,11 +136,16 @@ The full safe procedure is `16-data-sync-operations.md`.
 | Export button is disabled | The report has no sections | Add or schedule work in the period, or choose another period. |
 | Export fails | Target folder not writable, path invalid, or IPC error | Choose a writable folder; read the error message in the status line. |
 | Nothing happens after choosing a path | The save dialog returned `null` (cancel) | Not an error; run export again. |
-| DOCX opens with unexpected styling | The export deliberately uses Word's built-in styles | Restyle in Word, or wait for the template engine (doc 08). |
+| DOCX opens with unexpected styling | No template was found for this language, so the built-in styles were used | Put `templates/report.en.docx` or `report.zh-CN.docx` inside the data folder (see doc 15 §7); export again. |
+| The status line says the template was ignored | The file is not a readable `.docx`, is over 20 MB, or its `{{sections}}` placeholder is missing | Open it in Word, add a paragraph containing exactly `{{sections}}`, and save it; check the file extension is `.docx`, not `.doc`. |
+| Unknown placeholders are left as text | The name is not in the 0.1 placeholder set | Use `title`, `period`, `generated_at`, `completed_count`, `planned_count` or `sections` (see doc 08 §2). Per-item placeholders are not supported. |
+| Template edits have no effect | The file is in the wrong place or for the other language | Paths are `<data folder>/templates/report.en.docx` and `report.zh-CN.docx`, chosen by the UI language. |
 | Chinese text looks wrong in the file name | Characters were sanitised (`\ / : * ? " < > |` → `-`) | Expected. |
 
 **中文要点：** 报告边界由“周起始日/考核月起始日”决定；重新打开任务会清除完成
-时间，所以它不再出现在历史报告里。
+时间，所以它不再出现在历史报告里。自定义模板放在
+`<数据文件夹>/templates/report.<语言>.docx`；缺失、无法读取、超过 20 MB 或缺少
+`{{sections}}` 时自动退回内置版式，未知占位符原样保留并在状态栏提示。
 
 ## 7. Language and labels
 
@@ -219,7 +224,9 @@ Read `15-user-guide.md` §11 before filing an issue:
   no write-back, VTODO, or OS background sync);
 - no reminders, search or tags yet;
 - no duration blocks in the week grid;
-- reports use built-in Word styles.
+- reports use Word's built-in styles unless you supply
+  `templates/report.<language>.docx`; templates support the document-level
+  placeholders listed in doc 08, not per-item repetition;
 
 ## 11. Reporting a problem
 

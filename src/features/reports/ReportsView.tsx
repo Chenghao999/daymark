@@ -110,8 +110,21 @@ export default function ReportsView({
     setExporting(true);
     setStatus(null);
     try {
-      const path = await exportReportDocx(report, language, aiText);
-      setStatus(path ? t("reports.exported", { path }) : null);
+      const result = await exportReportDocx(report, language, aiText, dataDir);
+      if (!result.path) {
+        setStatus(null);
+      } else if (result.template === "ignored") {
+        setStatus(t("reports.exportedTemplateIgnored", { path: result.path }));
+      } else if (result.unknownPlaceholders.length > 0) {
+        setStatus(
+          t("reports.exportedTemplateUnknown", {
+            path: result.path,
+            names: result.unknownPlaceholders.join(", "),
+          }),
+        );
+      } else {
+        setStatus(t("reports.exported", { path: result.path }));
+      }
     } catch (cause) {
       setStatus(t("reports.exportFailed", { message: cause instanceof Error ? cause.message : String(cause) }));
     } finally {

@@ -56,7 +56,7 @@ Priority: **P0** must ship in 0.1 · **P1** should ship · **P2** optional.
 | F-12 | Daily report | P0 | done |
 | F-13 | Weekly report | P0 | done (configurable week start) |
 | F-14 | Monthly report | P0 | done (assessment month) |
-| F-15 | Template placeholder engine | P1 | partial (built-in styles) |
+| F-15 | Template placeholder engine | P1 | v1 done: `templates/report.<lang>.docx` patched in place, built-in fallback |
 | F-16 | DOCX export | P0 | done |
 | F-17 | PDF export | P2 | not started |
 | F-18 | CalDAV account binding | P1 | done (discovery, device-local credentials) |

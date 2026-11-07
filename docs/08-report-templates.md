@@ -1,9 +1,10 @@
 # 08 · Report Template Specification
 
-> 中文摘要：0.1 使用 Word 内置样式直接生成 DOCX；P1 引入外置模板，Daymark 只负责
-> 替换占位符，不重建样式。本文定义占位符字典与校验规则。
+> 中文摘要：0.1 使用 Word 内置样式直接生成 DOCX，同时支持用户放置
+> `templates/report.<language>.docx` 外置模板；Daymark 只替换文档级占位符，
+> 保留模板的样式、页眉页脚与图片，不重建版式。本文定义占位符字典与回退规则。
 
-## 1. 0.1 behaviour
+## 1. Built-in layout
 
 The exporter builds a `docx` document with:
 
@@ -12,7 +13,7 @@ The exporter builds a `docx` document with:
 - `Heading 2` for the period label.
 - An italic summary line with completed/planned counts.
 - `Heading 1` per non-empty category, prefixed with the configured numbering.
-- `List Bullet` items, with the date right-aligned later if needed.
+- `List Bullet` items.
 
 The period label is produced by `reportPeriod`, so a monthly report may span
 e.g. `2026-09-26 ~ 2026-10-25` when the assessment month starts on the 26th.
@@ -20,7 +21,7 @@ e.g. `2026-09-26 ~ 2026-10-25` when the assessment month starts on the 26th.
 The document is written atomically (`write_file_bytes`) so a sync client never
 sees a half-written file.
 
-### AI appendix (implemented)
+### AI appendix
 
 When the user presses **Use in export** in the AI panel, the reviewed answer is
 attached to the next DOCX export as a separate section:
@@ -33,53 +34,80 @@ attached to the next DOCX export as a separate section:
 
 The appendix is rendered from the answer at export time. It is never written
 into day files, `_settings.md` or the WebDAV manifest, and it is cleared when
-the report period or type changes.
+the report period or type changes. In a template export the appendix is
+appended where `{{sections}}` sits.
 
-## 2. Template model (P1)
+## 2. Template model (implemented in 0.1)
 
 A template is a `.docx` the user edits in Word. Daymark does not draw styles; it
-only replaces placeholders.
+patches the existing package in place, so the template's fonts, styles, headers,
+footers and images are preserved.
 
 ### Placeholder dictionary
 
-| Placeholder | Meaning |
-|---|---|
-| `{{title}}` | report title |
-| `{{period}}` | period label |
-| `{{generated_at}}` | generation timestamp |
-| `{{completed_count}}` | number of completed items |
-| `{{planned_count}}` | number of planned items |
-| `{{sections}}` | all sections, rendered in order |
-| `{{category_heading}}` | heading for the current section |
-| `{{category_name}}` | category display name |
-| `{{items}}` | bullet list for the current section |
-| `{{item_text}}` / `{{item_date}}` | inside a repeated item block |
+| Placeholder | Meaning | Patched as |
+|---|---|---|
+| `{{title}}` | report title | inline paragraph replacement |
+| `{{period}}` | period label | inline paragraph replacement |
+| `{{generated_at}}` | generation timestamp, `YYYY-MM-DD HH:mm` local time | inline paragraph replacement |
+| `{{completed_count}}` | number of completed items | inline paragraph replacement |
+| `{{planned_count}}` | number of planned items | inline paragraph replacement |
+| `{{sections}}` | every report section, then the optional AI appendix | whole-document block replacement |
+
+Inline placeholders may share a paragraph with other text
+(`{{title}} · {{period}}`); the replacement keeps the paragraph and the runs
+around it. Word sometimes splits a placeholder across several runs — that is
+handled too. `{{sections}}` must stand in a paragraph of its own; that paragraph
+is replaced by the generated headings and bullets.
 
 ### Rules
 
 - Placeholders are matched literally, including the double braces.
-- Unknown placeholders are left untouched and reported in the validation panel.
-- A template missing `{{sections}}` is invalid (the report would be empty).
-- Section repetition: paragraphs containing `{{items}}` are repeated per item,
-  preserving the paragraph's style.
+- Unknown placeholders are left untouched as text and reported in the export
+  status line (e.g. `{{brand_colour}}`).
+- A template missing `{{sections}}` is invalid: the report would be empty, so
+  the exporter falls back to the built-in layout instead.
 - Chinese and English templates are separate files:
-  `templates/report.zh-CN.docx` and `templates/report.en.docx`.
+  `templates/report.zh-CN.docx` and `templates/report.en.docx`, chosen by the
+  report language.
+- The AI appendix, when the user chose **Use in export**, is included after the
+  report sections.
+- Headers, footers and images are preserved. They are static: there is no
+  placeholder support inside headers/footers in 0.1.
+
+### Not supported in 0.1
+
+The per-section and per-item placeholders proposed in earlier drafts
+(`{{category_heading}}`, `{{category_name}}`, `{{items}}`, `{{item_text}}`,
+`{{item_date}}`) and paragraph repetition are **not** implemented. The `docx`
+patcher replaces a paragraph once; it cannot repeat a styled paragraph per
+item. Report structure therefore comes from `{{sections}}` as a whole. These
+placeholders are left as text and reported as unknown. Per-item repetition is
+future work (see `19-roadmap.md`).
 
 ## 3. Numbering
 
 - The numbering prefix is generated, not written in the template.
-- `{{category_heading}}` already includes it (e.g. `一、项目开发`), so templates
-  must not add their own numbering.
+- Each generated section heading already includes it (e.g. `一、项目开发`), so
+  templates must not add their own numbering around `{{sections}}`.
 - Style is configured once in Settings and stored in `_settings.md`, so it
   travels with the data folder and both machines produce the same headings.
 
-## 4. Validation
+## 4. Validation and fallback
 
-Before export:
+Templates are a convenience, never a requirement — export never fails because
+of a template:
 
-1. Required placeholders present.
-2. Template readable and a valid ZIP/OOXML.
-3. At least one non-empty section, otherwise offer an empty report or cancel.
+1. If no template file exists for the current language, the built-in layout is
+   used silently (`template: "none"`).
+2. If the file exists but cannot be read, is not a valid DOCX, is larger than
+   20 MB, or lacks `{{sections}}`, the built-in layout is used and the status
+   line says the template was ignored (`template: "ignored"`).
+3. If the template renders, it is used even when it contains unknown
+   placeholders; those are listed in the status line
+   (`template: "used"`).
+4. The export button is disabled when the report has no sections, before any
+   template is considered.
 
 ## 5. Storage
 
@@ -88,5 +116,6 @@ Before export:
   change is not treated as an external data change.
 - A missing template falls back to the built-in exporter.
 - The app never overwrites a user template.
-
-Template loading is P1 and not implemented in 0.1.
+- Template files are read through the `read_file_bytes` Tauri command and are
+  treated as untrusted input: they are size-capped and parsed as OOXML, and a
+  parse failure only downgrades the export to the built-in layout.
