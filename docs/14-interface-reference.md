@@ -201,6 +201,75 @@ formatHeading(index: number, style: NumberingStyle): string
 | `arabic` | `1. ` / `2. ` |
 | `alpha` | `A. ` / `B. ` |
 
+### `exportDocx.ts` / `template.ts` / `docxBlocks.ts`
+
+```ts
+interface ReportExportResult {
+  path: string | null;                      // null = the save dialog was cancelled
+  template: "none" | "used" | "ignored";
+  unknownPlaceholders: readonly string[];
+}
+
+exportReportDocx(
+  report: ReportDocument,
+  language: "en" | "zh-CN",
+  aiText?: string | null,
+  dataDir?: string,
+): Promise<ReportExportResult>
+
+const TEMPLATE_PLACEHOLDERS: readonly [
+  "title", "period", "generated_at", "completed_count", "planned_count", "sections"
+];
+const REQUIRED_TEMPLATE_PLACEHOLDER = "sections";
+const MAX_TEMPLATE_BYTES = 20 * 1024 * 1024;
+class TemplateError extends Error {}
+
+templatePath(root: string, language: "en" | "zh-CN"): string  // <root>/templates/report.<lang>.docx
+formatTemplateTimestamp(date: Date): string                  // local "YYYY-MM-DD HH:mm"
+isKnownTemplatePlaceholder(name: string): name is TemplatePlaceholder
+
+inspectTemplate(bytes: Uint8Array): Promise<{
+  placeholders: readonly string[];
+  unknown: readonly string[];   // not replaced; left in the output as text
+  missingRequired: boolean;     // no {{sections}}
+}>
+
+renderReportTemplate(
+  template: Uint8Array,
+  input: {
+    report: ReportDocument;
+    language: "en" | "zh-CN";
+    generatedAt?: Date;         // defaults to now
+    aiText?: string | null;
+  },
+): Promise<TemplateInspection & { bytes: Uint8Array }>
+```
+
+Rules:
+
+1. `exportReportDocx` looks for the template only under Tauri and only when
+   `dataDir` is set. `template: "none"` means no template file existed;
+   `"used"` means it rendered; `"ignored"` means the file existed but was
+   unreadable, invalid, over 20 MB, or had no `{{sections}}` — the built-in
+   layout was used instead.
+2. Inline placeholders (`title`, `period`, `generated_at`,
+   `completed_count`, `planned_count`) are replaced as `PatchType.PARAGRAPH`
+   children, keeping the surrounding runs. A placeholder split across runs by
+   Word still matches.
+3. `{{sections}}` must occupy its own paragraph and is replaced as
+   `PatchType.DOCUMENT` by the generated headings/bullets plus the optional AI
+   appendix. A report with no sections still inserts one empty paragraph.
+4. `renderReportTemplate` throws `TemplateError` when `{{sections}}` is
+   missing; malformed OOXML throws from the `docx` patcher.
+5. Unknown placeholders are not errors: they stay as text and are returned in
+   `unknown` / `unknownPlaceholders`.
+6. The patch edits the existing package, so template styles, headers, footers
+   and images are preserved. There is no per-item repetition in 0.1.
+7. `docxBlocks.ts` owns the shared blocks: `sectionBlocks(report)` (one
+   `Heading 1` and `List Bullet` items per non-empty section) and
+   `aiAppendixBlocks(aiText, language)` (page break, labelled heading, italic
+   review note, parsed answer; empty when the text is blank).
+
 ## 4. Storage types and paths (`src/storage/types.ts`, `paths.ts`)
 
 ```ts
@@ -278,6 +347,7 @@ interface TreeSignature {
 
 readTextFile(path: string): Promise<string | null>   // null when missing
 writeTextFile(path: string, contents: string): Promise<void>
+readFileBytes(path: string): Promise<number[]>       // binary, e.g. a DOCX template
 createDirAll(path: string): Promise<void>
 listDir(path: string): Promise<DirEntry[]>           // sorted by name
 pathExists(path: string): Promise<boolean>
@@ -958,7 +1028,7 @@ Contract:
 
 ## 13. Tauri IPC commands (`src-tauri/src/lib.rs`)
 
-All fourteen commands are registered in one `generate_handler!` list. Rust structs
+All fifteen commands are registered in one `generate_handler!` list. Rust structs
 are serialised with `#[serde(rename_all = "camelCase")]`, so the TypeScript side
 sees `isDirectory`, `fileCount`, `latestMtimeMs`, `fingerprint`. The file commands
 have typed wrappers in `src/storage/fs.ts` (§5); `secret_get` / `secret_set` are
@@ -969,6 +1039,7 @@ wrapped by `src/settings/secrets.ts` (§16).
 | `tree_signature` | `{ root: string }` | `{ fileCount: number, latestMtimeMs: number \| null, fingerprint: string }` | `.md` only, depth ≤ 2, dotfiles skipped; a missing folder yields `{0, null, ""}`. `fingerprint` hashes path + size + mtime. Called by `sync/scanner.ts`. |
 | `read_text_file` | `{ path: string }` | `string \| null` | `null` when the file does not exist; other I/O failures return `string`. Called by `storage/client.ts`, `storage/settingsFile.ts`. |
 | `write_text_file` | `{ path: string, contents: string }` | `null` | Creates parent directories, writes `<path>.tmp`, renames over `<path>`. Called by the store and repository. |
+| `read_file_bytes` | `{ path: string }` | `number[]` | Reads a binary file; used for the user's DOCX template. The caller caps the size before parsing. |
 | `write_file_bytes` | `{ path: string, contents: number[] }` | `null` | Same atomic path; used by `exportDocx.ts`. |
 | `create_dir_all` | `{ path: string }` | `null` | Creates the data folder on open. |
 | `list_dir` | `{ path: string }` | `{ name: string, isDirectory: boolean }[]` | Sorted by name. |
@@ -1015,6 +1086,8 @@ Rules:
 | `save({ defaultPath, filters })` | `exportDocx.ts` | Choose the DOCX output path; `null` means cancelled. |
 | `invoke("tree_signature")` | `sync/scanner.ts` | Folder change polling. |
 | `invoke("read_text_file" / "write_text_file")` | `storage/fs.ts` | Text reads and atomic writes. |
+| `invoke("read_file_bytes")` | `storage/fs.ts` | Binary read for a user DOCX template. |
+| `invoke("write_file_bytes")` | `features/reports/exportDocx.ts` | Atomic binary write of the exported DOCX. |
 | `invoke("list_dir" / "path_exists" / "create_dir_all" / "remove_file" / "rename_path")` | `storage/fs.ts` | Store loading and cleanup. |
 | `invoke("webdav_request")` | `sync/webdav/client.ts`, `sync/caldav/client.ts` | WebDAV `PROPFIND`/`GET`/`PUT`/`MOVE`/`MKCOL` and CalDAV `PROPFIND`/`REPORT` transport. |
 | `invoke("ai_request")` | `ai/transport.ts` | OpenAI-compatible AI `POST`; bypasses WebView CORS and allows 120 s. |

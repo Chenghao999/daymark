@@ -81,6 +81,8 @@
     "empty": "No records in this period",
     "assessmentHint": "Assessment month starts on day {{day}}; assessment year starts in month {{month}}. Change these in Settings.",
     "exported": "Saved to {{path}}",
+    "exportedTemplateIgnored": "Saved to {{path}} with the built-in layout — the DOCX template could not be read or has no sections placeholder.",
+    "exportedTemplateUnknown": "Saved to {{path}}. Unknown template placeholders were left as text: {{names}}.",
     "exportFailed": "Export failed: {{message}}",
     "aiIncluded": "AI text will be appended to the DOCX export.",
     "previewAi": "Preview the AI text that will be appended",

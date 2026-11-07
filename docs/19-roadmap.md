@@ -53,12 +53,39 @@
 | M7 | AI providers + dark mode | M4 | Done: Anthropic, OpenAI, DeepSeek, Qwen, Moonshot, Zhipu, Gemini, OpenRouter and custom endpoints (§4.11); appearance follows the system or switches manually |
 | M8 | Automated packaging and release | M0 | Done: `.github/workflows/release.yml`, `npm run release` (doc 10 §7–8); first packaged `v0.1.0` on 2026-10-24, all four platforms succeeded, installers attached to the draft release |
 | M9 | OS keychain credentials | M3, M4, M6 | Done: `keyring` in `src-tauri`, `secret_get` / `secret_set`, `src/settings/secrets.ts`, migration from the old localStorage fields and keychain hydration before the app reports ready |
+| M10 | Report DOCX templates | M0, M1 | v1 done: `src/features/reports/template.ts`, `templates/report.<language>.docx` patched in place with the built-in layout as fallback (see §2.1) |
 
 Ordering note: M3 and M4 are independent and can proceed in parallel; both
 depend on M0's file contract, so **stabilise the Markdown format before
 connecting external capabilities**. M6 comes last because automatic merge needs
 clear conflict semantics, and those semantics should be proven by WebDAV sync
 first.
+
+### 2.1 Report DOCX templates · 报告 DOCX 模板（第一版，2026-11-07）
+
+Shipped as F-15 v1:
+
+- `exportDocx` looks for `<data folder>/templates/report.en.docx` or
+  `report.zh-CN.docx` (chosen by report language) through the new
+  `read_file_bytes` IPC command and patches it in place with `docx`'s
+  `patchDetector` / `patchDocument`. Word styles, headers, footers and images
+  survive; the app never writes the template folder.
+- Document-level placeholders: `{{title}}`, `{{period}}`, `{{generated_at}}`
+  (local `YYYY-MM-DD HH:mm`), `{{completed_count}}`, `{{planned_count}}`, and
+  `{{sections}}` (own paragraph, replaced by the derived headings/bullets and
+  the optional AI appendix). A placeholder split across Word runs still
+  matches.
+- Fallback: no template → built-in silently; unreadable/invalid/over 20 MB or
+  missing `{{sections}}` → built-in plus a status line saying the template was
+  ignored; unknown placeholders stay as text and are listed in the status line.
+- Deferred: per-section and per-item placeholders (`{{category_name}}`,
+  `{{items}}`, `{{item_text}}` …) and paragraph repetition, because the 0.1
+  patcher replaces each paragraph once. Headers/footers are static. See doc 08
+  §2 for the contract.
+
+**中文要点：** 用户把改好样式的 DOCX 放到数据文件夹的 `templates/` 下，Daymark
+只替换文档级占位符，保留模板样式、页眉页脚和图片。模板缺失或不可用时自动退回
+内置版式并在状态栏说明。逐条目占位符与段落重复留待后续版本。
 
 ---
 

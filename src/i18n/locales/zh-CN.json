@@ -81,6 +81,8 @@
     "empty": "本周期没有记录",
     "assessmentHint": "考核月从每月 {{day}} 日开始，考核年从 {{month}} 月开始。可在设置中修改。",
     "exported": "已保存到 {{path}}",
+    "exportedTemplateIgnored": "已使用内置版式保存到 {{path}}——DOCX 模板无法读取或缺少 sections 占位符。",
+    "exportedTemplateUnknown": "已保存到 {{path}}。模板中的未知占位符已按原样保留：{{names}}。",
     "exportFailed": "导出失败：{{message}}",
     "aiIncluded": "AI 文本将附加到 DOCX 导出文件。",
     "previewAi": "预览将附加的 AI 文本",

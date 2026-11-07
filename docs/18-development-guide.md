@@ -240,7 +240,22 @@ should stay in TypeScript.
 3. If the rule needs new data, extend `ReportInput` and the repository query.
 4. Update docs 08 and 14.
 
-### 5.5 Add an i18n key
+### 5.5 Add a report template placeholder
+
+1. Add the name to `TEMPLATE_PLACEHOLDERS` in
+   `src/features/reports/template.ts` (the type follows automatically).
+2. Add the matching entry to the `patches` object in
+   `renderReportTemplate`; use `PatchType.PARAGRAPH` for inline text and
+   `PatchType.DOCUMENT` only for block content.
+3. Add a case to `tests/reportTemplate.test.ts`, checking the rendered
+   `word/document.xml` through JSZip. Remember that the patcher may split the
+   replacement across runs, so assert on extracted text, not raw XML.
+4. Update the placeholder table in docs 08 and the user guide (doc 15 §7).
+5. If the placeholder requires repeating a styled paragraph per section or
+   item, stop: the `docx` patcher in 0.1 cannot do that. Extend the template
+   model in doc 08 first and add a test for the new contract.
+
+### 5.6 Add an i18n key
 
 1. Add the key to `src/i18n/locales/en.json`.
 2. Add the same key to `src/i18n/locales/zh-CN.json`.
@@ -250,7 +265,7 @@ should stay in TypeScript.
 A missing Chinese key silently falls back to English, which is why both files
 must change together. Doc 09 defines the key policy.
 
-### 5.6 Change the file format
+### 5.7 Change the file format
 
 1. Prefer an additive metadata key with a safe fallback.
 2. Change `src/storage/markdown.ts` only; never spread the grammar.

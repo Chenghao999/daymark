@@ -20,6 +20,11 @@ export function writeTextFile(path: string, contents: string): Promise<void> {
   return invoke("write_text_file", { path, contents });
 }
 
+/** Reads a binary file such as a user-supplied DOCX template. */
+export function readFileBytes(path: string): Promise<number[]> {
+  return invoke<number[]>("read_file_bytes", { path });
+}
+
 export function createDirAll(path: string): Promise<void> {
   return invoke("create_dir_all", { path });
 }

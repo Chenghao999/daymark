@@ -75,6 +75,12 @@ fn write_file_bytes(path: String, contents: Vec<u8>) -> Result<(), String> {
     write_atomic(&path, &contents)
 }
 
+/// Binary read, used to load a user-supplied DOCX template.
+#[tauri::command]
+fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    fs::read(&path).map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn create_dir_all(path: String) -> Result<(), String> {
     fs::create_dir_all(&path).map_err(|error| error.to_string())
@@ -241,6 +247,7 @@ pub fn run() {
             read_text_file,
             write_text_file,
             write_file_bytes,
+            read_file_bytes,
             create_dir_all,
             list_dir,
             path_exists,
